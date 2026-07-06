@@ -1,20 +1,35 @@
-import { spawn, spawnSync } from "node:child_process";
+﻿import { spawn, spawnSync } from "node:child_process";
 import { createServer } from "node:http";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 const CONTRACT_ONLY = process.argv.includes("--contract");
-const RELEASE_MODE =
+const RAW_RELEASE_MODE =
   process.argv.includes("--release") || process.env.BUBLI_TAURI_REAL_OAUTH_QA_MODE === "release";
-const RUNTIME_MODE = RELEASE_MODE ? "release" : "dev";
+const INSTALLED_RELEASE_MODE =
+  process.argv.includes("--installed-release") || process.env.BUBLI_TAURI_REAL_OAUTH_QA_MODE === "installed-release";
+const RELEASE_MODE = RAW_RELEASE_MODE || INSTALLED_RELEASE_MODE;
+const RUNTIME_MODE = INSTALLED_RELEASE_MODE ? "installed-release" : RAW_RELEASE_MODE ? "release" : "dev";
 const RELEASE_EXE_PATH = join("src-tauri", "target", "release", "bubli.exe");
 const RELEASE_EXE_ABSOLUTE_PATH = resolve(RELEASE_EXE_PATH);
+const NSIS_SETUP_PATH = join("src-tauri", "target", "release", "bundle", "nsis", "Bubli_0.1.0_x64-setup.exe");
+const PUBLIC_INSTALLER_PATH = join("public", "downloads", "windows", "Bubli-Windows-latest.exe");
+const PUBLIC_MANIFEST_PATH = join("public", "downloads", "windows", "manifest.json");
+const INSTALLED_EXE_PATH = join(
+  process.env.LOCALAPPDATA ?? join(process.env.USERPROFILE ?? "", "AppData", "Local"),
+  "Bubli",
+  "bubli.exe",
+);
+const INSTALLED_EXE_ABSOLUTE_PATH = resolve(INSTALLED_EXE_PATH);
 const DEFAULT_API_BASE_URL = RELEASE_MODE ? "https://bubli.n-e.kr" : "http://localhost:8080";
 const API_BASE_URL = stripTrailingSlash(process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE_URL);
 const TIMEOUT_MS = Number(process.env.BUBLI_TAURI_REAL_OAUTH_QA_TIMEOUT_MS ?? 300_000);
 const REPORTER_TIMEOUT_MS = Number(
-  process.env.BUBLI_TAURI_REAL_OAUTH_QA_REPORTER_TIMEOUT_MS ?? Math.max(10_000, TIMEOUT_MS - 15_000),
+  process.env.BUBLI_TAURI_REAL_OAUTH_QA_REPORTER_TIMEOUT_MS ?? Math.max(10_000, TIMEOUT_MS - 60_000),
+);
+const REPORTER_ATTEMPT_TIMEOUT_MS = Number(
+  process.env.BUBLI_TAURI_REAL_OAUTH_QA_ATTEMPT_TIMEOUT_MS ?? 30_000,
 );
 
 if (process.platform !== "win32") {
@@ -44,8 +59,32 @@ if (CONTRACT_ONLY) {
 }
 
 const localSyncFixture = createLocalSyncFixture();
-const { closeServer, eventUrl, mutateUrl, prepareUrl, qaEvents, reportPromise, reportUrl } = await startReportServer(localSyncFixture);
-const qaEnv = createQaEnv(reportUrl, eventUrl, localSyncFixture.folderPath, mutateUrl, prepareUrl);
+const {
+  closeServer,
+  deleteUrl,
+  eventUrl,
+  mutateUrl,
+  prepareUrl,
+  qaEvents,
+  reportPromise,
+  reportUrl,
+  watchCreateUrl,
+  watchDeleteUrl,
+  watchMutateUrl,
+} =
+  await startReportServer(localSyncFixture);
+const qaEnv = createQaEnv(
+  reportUrl,
+  eventUrl,
+  localSyncFixture.folderPath,
+  mutateUrl,
+  prepareUrl,
+  deleteUrl,
+  watchCreateUrl,
+  watchMutateUrl,
+  watchDeleteUrl,
+);
+const installedReleaseArtifactSnapshot = INSTALLED_RELEASE_MODE ? createInstalledReleaseArtifactSnapshot() : null;
 let child = null;
 let timeout = null;
 
@@ -60,7 +99,7 @@ console.log("");
 
 try {
   child = spawnTauri(qaEnv);
-  const report = await Promise.race([
+  const rawReport = await Promise.race([
     reportPromise,
     new Promise((_, reject) => {
       timeout = setTimeout(
@@ -69,6 +108,7 @@ try {
       );
     }),
   ]);
+  const report = decorateQaReport(rawReport);
 
   validateRealOAuthQaReport(report);
   const outputPaths = writeReport(report);
@@ -87,36 +127,71 @@ try {
   if (timeout) clearTimeout(timeout);
   closeServer();
   stopProcessTree(child?.pid);
-  localSyncFixture.cleanup();
+  try {
+    restoreInstalledReleaseArtifacts(installedReleaseArtifactSnapshot);
+  } finally {
+    localSyncFixture.cleanup();
+  }
 }
 
-function createQaEnv(reportUrl, eventUrl, localSyncFolderPath, localSyncMutateUrl, localSyncPrepareUrl) {
+function createQaEnv(
+  reportUrl,
+  eventUrl,
+  localSyncFolderPath,
+  localSyncMutateUrl,
+  localSyncPrepareUrl,
+  localSyncDeleteUrl,
+  localSyncWatchCreateUrl,
+  localSyncWatchMutateUrl,
+  localSyncWatchDeleteUrl,
+) {
   return {
     ...process.env,
     CARGO_BUILD_JOBS: process.env.CARGO_BUILD_JOBS ?? "1",
-    CARGO_PROFILE_RELEASE_CODEGEN_UNITS: process.env.CARGO_PROFILE_RELEASE_CODEGEN_UNITS ?? "256",
-    CARGO_PROFILE_RELEASE_OPT_LEVEL: process.env.CARGO_PROFILE_RELEASE_OPT_LEVEL ?? "1",
+    CARGO_PROFILE_RELEASE_CODEGEN_UNITS: process.env.CARGO_PROFILE_RELEASE_CODEGEN_UNITS ?? "16",
+    CARGO_PROFILE_RELEASE_OPT_LEVEL: process.env.CARGO_PROFILE_RELEASE_OPT_LEVEL ?? "3",
+    CARGO_PROFILE_RELEASE_STRIP: process.env.CARGO_PROFILE_RELEASE_STRIP ?? "symbols",
     NEXT_PUBLIC_API_BASE_URL: API_BASE_URL,
     NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN: "false",
     NEXT_PUBLIC_BUBLI_PREVIEW_DATA: "false",
     NEXT_PUBLIC_BUBLI_TAURI_AUTH_DIAGNOSTICS: "true",
     NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_FOLDER: localSyncFolderPath,
+    NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_DELETE_URL: localSyncDeleteUrl,
     NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_MUTATE_URL: localSyncMutateUrl,
     NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_PREPARE_URL: localSyncPrepareUrl,
     NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_QA: "true",
+    NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_WATCH_CREATE_URL: localSyncWatchCreateUrl,
+    NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_WATCH_DELETE_URL: localSyncWatchDeleteUrl,
+    NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_WATCH_MUTATE_URL: localSyncWatchMutateUrl,
     NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_SESSION_RESTORE_QA: "true",
     NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STABILITY_QA_MS: "15000",
     NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STOP_CLEANUP_QA: "true",
     NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA: "true",
     NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_EVENT_URL: eventUrl,
     NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_REPORT_URL: reportUrl,
+    NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_ATTEMPT_TIMEOUT_MS: String(REPORTER_ATTEMPT_TIMEOUT_MS),
     NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_TIMEOUT_MS: String(REPORTER_TIMEOUT_MS),
     NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE: "false",
   };
 }
 
 function spawnTauri(qaEnv) {
-  if (RELEASE_MODE) {
+  if (INSTALLED_RELEASE_MODE) {
+    buildInstalledReleaseTauri(qaEnv);
+    installReleaseBundle(qaEnv);
+
+    if (!existsSync(INSTALLED_EXE_PATH)) {
+      throw new Error(`Missing installed Tauri executable after NSIS install: ${INSTALLED_EXE_PATH}`);
+    }
+
+    return spawn(INSTALLED_EXE_PATH, [], {
+      env: qaEnv,
+      shell: false,
+      stdio: "inherit",
+    });
+  }
+
+  if (RAW_RELEASE_MODE) {
     buildReleaseTauri(qaEnv);
 
     if (!existsSync(RELEASE_EXE_PATH)) {
@@ -147,7 +222,7 @@ function spawnTauri(qaEnv) {
 
 function buildReleaseTauri(qaEnv) {
   console.log("Building QA-instrumented Tauri release executable...");
-  stopExistingReleaseExe();
+  stopProcessByPath(RELEASE_EXE_ABSOLUTE_PATH);
   const result = spawnSync(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", "npm.cmd run tauri -- build --no-bundle"], {
     env: qaEnv,
     shell: false,
@@ -159,7 +234,112 @@ function buildReleaseTauri(qaEnv) {
   }
 }
 
-function stopExistingReleaseExe() {
+function buildInstalledReleaseTauri(qaEnv) {
+  console.log("Building QA-instrumented Tauri NSIS installer...");
+  stopProcessByPath(INSTALLED_EXE_ABSOLUTE_PATH);
+  const result = spawnSync(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", "npm.cmd run tauri -- build"], {
+    env: qaEnv,
+    shell: false,
+    stdio: "inherit",
+  });
+
+  if (result.status !== 0) {
+    throw new Error(`Tauri installed-release build failed with exit code ${result.status ?? "unknown"}.`);
+  }
+
+  if (!existsSync(NSIS_SETUP_PATH)) {
+    throw new Error(`Missing Tauri NSIS installer: ${NSIS_SETUP_PATH}`);
+  }
+}
+
+function installReleaseBundle(qaEnv) {
+  console.log("Installing QA-instrumented Tauri NSIS bundle...");
+  stopProcessByPath(INSTALLED_EXE_ABSOLUTE_PATH);
+  const result = spawnSync(NSIS_SETUP_PATH, ["/S"], {
+    env: qaEnv,
+    shell: false,
+    stdio: "inherit",
+  });
+
+  if (result.status !== 0) {
+    throw new Error(`Tauri NSIS silent install failed with exit code ${result.status ?? "unknown"}.`);
+  }
+}
+
+function createInstalledReleaseArtifactSnapshot() {
+  if (!existsSync(PUBLIC_INSTALLER_PATH) || !existsSync(PUBLIC_MANIFEST_PATH)) {
+    console.log("Skipping public installer snapshot: public Windows installer or manifest is missing.");
+    return null;
+  }
+
+  const directory = mkdtempSync(join(tmpdir(), "bubli-public-installer-snapshot-"));
+  const installerPath = join(directory, "Bubli-Windows-latest.exe");
+  const manifestPath = join(directory, "manifest.json");
+  copyFileSync(PUBLIC_INSTALLER_PATH, installerPath);
+  copyFileSync(PUBLIC_MANIFEST_PATH, manifestPath);
+  return { directory, installerPath, manifestPath };
+}
+
+function restoreInstalledReleaseArtifacts(snapshot) {
+  if (!snapshot) {
+    return;
+  }
+
+  try {
+    copyFileSync(snapshot.installerPath, PUBLIC_INSTALLER_PATH);
+    copyFileSync(snapshot.manifestPath, PUBLIC_MANIFEST_PATH);
+    copyFileSync(snapshot.installerPath, NSIS_SETUP_PATH);
+    console.log("Restored public Windows installer artifacts after QA-instrumented install.");
+    reinstallPublicReleaseBundle(snapshot.installerPath);
+  } finally {
+    rmSync(snapshot.directory, { force: true, recursive: true });
+  }
+}
+
+function reinstallPublicReleaseBundle(installerPath) {
+  if (!existsSync(installerPath)) {
+    return;
+  }
+
+  console.log("Reinstalling clean public Windows installer after QA.");
+  stopProcessByPath(INSTALLED_EXE_ABSOLUTE_PATH);
+  const result = spawnSync(installerPath, ["/S"], {
+    env: process.env,
+    shell: false,
+    stdio: "inherit",
+  });
+
+  if (result.status !== 0) {
+    throw new Error(`Clean public Tauri NSIS reinstall failed with exit code ${result.status ?? "unknown"}.`);
+  }
+}
+
+function decorateQaReport(report) {
+  return {
+    ...report,
+    harness: {
+      apiBaseUrl: API_BASE_URL,
+      commit: readGitValue(["rev-parse", "--short", "HEAD"]),
+      installedExePath: INSTALLED_RELEASE_MODE ? INSTALLED_EXE_PATH : null,
+      installerPath: INSTALLED_RELEASE_MODE ? NSIS_SETUP_PATH : null,
+      releaseExePath: RAW_RELEASE_MODE ? RELEASE_EXE_PATH : null,
+      runtimeMode: RUNTIME_MODE,
+      script: "qa-tauri-real-oauth-manual",
+      timeoutMs: TIMEOUT_MS,
+    },
+  };
+}
+
+function readGitValue(args) {
+  const result = spawnSync("git", args, {
+    encoding: "utf8",
+    shell: false,
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  return result.status === 0 ? result.stdout.trim() : null;
+}
+
+function stopProcessByPath(executablePath) {
   if (process.platform !== "win32") {
     return;
   }
@@ -179,7 +359,7 @@ function stopExistingReleaseExe() {
       ].join(" "),
     ],
     {
-      env: { ...process.env, BUBLI_QA_RELEASE_EXE_PATH: RELEASE_EXE_ABSOLUTE_PATH },
+      env: { ...process.env, BUBLI_QA_RELEASE_EXE_PATH: executablePath },
       shell: false,
       stdio: "inherit",
     },
@@ -191,13 +371,11 @@ function createLocalSyncFixture() {
   let currentFileName = "";
   let currentNotePath = "";
   let prepareCount = 0;
+  let watchedFileName = "";
+  let watchedNotePath = "";
+  let watchCount = 0;
   const prepare = () => {
     prepareCount += 1;
-    for (const entry of readdirSync(folderPath, { withFileTypes: true })) {
-      if (entry.isFile() && entry.name.startsWith("real-oauth-local-sync-note-")) {
-        rmSync(join(folderPath, entry.name), { force: true });
-      }
-    }
     currentFileName = `real-oauth-local-sync-note-${prepareCount}-${Date.now()}.txt`;
     currentNotePath = join(folderPath, currentFileName);
     writeFileSync(
@@ -234,6 +412,53 @@ function createLocalSyncFixture() {
         "utf8",
       );
       return { fileName: currentFileName, marker, notePath: currentNotePath };
+    },
+    deleteCurrent() {
+      if (!currentNotePath) {
+        throw new Error("No prepared local sync fixture file to delete.");
+      }
+      rmSync(currentNotePath, { force: true });
+      return { fileName: currentFileName, notePath: currentNotePath };
+    },
+    createWatched() {
+      watchCount += 1;
+      watchedFileName = `real-oauth-watch-note-${watchCount}-${Date.now()}.txt`;
+      watchedNotePath = join(folderPath, watchedFileName);
+      writeFileSync(
+        watchedNotePath,
+        [
+          "RealOAuthLocalWatchInitial",
+          "Bubli Windows Tauri real OAuth native watcher fixture.",
+          "This file must be detected by watchManagedFolder without a manual scan.",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+      return { fileName: watchedFileName, marker: "RealOAuthLocalWatchInitial", notePath: watchedNotePath };
+    },
+    mutateWatched() {
+      if (!watchedNotePath) {
+        throw new Error("No watched local sync fixture file to mutate.");
+      }
+      const marker = `RealOAuthLocalWatchUpdated ${new Date().toISOString()}`;
+      writeFileSync(
+        watchedNotePath,
+        [
+          marker,
+          "Updated searchable marker for the real OAuth native watcher path.",
+          "The Tauri app must detect this write through the active watcher.",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+      return { fileName: watchedFileName, marker, notePath: watchedNotePath };
+    },
+    deleteWatched() {
+      if (!watchedNotePath) {
+        throw new Error("No watched local sync fixture file to delete.");
+      }
+      rmSync(watchedNotePath, { force: true });
+      return { fileName: watchedFileName, notePath: watchedNotePath };
     },
     cleanup() {
       rmSync(folderPath, { force: true, recursive: true });
@@ -275,12 +500,64 @@ function startReportServer(localSyncFixture) {
       return;
     }
 
+    if (request.method === "POST" && request.url === "/delete-local-file") {
+      try {
+        const deleted = localSyncFixture.deleteCurrent();
+        response.setHeader("Content-Type", "application/json");
+        response.writeHead(200);
+        response.end(JSON.stringify({ fileName: deleted.fileName, notePath: deleted.notePath }));
+      } catch (error) {
+        response.writeHead(500);
+        response.end(error instanceof Error ? error.message : String(error));
+      }
+      return;
+    }
+
     if (request.method === "POST" && request.url === "/prepare-local-file") {
       try {
         const prepared = localSyncFixture.prepare();
         response.setHeader("Content-Type", "application/json");
         response.writeHead(200);
         response.end(JSON.stringify({ fileName: prepared.fileName, notePath: prepared.notePath }));
+      } catch (error) {
+        response.writeHead(500);
+        response.end(error instanceof Error ? error.message : String(error));
+      }
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/create-watch-file") {
+      try {
+        const created = localSyncFixture.createWatched();
+        response.setHeader("Content-Type", "application/json");
+        response.writeHead(200);
+        response.end(JSON.stringify({ fileName: created.fileName, marker: created.marker, notePath: created.notePath }));
+      } catch (error) {
+        response.writeHead(500);
+        response.end(error instanceof Error ? error.message : String(error));
+      }
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/mutate-watch-file") {
+      try {
+        const mutation = localSyncFixture.mutateWatched();
+        response.setHeader("Content-Type", "application/json");
+        response.writeHead(200);
+        response.end(JSON.stringify({ fileName: mutation.fileName, marker: mutation.marker, notePath: mutation.notePath }));
+      } catch (error) {
+        response.writeHead(500);
+        response.end(error instanceof Error ? error.message : String(error));
+      }
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/delete-watch-file") {
+      try {
+        const deleted = localSyncFixture.deleteWatched();
+        response.setHeader("Content-Type", "application/json");
+        response.writeHead(200);
+        response.end(JSON.stringify({ fileName: deleted.fileName, notePath: deleted.notePath }));
       } catch (error) {
         response.writeHead(500);
         response.end(error instanceof Error ? error.message : String(error));
@@ -322,7 +599,7 @@ function startReportServer(localSyncFixture) {
     });
     request.on("end", () => {
       try {
-        const report = JSON.parse(body);
+        const report = decorateQaReport(JSON.parse(body));
         validateRealOAuthQaReport(report);
         settled = true;
         response.writeHead(204);
@@ -352,12 +629,16 @@ function startReportServer(localSyncFixture) {
           }
           server.close();
         },
+        deleteUrl: `http://127.0.0.1:${address.port}/delete-local-file`,
         eventUrl: `http://127.0.0.1:${address.port}/event`,
         mutateUrl: `http://127.0.0.1:${address.port}/mutate-local-file`,
         prepareUrl: `http://127.0.0.1:${address.port}/prepare-local-file`,
         qaEvents,
         reportPromise,
         reportUrl: `http://127.0.0.1:${address.port}/report`,
+        watchCreateUrl: `http://127.0.0.1:${address.port}/create-watch-file`,
+        watchDeleteUrl: `http://127.0.0.1:${address.port}/delete-watch-file`,
+        watchMutateUrl: `http://127.0.0.1:${address.port}/mutate-watch-file`,
       });
     });
   });
@@ -410,6 +691,12 @@ function renderEvidenceSummary(report, reportPath) {
     `- Duration ms: ${report.durationMs}`,
     `- Attempts: ${report.attemptCount}`,
     `- Trigger reason: ${report.reason}`,
+    `- Runtime mode: ${report.harness?.runtimeMode ?? "unknown"}`,
+    `- API base: ${report.harness?.apiBaseUrl ?? "unknown"}`,
+    `- Commit: ${report.harness?.commit ?? "unknown"}`,
+    `- Release exe: ${report.harness?.releaseExePath ?? "not used"}`,
+    `- Installed exe: ${report.harness?.installedExePath ?? "not used"}`,
+    `- Installer: ${report.harness?.installerPath ?? "not used"}`,
     `- JSON report: ${reportPath}`,
     `- Failed checks: ${failedChecks.length === 0 ? "none" : failedChecks.join(", ")}`,
     "",
@@ -441,9 +728,15 @@ function renderEvidenceSummary(report, reportPath) {
     `- Widget room context matches active/server: ${Boolean(snapshot.widgetRuntime?.allWindowRoomContextMatchesActive && snapshot.widgetRuntime?.allWindowRoomContextMatchesServer)}`,
     `- Auto-sync loops running: ${Boolean(snapshot.syncRuntime?.allAutoSyncLoopsRunning)}`,
     `- Managed-folder watcher not failed: ${snapshot.syncRuntime?.managedFolderStatus?.lastStatus !== "failed"}`,
+    `- Managed-folder analysis count scope: ${snapshot.syncRuntime?.managedFolderStatus?.lastFileAnalysisFailedCountScope ?? "unknown"}`,
     `- SQLite quick_check: ${Boolean(localSync.sqlite?.ok)}`,
     `- Local file scan/read initial sync: ${Boolean(localFiles.initialSearchMatched && localFiles.initialPreviewReady && (localFiles.initialSyncSyncedCount ?? 0) >= 1)}`,
+    `- Local file resource personal/room isolation: ${Boolean(localFiles.initialSyncedResourceResolved && localFiles.initialSyncedResourcePersonal && localFiles.initialSyncedResourceRoomIdAbsent && localFiles.initialSyncedResourceRoomListShapeOk && localFiles.initialSyncedResourceNotInSelectedRoomResources)}`,
+    `- Local file initial analysis requested/failed: ${localFiles.initialSyncAnalysisRequestedCount ?? "not reported"}/${localFiles.initialSyncAnalysisFailedCount ?? "not reported"}`,
     `- Local file update/reindex sync: ${Boolean(localFiles.mutationRequested && localFiles.reindexChanged && localFiles.updatedSearchMatched && (localFiles.updateSyncSyncedCount ?? 0) >= 1)}`,
+    `- Local file update analysis requested/failed: ${localFiles.updateSyncAnalysisRequestedCount ?? "not reported"}/${localFiles.updateSyncAnalysisFailedCount ?? "not reported"}`,
+    `- Local file delete sync/search clear: ${Boolean(localFiles.deleteRequested && (localFiles.deleteSyncSyncedCount ?? 0) >= 1 && localFiles.deletedSearchCleared)}`,
+    `- Native watcher create/update/delete sync: ${Boolean(localFiles.nativeWatchStarted && (localFiles.nativeWatchCreateSyncSyncedCount ?? 0) >= 1 && (localFiles.nativeWatchUpdateSyncSyncedCount ?? 0) >= 1 && (localFiles.nativeWatchDeleteSyncSyncedCount ?? 0) >= 1)}`,
     `- Widget usage reached backend: ${(localSync.outbox?.widgetSentCount ?? 0) >= 1}`,
     `- Activity reached backend when consented: ${
       localSync.activity?.consentGranted ? (localSync.outbox?.activitySentCount ?? 0) >= 1 : "not required"
@@ -471,7 +764,7 @@ function runContractCheck() {
     {
       name: "script launches real OAuth QA with local sync stability session restore and stop cleanup probes without dev token",
       pattern:
-        /NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN: "false"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_FOLDER: localSyncFolderPath[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_MUTATE_URL: localSyncMutateUrl[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_PREPARE_URL: localSyncPrepareUrl[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_QA: "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_SESSION_RESTORE_QA: "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STABILITY_QA_MS: "15000"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STOP_CLEANUP_QA: "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA: "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_EVENT_URL: eventUrl[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_REPORT_URL: reportUrl[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE: "false"/,
+        /NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN: "false"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_FOLDER: localSyncFolderPath[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_DELETE_URL: localSyncDeleteUrl[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_MUTATE_URL: localSyncMutateUrl[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_PREPARE_URL: localSyncPrepareUrl[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_QA: "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_WATCH_CREATE_URL: localSyncWatchCreateUrl[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_WATCH_DELETE_URL: localSyncWatchDeleteUrl[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_WATCH_MUTATE_URL: localSyncWatchMutateUrl[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_SESSION_RESTORE_QA: "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STABILITY_QA_MS: "15000"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STOP_CLEANUP_QA: "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA: "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_EVENT_URL: eventUrl[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_REPORT_URL: reportUrl[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE: "false"/,
       source: scriptSource,
     },
     {
@@ -483,31 +776,49 @@ function runContractCheck() {
     {
       name: "script gives the reporter a shorter timeout than the harness",
       pattern:
-        /const REPORTER_TIMEOUT_MS = Number\([\s\S]*Math\.max\(10_000, TIMEOUT_MS - 15_000\)[\s\S]*Reporter timeout: \$\{REPORTER_TIMEOUT_MS\}ms; harness timeout: \$\{TIMEOUT_MS\}ms[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_TIMEOUT_MS: String\(REPORTER_TIMEOUT_MS\)/,
+        /const REPORTER_TIMEOUT_MS = Number\([\s\S]*Math\.max\(10_000, TIMEOUT_MS - 60_000\)[\s\S]*const REPORTER_ATTEMPT_TIMEOUT_MS = Number\([\s\S]*30_000[\s\S]*Reporter timeout: \$\{REPORTER_TIMEOUT_MS\}ms; harness timeout: \$\{TIMEOUT_MS\}ms[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_ATTEMPT_TIMEOUT_MS: String\(REPORTER_ATTEMPT_TIMEOUT_MS\)[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_TIMEOUT_MS: String\(REPORTER_TIMEOUT_MS\)/,
       source: scriptSource,
     },
     {
       name: "script can build and launch a QA-instrumented release exe without publishing the installer",
       pattern:
-        /const RELEASE_MODE[\s\S]*process\.argv\.includes\("--release"\)[\s\S]*const RELEASE_EXE_PATH = join\("src-tauri", "target", "release", "bubli\.exe"\)[\s\S]*const DEFAULT_API_BASE_URL = RELEASE_MODE \? "https:\/\/bubli\.n-e\.kr" : "http:\/\/localhost:8080"[\s\S]*if \(RELEASE_MODE\) \{[\s\S]*buildReleaseTauri\(qaEnv\)[\s\S]*spawn\(RELEASE_EXE_PATH[\s\S]*function buildReleaseTauri\(qaEnv\)[\s\S]*stopExistingReleaseExe\(\)[\s\S]*"npm\.cmd run tauri -- build --no-bundle"/,
+        /const RAW_RELEASE_MODE[\s\S]*process\.argv\.includes\("--release"\)[\s\S]*const RELEASE_EXE_PATH = join\("src-tauri", "target", "release", "bubli\.exe"\)[\s\S]*const DEFAULT_API_BASE_URL = RELEASE_MODE \? "https:\/\/bubli\.n-e\.kr" : "http:\/\/localhost:8080"[\s\S]*if \(RAW_RELEASE_MODE\) \{[\s\S]*buildReleaseTauri\(qaEnv\)[\s\S]*spawn\(RELEASE_EXE_PATH[\s\S]*function buildReleaseTauri\(qaEnv\)[\s\S]*stopProcessByPath\(RELEASE_EXE_ABSOLUTE_PATH\)[\s\S]*"npm\.cmd run tauri -- build --no-bundle"/,
       source: scriptSource,
     },
     {
-      name: "script stops only the existing raw release QA exe before rebuilding",
+      name: "script can build install and launch a QA-instrumented installed release without publishing the public download",
       pattern:
-        /function stopExistingReleaseExe\(\)[\s\S]*GetFullPath\(\$env:BUBLI_QA_RELEASE_EXE_PATH\);[\s\S]*Get-CimInstance Win32_Process[\s\S]*ExecutablePath -eq \$target[\s\S]*Stop-Process[\s\S]*BUBLI_QA_RELEASE_EXE_PATH: RELEASE_EXE_ABSOLUTE_PATH/,
+        /const INSTALLED_RELEASE_MODE[\s\S]*process\.argv\.includes\("--installed-release"\)[\s\S]*const NSIS_SETUP_PATH = join\("src-tauri", "target", "release", "bundle", "nsis", "Bubli_0\.1\.0_x64-setup\.exe"\)[\s\S]*const INSTALLED_EXE_PATH = join\([\s\S]*"Bubli"[\s\S]*"bubli\.exe"[\s\S]*if \(INSTALLED_RELEASE_MODE\) \{[\s\S]*buildInstalledReleaseTauri\(qaEnv\)[\s\S]*installReleaseBundle\(qaEnv\)[\s\S]*spawn\(INSTALLED_EXE_PATH[\s\S]*function buildInstalledReleaseTauri\(qaEnv\)[\s\S]*"npm\.cmd run tauri -- build"[\s\S]*function installReleaseBundle\(qaEnv\)[\s\S]*spawnSync\(NSIS_SETUP_PATH, \["\/S"\]/,
+      source: scriptSource,
+    },
+    {
+      name: "installed-release QA restores public installer artifacts and clean installed app after instrumentation",
+      pattern:
+        /const PUBLIC_INSTALLER_PATH = join\("public", "downloads", "windows", "Bubli-Windows-latest\.exe"\)[\s\S]*const PUBLIC_MANIFEST_PATH = join\("public", "downloads", "windows", "manifest\.json"\)[\s\S]*const installedReleaseArtifactSnapshot = INSTALLED_RELEASE_MODE \? createInstalledReleaseArtifactSnapshot\(\) : null[\s\S]*restoreInstalledReleaseArtifacts\(installedReleaseArtifactSnapshot\)[\s\S]*function restoreInstalledReleaseArtifacts\(snapshot\)[\s\S]*copyFileSync\(snapshot\.installerPath, PUBLIC_INSTALLER_PATH\)[\s\S]*copyFileSync\(snapshot\.manifestPath, PUBLIC_MANIFEST_PATH\)[\s\S]*copyFileSync\(snapshot\.installerPath, NSIS_SETUP_PATH\)[\s\S]*reinstallPublicReleaseBundle\(snapshot\.installerPath\)/,
+      source: scriptSource,
+    },
+    {
+      name: "script stops only the target QA executable before rebuilding or installing",
+      pattern:
+        /function stopProcessByPath\(executablePath\)[\s\S]*GetFullPath\(\$env:BUBLI_QA_RELEASE_EXE_PATH\);[\s\S]*Get-CimInstance Win32_Process[\s\S]*ExecutablePath -eq \$target[\s\S]*Stop-Process[\s\S]*BUBLI_QA_RELEASE_EXE_PATH: executablePath/,
       source: scriptSource,
     },
     {
       name: "script uses memory-safe Cargo release profile defaults for QA builds",
       pattern:
-        /CARGO_BUILD_JOBS: process\.env\.CARGO_BUILD_JOBS \?\? "1"[\s\S]*CARGO_PROFILE_RELEASE_CODEGEN_UNITS: process\.env\.CARGO_PROFILE_RELEASE_CODEGEN_UNITS \?\? "256"[\s\S]*CARGO_PROFILE_RELEASE_OPT_LEVEL: process\.env\.CARGO_PROFILE_RELEASE_OPT_LEVEL \?\? "1"/,
+        /CARGO_BUILD_JOBS: process\.env\.CARGO_BUILD_JOBS \?\? "1"[\s\S]*CARGO_PROFILE_RELEASE_CODEGEN_UNITS: process\.env\.CARGO_PROFILE_RELEASE_CODEGEN_UNITS \?\? "16"[\s\S]*CARGO_PROFILE_RELEASE_OPT_LEVEL: process\.env\.CARGO_PROFILE_RELEASE_OPT_LEVEL \?\? "3"[\s\S]*CARGO_PROFILE_RELEASE_STRIP: process\.env\.CARGO_PROFILE_RELEASE_STRIP \?\? "symbols"/,
       source: scriptSource,
     },
     {
       name: "script validates redacted QA reports before accepting pass",
       pattern:
-        /function validateRealOAuthQaReport[\s\S]*forbiddenReportFieldPattern[\s\S]*assert\(report\.routeProbe\?\.ok[\s\S]*assert\(report\.assertion\?\.ok === true[\s\S]*assert\(snapshot\.localSession\.isDevAccessTokenSession === false[\s\S]*assert\([\s\S]*snapshot\.tauriMirrorSession\.isDevAccessTokenSession === false[\s\S]*assert\(snapshot\.launchTimeline\?\.completed[\s\S]*authGateAfterBackendAuth[\s\S]*firstWidgetOpenAfterBackendAuth[\s\S]*barWindowOpenedAt[\s\S]*bubbleWindowsOpenedAt[\s\S]*syncLoopsStartedAt[\s\S]*assert\(snapshot\.widgetRuntime\?\.allExpectedWindowsVisible[\s\S]*assert\(snapshot\.syncRuntime\?\.allAutoSyncLoopsRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\?\.running === snapshot\.syncRuntime\.managedFolderAutoSyncRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\.lastStatus !== "failed"[\s\S]*assert\(snapshot\.localSyncProbe\?\.enabled[\s\S]*assert\(snapshot\.localSyncProbe\.sqlite\?\.ok[\s\S]*snapshot\.localSyncProbe\.localFiles\?\.enabled[\s\S]*initialPreviewIncludesMarker[\s\S]*initialSyncSyncedCount[\s\S]*mutationRequested[\s\S]*reindexStatus === "REINDEXED"[\s\S]*updatedPreviewIncludesMarker[\s\S]*updateSyncSyncedCount[\s\S]*remainingQaEvents === 0[\s\S]*snapshot\.localSyncProbe\.outbox\?\.widgetSentCount \?\? 0\) >= 1[\s\S]*snapshot\.localSyncProbe\.activity\?\.consentGranted[\s\S]*snapshot\.localSyncProbe\.activity\.nativeCaptured[\s\S]*snapshot\.localSyncProbe\.outbox\?\.activitySentCount \?\? 0\) >= 1[\s\S]*snapshot\.stabilityProbe\?\.enabled[\s\S]*snapshot\.stabilityProbe\.allExpectedWindowsVisible[\s\S]*snapshot\.stabilityProbe\.allAutoSyncLoopsRunning[\s\S]*snapshot\.sessionRestoreProbe\?\.enabled[\s\S]*snapshot\.sessionRestoreProbe\.restoredLocalSession[\s\S]*snapshot\.sessionRestoreProbe\.backendMeOk[\s\S]*snapshot\.stopCleanupProbe\?\.enabled[\s\S]*snapshot\.stopCleanupProbe\.activeProjectRoomCleared[\s\S]*snapshot\.stopCleanupProbe\.allExpectedWindowsHidden[\s\S]*snapshot\.stopCleanupProbe\.barWindowHidden[\s\S]*snapshot\.stopCleanupProbe\.syncLoopsStopped/,
+        /function validateRealOAuthQaReport[\s\S]*forbiddenReportFieldPattern[\s\S]*assert\(report\.routeProbe\?\.ok[\s\S]*assert\(report\.assertion\?\.ok === true[\s\S]*assert\(snapshot\.localSession\.isDevAccessTokenSession === false[\s\S]*assert\([\s\S]*snapshot\.tauriMirrorSession\.isDevAccessTokenSession === false[\s\S]*assert\(snapshot\.launchTimeline\?\.completed[\s\S]*authGateAfterBackendAuth[\s\S]*firstWidgetOpenAfterBackendAuth[\s\S]*barWindowOpenedAt[\s\S]*bubbleWindowsOpenedAt[\s\S]*syncLoopsStartedAt[\s\S]*assert\(snapshot\.widgetRuntime\?\.allExpectedWindowsVisible[\s\S]*assert\(snapshot\.syncRuntime\?\.allAutoSyncLoopsRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\?\.running === snapshot\.syncRuntime\.managedFolderAutoSyncRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\.lastStatus !== "failed"[\s\S]*lastFileAnalysisFailedCountScope[\s\S]*assert\(snapshot\.localSyncProbe\?\.enabled[\s\S]*assert\(snapshot\.localSyncProbe\.sqlite\?\.ok[\s\S]*snapshot\.localSyncProbe\.localFiles\?\.enabled[\s\S]*initialPreviewIncludesMarker[\s\S]*initialSyncSyncedCount[\s\S]*initialSyncedResourceResolved[\s\S]*initialSyncedResourcePersonal[\s\S]*initialSyncedResourceRoomIdAbsent[\s\S]*initialSyncedResourceRoomListChecked[\s\S]*initialSyncedResourceRoomListShapeOk[\s\S]*initialSyncedResourceNotInSelectedRoomResources[\s\S]*initialSyncAnalysisRequestedCount[\s\S]*initialSyncAnalysisFailedCount === 0[\s\S]*mutationRequested[\s\S]*reindexStatus === "REINDEXED"[\s\S]*updatedPreviewIncludesMarker[\s\S]*updateSyncSyncedCount[\s\S]*updateSyncAnalysisRequestedCount[\s\S]*updateSyncAnalysisFailedCount === 0[\s\S]*deleteRequested[\s\S]*stagedDeletedCount[\s\S]*deleteSyncSyncedCount[\s\S]*deletedSearchCleared[\s\S]*nativeWatchStarted[\s\S]*stagedNativeWatchCreatedCount[\s\S]*nativeWatchCreateSyncSyncedCount[\s\S]*nativeWatchInitialSearchMatched[\s\S]*nativeWatchMutationRequested[\s\S]*stagedNativeWatchUpdatedCount[\s\S]*nativeWatchUpdateSyncSyncedCount[\s\S]*nativeWatchUpdatedSearchMatched[\s\S]*nativeWatchDeleteRequested[\s\S]*stagedNativeWatchDeletedCount[\s\S]*nativeWatchDeleteSyncSyncedCount[\s\S]*remainingQaEvents === 0[\s\S]*snapshot\.localSyncProbe\.outbox\?\.widgetSentCount \?\? 0\) >= 1[\s\S]*snapshot\.localSyncProbe\.activity\?\.consentGranted[\s\S]*snapshot\.localSyncProbe\.activity\.nativeCaptured[\s\S]*snapshot\.localSyncProbe\.outbox\?\.activitySentCount \?\? 0\) >= 1[\s\S]*snapshot\.stabilityProbe\?\.enabled[\s\S]*snapshot\.stabilityProbe\.allExpectedWindowsVisible[\s\S]*snapshot\.stabilityProbe\.allAutoSyncLoopsRunning[\s\S]*snapshot\.sessionRestoreProbe\?\.enabled[\s\S]*snapshot\.sessionRestoreProbe\.restoredLocalSession[\s\S]*snapshot\.sessionRestoreProbe\.backendMeOk[\s\S]*snapshot\.stopCleanupProbe\?\.enabled[\s\S]*snapshot\.stopCleanupProbe\.activeProjectRoomCleared[\s\S]*snapshot\.stopCleanupProbe\.allExpectedWindowsHidden[\s\S]*snapshot\.stopCleanupProbe\.barWindowHidden[\s\S]*snapshot\.stopCleanupProbe\.syncLoopsStopped/,
+      source: scriptSource,
+    },
+    {
+      name: "script records release/dev harness metadata in accepted reports",
+      pattern:
+        /const rawReport = await Promise\.race[\s\S]*const report = decorateQaReport\(rawReport\)[\s\S]*function decorateQaReport\(report\)[\s\S]*apiBaseUrl: API_BASE_URL[\s\S]*commit: readGitValue\(\["rev-parse", "--short", "HEAD"\]\)[\s\S]*installedExePath: INSTALLED_RELEASE_MODE \? INSTALLED_EXE_PATH : null[\s\S]*installerPath: INSTALLED_RELEASE_MODE \? NSIS_SETUP_PATH : null[\s\S]*releaseExePath: RAW_RELEASE_MODE \? RELEASE_EXE_PATH : null[\s\S]*runtimeMode: RUNTIME_MODE[\s\S]*Runtime mode: \$\{report\.harness\?\.runtimeMode/,
       source: scriptSource,
     },
     {
@@ -519,7 +830,7 @@ function runContractCheck() {
     {
       name: "script evidence summary stays redacted and records key real OAuth probes",
       pattern:
-        /function renderEvidenceSummary\(report, reportPath\)[\s\S]*Redacted Proof[\s\S]*Real TAURI local session[\s\S]*Backend \/api\/me[\s\S]*All widget windows visible[\s\S]*Local file scan\/read initial sync[\s\S]*Local file update\/reindex sync[\s\S]*Stability dwell ms[\s\S]*Session restored from Tauri mirror[\s\S]*Stop cleanup closed widgets and loops[\s\S]*OAuth returned to app route without login repaint[\s\S]*Auth validated before widget launch[\s\S]*Raw tokens, session JSON, user IDs, email, and Google subject are intentionally excluded/,
+        /function renderEvidenceSummary\(report, reportPath\)[\s\S]*Redacted Proof[\s\S]*Real TAURI local session[\s\S]*Backend \/api\/me[\s\S]*All widget windows visible[\s\S]*Local file scan\/read initial sync[\s\S]*Local file resource personal\/room isolation[\s\S]*Local file update\/reindex sync[\s\S]*Local file delete sync\/search clear[\s\S]*Native watcher create\/update\/delete sync[\s\S]*Stability dwell ms[\s\S]*Session restored from Tauri mirror[\s\S]*Stop cleanup closed widgets and loops[\s\S]*OAuth returned to app route without login repaint[\s\S]*Auth validated before widget launch[\s\S]*Raw tokens, session JSON, user IDs, email, and Google subject are intentionally excluded/,
       source: scriptSource,
     },
     {
@@ -537,13 +848,13 @@ function runContractCheck() {
     {
       name: "reporter posts redacted lifecycle events before and during real OAuth QA",
       pattern:
-        /RealOAuthQaRouteProbe[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_EVENT_URL[\s\S]*const routeProbeGraceMs[\s\S]*const recordRouteSample[\s\S]*const buildRouteProbe[\s\S]*postRealOAuthQaEvent[\s\S]*stage: "mounted"[\s\S]*stage: "skipped"[\s\S]*stage: "run-start"[\s\S]*stage: "assertion"[\s\S]*stage: "report-posted"[\s\S]*stage: "report-error"/,
+        /RealOAuthQaRouteProbe[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_EVENT_URL[\s\S]*const realOAuthQaAttemptTimeoutMs[\s\S]*const routeProbeGraceMs[\s\S]*Math\.min\(remainingMs, realOAuthQaAttemptTimeoutMs\)[\s\S]*const recordRouteSample[\s\S]*const buildRouteProbe[\s\S]*postRealOAuthQaEvent[\s\S]*stage: "mounted"[\s\S]*stage: "skipped"[\s\S]*stage: "run-start"[\s\S]*stage: "assertion"[\s\S]*stage: "report-posted"[\s\S]*stage: "report-error"/,
       source: reporterSource,
     },
     {
       name: "real OAuth assertion rejects dev tokens and requires widgets sync loops plus local sync stability restore and stop cleanup probes",
       pattern:
-        /diagnostics\.clientType === "TAURI"[\s\S]*diagnostics\.isDevAccessTokenSession === false[\s\S]*diagnostics\.refreshTokenExpired === false[\s\S]*launchTimeline:completed[\s\S]*launchTimeline:authGateAfterBackendAuth[\s\S]*launchTimeline:firstWidgetOpenAfterBackendAuth[\s\S]*launchTimeline:mirrorStoredBeforeBar[\s\S]*launchTimeline:barBeforeBubbles[\s\S]*launchTimeline:syncLoopsAfterWidgets[\s\S]*widgets:allExpectedWindowsVisible[\s\S]*sync:allAutoSyncLoopsRunning[\s\S]*sync:managedFolderStatusMatchesRunningFlag[\s\S]*sync:managedFolderStatusNotFailed[\s\S]*localSyncProbe:sqliteQuickCheck[\s\S]*localSyncProbe:localFileInitialPreviewMarker[\s\S]*localSyncProbe:localFileCreatedSynced[\s\S]*localSyncProbe:localFileUpdatedPreviewMarker[\s\S]*localSyncProbe:localFileUpdatedSynced[\s\S]*localSyncProbe:widgetUsageReachedBackend[\s\S]*localSyncProbe:activityNativeCaptured[\s\S]*localSyncProbe:activityReachedBackend[\s\S]*sessionRestoreProbe:restoredLocalSession[\s\S]*sessionRestoreProbe:backendMeAfterRestore[\s\S]*stabilityProbe:allExpectedWindowsVisible[\s\S]*stabilityProbe:syncLoopsStillRunning[\s\S]*stopCleanupProbe:activeProjectRoomCleared[\s\S]*stopCleanupProbe:allExpectedWindowsHidden[\s\S]*stopCleanupProbe:syncLoopsStopped/,
+        /diagnostics\.clientType === "TAURI"[\s\S]*diagnostics\.isDevAccessTokenSession === false[\s\S]*diagnostics\.refreshTokenExpired === false[\s\S]*launchTimeline:completed[\s\S]*launchTimeline:authGateAfterBackendAuth[\s\S]*launchTimeline:firstWidgetOpenAfterBackendAuth[\s\S]*launchTimeline:mirrorStoredBeforeBar[\s\S]*launchTimeline:barBeforeBubbles[\s\S]*launchTimeline:syncLoopsAfterWidgets[\s\S]*widgets:allExpectedWindowsVisible[\s\S]*sync:allAutoSyncLoopsRunning[\s\S]*sync:managedFolderStatusMatchesRunningFlag[\s\S]*sync:managedFolderStatusNotFailed[\s\S]*localSyncProbe:sqliteQuickCheck[\s\S]*localSyncProbe:localFileInitialPreviewMarker[\s\S]*localSyncProbe:localFileCreatedSynced[\s\S]*localSyncProbe:localFileResourceResolved[\s\S]*localSyncProbe:localFileResourcePersonal[\s\S]*localSyncProbe:localFileResourceNoRoomId[\s\S]*localSyncProbe:localFileResourceRoomListChecked[\s\S]*localSyncProbe:localFileResourceRoomListShape[\s\S]*localSyncProbe:localFileResourceNotInSelectedRoom[\s\S]*localSyncProbe:localFileUpdatedPreviewMarker[\s\S]*localSyncProbe:localFileUpdatedSynced[\s\S]*localSyncProbe:localFileDeletedSynced[\s\S]*localSyncProbe:localFileDeletedSearchCleared[\s\S]*localSyncProbe:nativeWatchStarted[\s\S]*localSyncProbe:nativeWatchCreatedSynced[\s\S]*localSyncProbe:nativeWatchUpdatedSynced[\s\S]*localSyncProbe:nativeWatchDeletedSynced[\s\S]*localSyncProbe:widgetUsageReachedBackend[\s\S]*localSyncProbe:activityNativeCaptured[\s\S]*localSyncProbe:activityReachedBackend[\s\S]*sessionRestoreProbe:restoredLocalSession[\s\S]*sessionRestoreProbe:backendMeAfterRestore[\s\S]*stabilityProbe:allExpectedWindowsVisible[\s\S]*stabilityProbe:syncLoopsStillRunning[\s\S]*stopCleanupProbe:activeProjectRoomCleared[\s\S]*stopCleanupProbe:allExpectedWindowsHidden[\s\S]*stopCleanupProbe:syncLoopsStopped/,
       source: qaSource,
     },
   ];
@@ -582,6 +893,14 @@ function validateRealOAuthQaReport(report) {
   assert(typeof report.finishedAt === "string" && report.finishedAt.length > 0, "QA report finishedAt is required.");
   assert(typeof report.platform === "string" && report.platform.length > 0, "QA report platform is required.");
   assert(typeof report.reason === "string" && report.reason.length > 0, "QA report reason is required.");
+  assert(report.harness?.script === "qa-tauri-real-oauth-manual", "QA report harness script is required.");
+  assert(
+    report.harness.runtimeMode === "release" ||
+      report.harness.runtimeMode === "installed-release" ||
+      report.harness.runtimeMode === "dev",
+    "QA report harness runtimeMode must be release, installed-release, or dev.",
+  );
+  assert(typeof report.harness.apiBaseUrl === "string" && report.harness.apiBaseUrl.length > 0, "QA report API base is required.");
 
   if (report.status === "failed") {
     return;
@@ -686,6 +1005,11 @@ function validateRealOAuthQaReport(report) {
     snapshot.syncRuntime.managedFolderStatus.lastStatus !== "failed",
     "Passed QA report managed-folder watcher status must not be failed.",
   );
+  assert(
+    snapshot.syncRuntime.managedFolderStatus.lastFileAnalysisFailedCountScope === "global-auto-sync-drain" ||
+      snapshot.syncRuntime.managedFolderStatus.lastFileAnalysisFailedCountScope === "folder-auto-sync-drain",
+    "Passed QA report managed-folder analysis failure count scope must be explicit.",
+  );
   assert(snapshot.localSyncProbe?.enabled, "Passed QA report must include the real OAuth local sync probe.");
   assert(!snapshot.localSyncProbe.error, "Passed QA local sync probe must not include an error.");
   assert(snapshot.localSyncProbe.sqlite?.ok, "Passed QA local sync probe must prove SQLite quick_check.");
@@ -709,6 +1033,38 @@ function validateRealOAuthQaReport(report) {
       snapshot.localSyncProbe.localFiles.initialSyncFailedCount === 0,
     "Passed QA local file probe must sync the initial file event to backend.",
   );
+  assert(
+    snapshot.localSyncProbe.localFiles.initialSyncedResourceResolved,
+    "Passed QA local file probe must resolve the synced backend resource.",
+  );
+  assert(
+    snapshot.localSyncProbe.localFiles.initialSyncedResourcePersonal,
+    "Passed QA local file probe must create a PERSONAL backend resource.",
+  );
+  assert(
+    snapshot.localSyncProbe.localFiles.initialSyncedResourceRoomIdAbsent,
+    "Passed QA local file probe must not attach the synced resource to a project room.",
+  );
+  assert(
+    snapshot.localSyncProbe.localFiles.initialSyncedResourceRoomListChecked,
+    "Passed QA local file probe must check selected project room resources.",
+  );
+  assert(
+    snapshot.localSyncProbe.localFiles.initialSyncedResourceRoomListShapeOk,
+    "Passed QA selected project room resource response must include an item array.",
+  );
+  assert(
+    snapshot.localSyncProbe.localFiles.initialSyncedResourceNotInSelectedRoomResources,
+    "Passed QA local file probe must prove the personal resource did not leak into selected room resources.",
+  );
+  assert(
+    (snapshot.localSyncProbe.localFiles.initialSyncAnalysisRequestedCount ?? 0) >= 1,
+    "Passed QA local file probe must request fixture-scoped initial file analysis.",
+  );
+  assert(
+    snapshot.localSyncProbe.localFiles.initialSyncAnalysisFailedCount === 0,
+    "Passed QA local file probe must not fail fixture-scoped initial file analysis.",
+  );
   assert(snapshot.localSyncProbe.localFiles.mutationRequested, "Passed QA local file probe must mutate the fixture file.");
   assert(
     snapshot.localSyncProbe.localFiles.reindexStatus === "REINDEXED" &&
@@ -730,6 +1086,80 @@ function validateRealOAuthQaReport(report) {
       (snapshot.localSyncProbe.localFiles.updateSyncSyncedCount ?? 0) >= 1 &&
       snapshot.localSyncProbe.localFiles.updateSyncFailedCount === 0,
     "Passed QA local file probe must sync the updated file event to backend.",
+  );
+  assert(
+    (snapshot.localSyncProbe.localFiles.updateSyncAnalysisRequestedCount ?? 0) >= 1,
+    "Passed QA local file probe must request fixture-scoped updated file analysis.",
+  );
+  assert(
+    snapshot.localSyncProbe.localFiles.updateSyncAnalysisFailedCount === 0,
+    "Passed QA local file probe must not fail fixture-scoped updated file analysis.",
+  );
+  assert(snapshot.localSyncProbe.localFiles.deleteRequested, "Passed QA local file probe must delete the fixture file.");
+  assert(
+    (snapshot.localSyncProbe.localFiles.stagedDeletedCount ?? 0) >= 1,
+    "Passed QA local file probe must stage a DELETED event.",
+  );
+  assert(
+    (snapshot.localSyncProbe.localFiles.deleteSyncSentCount ?? 0) >= 1 &&
+      (snapshot.localSyncProbe.localFiles.deleteSyncSyncedCount ?? 0) >= 1 &&
+      snapshot.localSyncProbe.localFiles.deleteSyncFailedCount === 0,
+    "Passed QA local file probe must sync the deleted file event to backend.",
+  );
+  assert(
+    snapshot.localSyncProbe.localFiles.deletedSearchCleared,
+    "Passed QA local file probe must remove deleted content from local search.",
+  );
+  assert(snapshot.localSyncProbe.localFiles.nativeWatchStarted, "Passed QA local file probe must start native watching.");
+  assert(
+    snapshot.localSyncProbe.localFiles.nativeWatchFileName,
+    "Passed QA local file probe must create a native watcher fixture file.",
+  );
+  assert(
+    (snapshot.localSyncProbe.localFiles.stagedNativeWatchCreatedCount ?? 0) >= 1,
+    "Passed QA local file probe must stage a native watcher CREATED event.",
+  );
+  assert(
+    (snapshot.localSyncProbe.localFiles.nativeWatchCreateSyncSentCount ?? 0) >= 1 &&
+      (snapshot.localSyncProbe.localFiles.nativeWatchCreateSyncSyncedCount ?? 0) >= 1 &&
+      snapshot.localSyncProbe.localFiles.nativeWatchCreateSyncFailedCount === 0,
+    "Passed QA local file probe must sync the native watcher CREATED event.",
+  );
+  assert(
+    snapshot.localSyncProbe.localFiles.nativeWatchInitialSearchMatched,
+    "Passed QA local file probe must search native watcher created content.",
+  );
+  assert(
+    snapshot.localSyncProbe.localFiles.nativeWatchMutationRequested,
+    "Passed QA local file probe must mutate the native watcher fixture file.",
+  );
+  assert(
+    (snapshot.localSyncProbe.localFiles.stagedNativeWatchUpdatedCount ?? 0) >= 1,
+    "Passed QA local file probe must stage a native watcher UPDATED event.",
+  );
+  assert(
+    (snapshot.localSyncProbe.localFiles.nativeWatchUpdateSyncSentCount ?? 0) >= 1 &&
+      (snapshot.localSyncProbe.localFiles.nativeWatchUpdateSyncSyncedCount ?? 0) >= 1 &&
+      snapshot.localSyncProbe.localFiles.nativeWatchUpdateSyncFailedCount === 0,
+    "Passed QA local file probe must sync the native watcher UPDATED event.",
+  );
+  assert(
+    snapshot.localSyncProbe.localFiles.nativeWatchUpdatedSearchMatched,
+    "Passed QA local file probe must search native watcher updated content.",
+  );
+  assert(
+    snapshot.localSyncProbe.localFiles.nativeWatchDeleteRequested,
+    "Passed QA local file probe must delete the native watcher fixture file.",
+  );
+  assert(
+    (snapshot.localSyncProbe.localFiles.stagedNativeWatchDeletedCount ?? 0) >= 1,
+    "Passed QA local file probe must stage a native watcher DELETED event.",
+  );
+  assert(
+    (snapshot.localSyncProbe.localFiles.nativeWatchDeleteSyncSentCount ?? 0) >= 1 &&
+      (snapshot.localSyncProbe.localFiles.nativeWatchDeleteSyncSyncedCount ?? 0) >= 1 &&
+      snapshot.localSyncProbe.localFiles.nativeWatchDeleteSyncFailedCount === 0,
+    "Passed QA local file probe must sync the native watcher DELETED event.",
   );
   assert(
     snapshot.localSyncProbe.localFiles.remainingQaEvents === 0,

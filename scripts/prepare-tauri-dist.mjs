@@ -37,6 +37,10 @@ function routeHtmlDestination(relativePath) {
   return join(relativePath.slice(0, -extname(relativePath).length), "index.html");
 }
 
+function shouldSkipPublicAsset(relativePath) {
+  return relativePath === "downloads" || relativePath.startsWith(`downloads\\`) || relativePath.startsWith("downloads/");
+}
+
 try {
   rmSync(TAURI_DIST_DIR, { force: true, recursive: true });
   mkdirSync(TAURI_DIST_DIR, { recursive: true });
@@ -56,6 +60,7 @@ try {
   copyIfExists(join(NEXT_DIR, "static"), join(TAURI_DIST_DIR, "_next", "static"));
   for (const source of walkFiles(join(ROOT, "public"))) {
     const relativePath = relative(join(ROOT, "public"), source);
+    if (shouldSkipPublicAsset(relativePath)) continue;
     copyRequiredFile(source, join(TAURI_DIST_DIR, relativePath));
   }
 

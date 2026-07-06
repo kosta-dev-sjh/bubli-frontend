@@ -29,10 +29,7 @@ import { playNotificationSound } from "@/lib/sound/notification-sound";
 import { useI18n } from "@/lib/i18n";
 import type { TranslateVars, MessageKey } from "@/lib/i18n";
 import {
-  AUTH_SESSION_CHANGE_EVENT,
-  clearStoredAuthSession,
-  getStoredAuthSession,
-  restoreStoredAuthSessionFromTauri,
+  AUTH_SESSION_CHANGE_EVENT, getStoredAuthSession, restoreStoredAuthSessionFromTauri, clearStoredAuthSession,
 } from "@/lib/auth/auth-session";
 import { connectLiveKitRoom } from "@/lib/livekit-client";
 import { voiceStore } from "@/lib/voice-store";
@@ -180,6 +177,7 @@ export function AppShell({ children }: AppShellProps) {
   const [newRoomFiles, setNewRoomFiles] = useState<File[]>([]);
   const [newRoomName, setNewRoomName] = useState("");
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+  const [authRecoveryNonce, setAuthRecoveryNonce] = useState(0);
   const readyUserId = state.kind === "ready" ? state.user.id : null;
   const [topbarMenu, setTopbarMenu] = useState<TopbarMenu>(null);
   const [myInvitations, setMyInvitations] = useState<ProjectRoomInvitationResponse[]>([]);
@@ -281,6 +279,19 @@ export function AppShell({ children }: AppShellProps) {
     async function loadShell() {
       const runId = ++loadShellRun;
       const isCurrentRun = () => mounted && runId === loadShellRun;
+      const redirectToLoginWhenTauri = () => {
+        if (isTauriRuntime()) {
+          router.replace("/login");
+          window.setTimeout(() => {
+            if (window.location.pathname.startsWith("/app")) {
+              window.location.assign("/login");
+            }
+          }, 250);
+        }
+      };
+      const setAuthOrDesktopRedirectState = () => {
+        setState(isTauriRuntime() ? { kind: "loading" } : { kind: "auth" });
+      };
 
       try {
         const restoredSession = await restoreInitialWorkspaceSession();
@@ -290,10 +301,19 @@ export function AppShell({ children }: AppShellProps) {
           if (shouldUseWorkspacePreviewData()) {
             setState({ kind: "ready", notifications: [], rooms: workspacePreviewRooms, user: workspacePreviewUser });
           } else {
-            setState({ kind: "auth" });
+            setAuthOrDesktopRedirectState();
           }
+          redirectToLoginWhenTauri();
 
           return;
+        }
+
+        if (isTauriRuntime()) {
+          setState((current) =>
+            current.kind === "ready"
+              ? { ...current, user: restoredSession.user }
+              : { kind: "ready", notifications: [], rooms: roomsRef.current, user: restoredSession.user },
+          );
         }
 
         let user: AuthUser;
@@ -303,8 +323,11 @@ export function AppShell({ children }: AppShellProps) {
           if (!isCurrentRun()) return;
 
           if (error instanceof ApiClientError && error.status === 401) {
-            clearStoredAuthSession();
-            setState({ kind: "auth" });
+            setAuthOrDesktopRedirectState();
+            if (!isTauriRuntime()) {
+              clearStoredAuthSession();
+            }
+            redirectToLoginWhenTauri();
             return;
           }
 
@@ -328,7 +351,8 @@ export function AppShell({ children }: AppShellProps) {
 
         if (roomPageResult.status === "rejected") {
           if (roomPageResult.reason instanceof ApiClientError && roomPageResult.reason.status === 401) {
-            setState({ kind: "offline", user });
+            setAuthOrDesktopRedirectState();
+            redirectToLoginWhenTauri();
             return;
           }
 
@@ -393,8 +417,11 @@ export function AppShell({ children }: AppShellProps) {
       } catch (error) {
         if (!isCurrentRun()) return;
         if (error instanceof ApiClientError && error.status === 401) {
-          clearStoredAuthSession();
-          setState({ kind: "auth" });
+          setAuthOrDesktopRedirectState();
+          if (!isTauriRuntime()) {
+            clearStoredAuthSession();
+          }
+          redirectToLoginWhenTauri();
           return;
         }
 
@@ -403,7 +430,8 @@ export function AppShell({ children }: AppShellProps) {
           return;
         }
 
-        setState({ kind: "auth" });
+        setAuthOrDesktopRedirectState();
+        redirectToLoginWhenTauri();
       }
     }
 
@@ -418,7 +446,7 @@ export function AppShell({ children }: AppShellProps) {
       mounted = false;
       window.removeEventListener(AUTH_SESSION_CHANGE_EVENT, reloadShell);
     };
-  }, []);
+  }, [authRecoveryNonce, router]);
 
   // 프로필 저장(설정/온보딩) 즉시 반영 — 셸 재조회 없이 이벤트 페이로드로 탑바 사용자 표시를 갱신한다.
   useEffect(() => {
@@ -438,6 +466,7 @@ export function AppShell({ children }: AppShellProps) {
 
   // 룸 목록/알림/초대함만 가볍게 재조회한다(셸 전체 리로드 없이 스위처·벨 배지를 최신으로 유지).
   const shellReady = state.kind === "ready";
+  const shellContextReady = state.kind === "ready" && state.rooms.length > 0;
   const refreshShellLists = useCallback(async () => {
     if (!shellReady) return;
 
@@ -569,9 +598,33 @@ export function AppShell({ children }: AppShellProps) {
 
     if (state.kind === "auth") {
       if (isDesktopRuntime) {
-        void stopTauriAuthenticatedSurfaces().catch((error) => {
-          console.warn("Failed to stop Tauri authenticated surfaces after auth reset.", error);
-        });
+        let cancelled = false;
+
+        void restoreStoredAuthSessionFromTauri()
+          .then((restoredSession) => {
+            if (cancelled) return;
+            if (restoredSession) {
+              setState({ kind: "loading" });
+              setAuthRecoveryNonce((current) => current + 1);
+              return;
+            }
+
+            void stopTauriAuthenticatedSurfaces().catch((error) => {
+              console.warn("Failed to stop Tauri authenticated surfaces after auth reset.", error);
+            });
+            router.replace("/login");
+          })
+          .catch(() => {
+            if (cancelled) return;
+            void stopTauriAuthenticatedSurfaces().catch((error) => {
+              console.warn("Failed to stop Tauri authenticated surfaces after auth reset.", error);
+            });
+            router.replace("/login");
+          });
+
+        return () => {
+          cancelled = true;
+        };
       }
 
       router.replace("/login");
@@ -594,12 +647,19 @@ export function AppShell({ children }: AppShellProps) {
   }, [state]);
 
   useEffect(() => {
-    if (state.kind !== "ready" || !isTauriRuntime() || runtimeSmokeEnabled) return;
+    if (!shellContextReady || !isTauriRuntime() || runtimeSmokeEnabled) return;
 
-    void launchTauriAuthenticatedSurfaces({ sessionAlreadyValidated: true }).catch((error) => {
+    const launchSelectedRoomId = selectedRoomId ?? getActiveProjectRoomId();
+    if (!launchSelectedRoomId) return;
+
+    void launchTauriAuthenticatedSurfaces({
+      retryPolicy: "cooldown",
+      selectedRoomId: launchSelectedRoomId,
+      sessionAlreadyValidated: true,
+    }).catch((error: unknown) => {
       console.warn("Failed to launch Tauri authenticated surfaces after shell ready.", error);
     });
-  }, [state.kind, readyUserId]);
+  }, [readyUserId, selectedRoomId, shellContextReady]);
 
   useEffect(() => {
     function syncActiveProjectRoom(event: Event) {
