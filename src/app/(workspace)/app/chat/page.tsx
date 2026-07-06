@@ -7,6 +7,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
+import { agentApi } from "@/features/agent/api/agentApi";
 import { authApi } from "@/features/auth/api/authApi";
 import { chatApi } from "@/features/communication/api/chatApi";
 import { AgentCommandAutocomplete } from "@/features/communication/components/agent-command-autocomplete";
@@ -56,6 +57,7 @@ import {
   workspacePreviewChatRoomsFor,
   workspacePreviewUser,
 } from "@/lib/workspace-preview-data";
+import type { AgentSuggestionResponse } from "@/types/api/agent";
 import type { AuthUser } from "@/types/api/auth";
 import type { ChatMessageResponse, ChatRoomResponse, RoomAgentCommandMode } from "@/types/api/chat";
 import type { FriendRequestResponse, FriendResponse, FriendSearchResponse } from "@/types/api/friend";
@@ -216,6 +218,66 @@ function messageText(t: TranslateFn, message: ChatMessageResponse) {
 }
 
 const agentSectionLabels = ["TODO", "TASK", "REQUIREMENT", "QUESTION", "REVIEW_ITEM"] as const;
+
+function sectionLines(text: string, sectionLabel: string) {
+  const normalized = formatAgentMessageText(text);
+  const pattern = new RegExp(`(?:^|\\n)${sectionLabel}:\\s*\\n?([\\s\\S]*?)(?=\\n\\n[A-Z_]+:|$)`, "i");
+  const match = normalized.match(pattern);
+  if (!match?.[1]) return [];
+
+  return match[1]
+    .split("\n")
+    .map((line) => line.replace(/^\s*[-*]\s*/, "").trim())
+    .filter(Boolean);
+}
+
+function isCommandLikeTodoTitle(value: unknown, request: string) {
+  if (typeof value !== "string") return false;
+  const text = value.trim().toLowerCase();
+  const normalizedRequest = request.trim().toLowerCase();
+
+  return (
+    text.length === 0 ||
+    text === normalizedRequest ||
+    text === `/bubli ${normalizedRequest}` ||
+    /^\/?bubli\b/.test(text) ||
+    /(?:todo|to-do|할일)\s*.*후보/.test(text) ||
+    /후보\s*만들/.test(text)
+  );
+}
+
+function todoCandidatePatch(suggestion: AgentSuggestionResponse, title: string, request: string) {
+  const currentTitle = suggestion.payloadJson.title ?? suggestion.payloadJson.name ?? suggestion.payloadJson.label;
+  const currentSummary = suggestion.payloadJson.summary ?? suggestion.payloadJson.description ?? suggestion.payloadJson.content;
+  const shouldPatchTitle = isCommandLikeTodoTitle(currentTitle, request);
+  const shouldPatchSummary = typeof currentSummary !== "string" || currentSummary.trim().length === 0 || currentSummary === currentTitle;
+
+  if (!shouldPatchTitle && !shouldPatchSummary) return null;
+
+  return {
+    ...suggestion.payloadJson,
+    title: shouldPatchTitle ? title : currentTitle,
+    summary: shouldPatchSummary ? title : currentSummary,
+  };
+}
+
+async function repairTodoSuggestionsFromAgentReply(
+  suggestions: AgentSuggestionResponse[],
+  agentReplyText: string,
+  request: string,
+) {
+  const todoLines = sectionLines(agentReplyText, "TODO");
+  if (todoLines.length === 0) return;
+
+  const todoSuggestions = suggestions.filter((suggestion) => suggestion.suggestionType === "TODO");
+  await Promise.allSettled(
+    todoSuggestions.map((suggestion, index) => {
+      const payloadJson = todoCandidatePatch(suggestion, todoLines[index] ?? todoLines[0], request);
+      if (!payloadJson) return Promise.resolve();
+      return agentApi.updateSuggestion(suggestion.suggestionId, { action: "MODIFY", payloadJson });
+    }),
+  );
+}
 
 function formatAgentMessageText(text: string) {
   let formatted = text.replace(/\r\n/g, "\n").trim();
@@ -1619,6 +1681,13 @@ function ChatPageContent() {
           resourceIds: [],
         });
         appendMessage(response.message);
+        if (agentCommand.mode === "SUGGEST") {
+          await repairTodoSuggestionsFromAgentReply(
+            response.suggestions,
+            messageText(t, response.message),
+            agentCommand.message,
+          );
+        }
         setAgentTyping(null);
         void syncCachedRoomMessages(response.message.chatRoomId, [response.message]);
         setDraft("");
