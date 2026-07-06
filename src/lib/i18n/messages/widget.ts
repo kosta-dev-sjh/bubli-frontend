@@ -50,6 +50,7 @@ const ko = {
   // 데이터 모듈: 기본 버블
   "widget.data.todo.action": "TODO 추가",
   "widget.data.todo.compact": "TODO",
+  "widget.data.todo.inputPlaceholder": "할 일 제목",
   "widget.data.todo.label": "오늘 할 일",
   "widget.data.todo.metricLabel": "오늘 기준",
   "widget.data.todo.panelLabel": "오늘 우선순위",
@@ -990,6 +991,7 @@ const en: Record<Key, string> = {
 
   "widget.data.todo.action": "Add TODO",
   "widget.data.todo.compact": "TODO",
+  "widget.data.todo.inputPlaceholder": "Task title",
   "widget.data.todo.label": "Today's tasks",
   "widget.data.todo.metricLabel": "As of today",
   "widget.data.todo.panelLabel": "Today's priorities",
@@ -1908,6 +1910,7 @@ const ja: Record<Key, string> = {
 
   "widget.data.todo.action": "TODOを追加",
   "widget.data.todo.compact": "TODO",
+  "widget.data.todo.inputPlaceholder": "タスク名",
   "widget.data.todo.label": "今日のタスク",
   "widget.data.todo.metricLabel": "今日基準",
   "widget.data.todo.panelLabel": "今日の優先順位",

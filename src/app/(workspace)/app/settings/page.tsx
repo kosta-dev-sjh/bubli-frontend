@@ -1662,7 +1662,7 @@ export default function SettingsPage() {
                 <h2>{t("settings.nav.desktop")}</h2>
                 <p className={styles.sectionDesc}>{t("settings.desktop.webBody")}</p>
                 <div className={styles.sectionFoot}>
-                  <Link className="bubli-button bubli-button--primary" href="/download">
+                  <Link className="bubli-button bubli-button--primary" href="/#download">
                     {t("settings.desktop.webDownloadCta")}
                   </Link>
                 </div>

@@ -20,7 +20,6 @@ Next.js route group 이름은 URL에 들어가지 않는다. 실제 URL은 아�
 |---|---|---|
 | 공개 사이트 | `/` | `src/app/(public)` |
 | 공개 사이트 | `/features` | `src/app/(public)/features` |
-| 공개 사이트 | `/download` | `src/app/(public)/download` |
 | 공개 사이트 | `/faq` | `src/app/(public)/faq` |
 | 인증 | `/login` | `src/app/(auth)/login` |
 | 회원 웹 앱 | `/app` | `src/app/(workspace)/app` |
@@ -164,7 +163,7 @@ Tauri SQLite는 서버 원본이 아니다. 빠른 표시, 비정상 종료 복�
 
 ## 구현 시작 순서
 
-1. `/`, `/features`, `/download`, `/faq`, `/login`, `/app` 기본 화면을 먼저 만든다.
+1. `/`, `/features`, `/faq`, `/login`, `/app` 기본 화면을 먼저 만든다.
 2. 회원 앱 레이아웃과 공개 사이트 레이아웃을 분리한다.
 3. 디자인 v20 기준 공통 UI, 도메인 카드, 버블 컴포넌트를 Storybook에서 먼저 검수한다.
 4. `src/lib/api`에 공통 응답 포맷과 인증 헤더 기준을 만든다.

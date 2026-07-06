@@ -15,12 +15,16 @@ export type WidgetPreviewItem = {
   kind?: "agent" | "friend" | "memo" | "message" | "resource" | "schedule" | "task" | "time" | "voice";
   label: string;
   memoBody?: string;
+  pinned?: boolean;
   /** 개인 컨텍스트에서 룸 태스크 행에 붙는 룸 칩 라벨(룸 이름). */
   roomName?: string;
   /** TODO 그룹핑: 내 개인 TODO(personal) vs 나에게 할당된 룸 태스크(room). */
   sourceKind?: "personal" | "room";
   stateId?: string;
   status: string;
+  timerDurationSeconds?: number | null;
+  timerLastStartedAt?: string | null;
+  timerStartedAt?: string | null;
 };
 
 export type WidgetPreviewBubble = {
@@ -67,6 +71,7 @@ const baseBubbles: Array<Pick<WidgetPreviewBubble, "accent" | "actionLabel" | "c
     actionLabel: "widget.data.todo.action",
     compactLabel: "widget.data.todo.compact",
     id: "todo",
+    inputPlaceholder: "widget.data.todo.inputPlaceholder",
     label: "widget.data.todo.label",
     metricLabel: "widget.data.todo.metricLabel",
     panelLabel: "widget.data.todo.panelLabel",
@@ -76,6 +81,7 @@ const baseBubbles: Array<Pick<WidgetPreviewBubble, "accent" | "actionLabel" | "c
     actionLabel: "widget.data.schedule.action",
     compactLabel: "widget.data.schedule.compact",
     id: "schedule",
+    inputPlaceholder: "widget.schedule.prompt",
     label: "widget.data.schedule.label",
     metricLabel: "widget.data.schedule.metricLabel",
     panelLabel: "widget.data.schedule.panelLabel",

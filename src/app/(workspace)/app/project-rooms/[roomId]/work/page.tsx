@@ -38,10 +38,13 @@ type WorkPageState =
   | { kind: "error"; message: string };
 
 export default function ProjectRoomWorkPage() {
-  const { t } = useI18n();
   const params = useParams<{ roomId: string }>();
+  return <ProjectRoomWorkContent roomId={params.roomId} />;
+}
+
+export function ProjectRoomWorkContent({ roomId }: { roomId: string }) {
+  const { t } = useI18n();
   const router = useRouter();
-  const roomId = params.roomId;
   const [state, setState] = useState<WorkPageState>({ kind: "loading" });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 

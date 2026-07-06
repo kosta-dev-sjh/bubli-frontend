@@ -2,7 +2,10 @@
 
 import { startActivityAutoCapture, stopActivityAutoCapture } from "@/lib/local/activity-auto-capture";
 import { startManagedFolderAutoSync, stopManagedFolderAutoSync } from "@/lib/local/managed-folder-auto-sync";
+import { authApi } from "@/features/auth/api/authApi";
+import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
+import { getStoredAuthSession, setStoredAuthSessionAndWaitForTauriMirror } from "@/lib/auth/auth-session";
 import { tauriCommands, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowOpenInput } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { startWidgetUsageAutoSync, stopWidgetUsageAutoSync } from "@/lib/widget/widget-usage-auto-sync";
@@ -18,6 +21,40 @@ let launchRequested = false;
 let launchPromise: Promise<void> | null = null;
 let launchGeneration = 0;
 let launchedAuthenticatedSurfaces = false;
+
+export type TauriAuthenticatedSurfaceLaunchTimeline = {
+  authGateAfterBackendAuth?: boolean;
+  authGateEnabledAt?: string;
+  barWindowOpenedAt?: string;
+  backendAuthValidationSource?: "caller" | "launcher";
+  backendAuthValidatedAt?: string;
+  bubbleWindowsOpenedAt?: string;
+  completed: boolean;
+  firstWidgetOpenAfterBackendAuth?: boolean;
+  launchCompletedAt?: string;
+  launchStartedAt?: string;
+  lastError?: string;
+  reusedExistingWindowsAt?: string;
+  selectedRoomResolvedAt?: string;
+  sessionMirrorStoredAt?: string;
+  startupWindowsResolvedAt?: string;
+  stoppedAt?: string;
+  syncLoopsStartedAt?: string;
+};
+
+type LaunchTauriAuthenticatedSurfacesOptions = {
+  sessionAlreadyValidated?: boolean;
+};
+
+let lastLaunchTimeline: TauriAuthenticatedSurfaceLaunchTimeline = { completed: false };
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+export function readTauriAuthenticatedSurfacesLaunchTimeline(): TauriAuthenticatedSurfaceLaunchTimeline {
+  return { ...lastLaunchTimeline };
+}
 
 const loginStartupBarWindow: WidgetWindowOpenInput = { bubbleType: "bar", mode: "DEFAULT", windowId: "bar" };
 // 메뉴 오브 창도 로그인 시 자동 실행 목록에 함께 띄운다.
@@ -148,8 +185,8 @@ async function openWidgetWindowsWithRetry(
   return inputs.map((input) => ({ input, reason: lastReason, status: "rejected" as const }));
 }
 
-function getStartupModeFromSetting(setting: WidgetBubbleSettingResponse): WidgetWindowMode {
-  if (setting.minimized) return "MINIMIZED";
+function getVisibleLoginStartupModeFromSetting(setting: WidgetBubbleSettingResponse): WidgetWindowMode {
+  // Login startup opens enabled widgets visibly; minimized mode is restored through widget bar/settings flows.
   if (setting.ghostMode) return "GHOST";
   if (setting.opacity !== null && setting.opacity !== undefined && setting.opacity < 0.95) {
     return "TRANSLUCENT";
@@ -189,7 +226,7 @@ function getLoginStartupBubbles(settings: WidgetBubbleSettingResponse[]): Widget
     if (!setting) continue;
     startupBubbles.push({
       bubbleType: bubble.bubbleType,
-      mode: getStartupModeFromSetting(setting),
+      mode: getVisibleLoginStartupModeFromSetting(setting),
       windowId: bubble.windowId,
     });
   }
@@ -213,6 +250,9 @@ async function resolveLaunchSelectedRoomId() {
   const context = await widgetApi.getContext().catch(() => null);
   if (context?.selectedRoomId) {
     seedActiveProjectRoomId(context.selectedRoomId);
+    await tauriCommands
+      .storeActiveProjectRoom({ roomId: context.selectedRoomId, roomLabel: null })
+      .catch(() => undefined);
     return context.selectedRoomId;
   }
 
@@ -220,27 +260,96 @@ async function resolveLaunchSelectedRoomId() {
   if (activeRoomId) return activeRoomId;
 
   const restored = await restoreActiveProjectRoomFromTauri().catch(() => null);
-  return restored?.roomId ?? null;
+  if (restored?.roomId) {
+    await widgetApi.updateContext({ selectedRoomId: restored.roomId }).catch(() => undefined);
+    return restored.roomId;
+  }
+
+  const roomPage = await projectRoomApi.list().catch(() => null);
+  const firstRoom = roomPage?.items[0];
+  if (firstRoom?.id) {
+    seedActiveProjectRoomId(firstRoom.id, firstRoom.name);
+    await tauriCommands
+      .storeActiveProjectRoom({ roomId: firstRoom.id, roomLabel: firstRoom.name })
+      .catch(() => undefined);
+    await widgetApi.updateContext({ selectedRoomId: firstRoom.id }).catch(() => undefined);
+    return firstRoom.id;
+  }
+
+  return null;
 }
 
-export function launchTauriAuthenticatedSurfaces() {
+export function launchTauriAuthenticatedSurfaces(options: LaunchTauriAuthenticatedSurfacesOptions = {}) {
   if (!isTauriRuntime()) return Promise.resolve();
   if (launchRequested && launchPromise) return launchPromise;
 
   launchRequested = true;
   const generation = ++launchGeneration;
   launchPromise = (async () => {
+    const launchStartedAt = nowIso();
+    const timeline: TauriAuthenticatedSurfaceLaunchTimeline = {
+      completed: false,
+      launchStartedAt,
+    };
+    lastLaunchTimeline = timeline;
+
+    const initialSession = getStoredAuthSession();
+    if (!initialSession) {
+      throw new Error("Tauri authenticated surfaces require a stored auth session");
+    }
+
+    if (!options.sessionAlreadyValidated) {
+      await authApi.getMe();
+    }
+    timeline.backendAuthValidationSource = options.sessionAlreadyValidated ? "caller" : "launcher";
+    timeline.backendAuthValidatedAt = nowIso();
+
+    const verifiedSession = getStoredAuthSession() ?? initialSession;
+    if (verifiedSession) {
+      await setStoredAuthSessionAndWaitForTauriMirror(verifiedSession);
+    }
+    timeline.sessionMirrorStoredAt = nowIso();
+
     const startupWindows = await resolveLoginStartupWindows();
+    timeline.startupWindowsResolvedAt = nowIso();
     if (launchedAuthenticatedSurfaces) {
       const ready = await authenticatedStartupWindowsReady(startupWindows);
-      if (ready) return;
+      if (ready) {
+        await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: true }).catch(() => undefined);
+        timeline.authGateEnabledAt = nowIso();
+        timeline.authGateAfterBackendAuth = Boolean(
+          timeline.backendAuthValidatedAt &&
+            new Date(timeline.authGateEnabledAt).getTime() >= new Date(timeline.backendAuthValidatedAt).getTime(),
+        );
+        startActivityAutoCapture();
+        startManagedFolderAutoSync();
+        startWidgetUsageAutoSync();
+        timeline.completed = true;
+        timeline.reusedExistingWindowsAt = nowIso();
+        timeline.barWindowOpenedAt = timeline.reusedExistingWindowsAt;
+        timeline.bubbleWindowsOpenedAt = timeline.reusedExistingWindowsAt;
+        timeline.firstWidgetOpenAfterBackendAuth = Boolean(
+          timeline.backendAuthValidatedAt &&
+            new Date(timeline.reusedExistingWindowsAt).getTime() >=
+              new Date(timeline.backendAuthValidatedAt).getTime(),
+        );
+        timeline.syncLoopsStartedAt = timeline.reusedExistingWindowsAt;
+        timeline.launchCompletedAt = timeline.reusedExistingWindowsAt;
+        return;
+      }
 
       launchedAuthenticatedSurfaces = false;
       await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
     }
 
     await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: true });
+    timeline.authGateEnabledAt = nowIso();
+    timeline.authGateAfterBackendAuth = Boolean(
+      timeline.backendAuthValidatedAt &&
+        new Date(timeline.authGateEnabledAt).getTime() >= new Date(timeline.backendAuthValidatedAt).getTime(),
+    );
     const selectedRoomId = await resolveLaunchSelectedRoomId();
+    timeline.selectedRoomResolvedAt = nowIso();
     if (generation !== launchGeneration) {
       await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
       await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false }).catch(() => undefined);
@@ -262,6 +371,11 @@ export function launchTauriAuthenticatedSurfaces() {
       const barResult = await openWidgetWindowWithRetry(barWindow, selectedRoomId, shouldContinueLaunch);
       if (barResult.status === "fulfilled") {
         openedWindows.push(barWindow);
+        timeline.barWindowOpenedAt = nowIso();
+        timeline.firstWidgetOpenAfterBackendAuth = Boolean(
+          timeline.backendAuthValidatedAt &&
+            new Date(timeline.barWindowOpenedAt).getTime() >= new Date(timeline.backendAuthValidatedAt).getTime(),
+        );
       } else {
         rejectedReasons.push(barResult.reason);
       }
@@ -274,9 +388,14 @@ export function launchTauriAuthenticatedSurfaces() {
     }
 
     const bubbleResults = await openWidgetWindowsWithRetry(bubbleWindows, selectedRoomId, shouldContinueLaunch);
+    timeline.bubbleWindowsOpenedAt = nowIso();
     for (const result of bubbleResults) {
       if (result.status === "fulfilled") {
         openedWindows.push(result.input);
+        timeline.firstWidgetOpenAfterBackendAuth ??= Boolean(
+          timeline.backendAuthValidatedAt &&
+            new Date(timeline.bubbleWindowsOpenedAt).getTime() >= new Date(timeline.backendAuthValidatedAt).getTime(),
+        );
       } else {
         rejectedReasons.push(result.reason);
       }
@@ -315,14 +434,22 @@ export function launchTauriAuthenticatedSurfaces() {
     startActivityAutoCapture();
     startManagedFolderAutoSync();
     startWidgetUsageAutoSync();
+    timeline.syncLoopsStartedAt = nowIso();
     // All requested windows opened; this login cycle is active.
     // Partial launches are cleaned up above so bar-only startup cannot hide a
     // failed bubble batch.
     launchedAuthenticatedSurfaces = true;
     launchRequested = true;
+    timeline.completed = true;
+    timeline.launchCompletedAt = nowIso();
   })()
     .catch(async (error) => {
       launchRequested = false;
+      lastLaunchTimeline = {
+        ...lastLaunchTimeline,
+        completed: false,
+        lastError: error instanceof Error ? error.message : String(error),
+      };
       await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false }).catch(() => undefined);
       throw error;
     })
@@ -338,6 +465,11 @@ export async function stopTauriAuthenticatedSurfaces() {
   launchRequested = false;
   launchPromise = null;
   launchedAuthenticatedSurfaces = false;
+  lastLaunchTimeline = {
+    ...lastLaunchTimeline,
+    completed: false,
+    stoppedAt: nowIso(),
+  };
   await stopActivityAutoCapture({ flush: true });
   await stopManagedFolderAutoSync({ flush: true });
   await stopWidgetUsageAutoSync({ flush: true });

@@ -170,17 +170,52 @@ function sameAuthSession(left: StoredAuthSession | null, right: AuthSessionInput
   );
 }
 
-function mirrorAuthSessionToTauri(session: StoredAuthSession) {
+function createStoredAuthSession(session: AuthSessionInput): StoredAuthSession {
+  return {
+    ...session,
+    savedAt: new Date().toISOString(),
+    savedAtMs: Date.now(),
+  };
+}
+
+function storeAuthSessionToTauriMirror(session: StoredAuthSession) {
   if (!isTauriRuntime()) return Promise.resolve();
-  return tauriCommands
-    .storeTauriAuthSession({ sessionJson: JSON.stringify(session) })
-    .then(() => undefined)
-    .catch(() => undefined);
+  return tauriCommands.storeTauriAuthSession({ sessionJson: JSON.stringify(session) }).then(() => undefined);
+}
+
+function mirrorAuthSessionToTauri(session: StoredAuthSession) {
+  return storeAuthSessionToTauriMirror(session).catch(() => undefined);
 }
 
 function clearTauriAuthSessionMirror() {
   if (!isTauriRuntime()) return;
   void tauriCommands.clearTauriAuthSession().catch(() => undefined);
+}
+
+function clearLocalAuthSessionOnly() {
+  if (!canUseStorage()) {
+    return false;
+  }
+
+  try {
+    const hadStoredSession = Boolean(window.localStorage.getItem(AUTH_SESSION_STORAGE_KEY));
+    window.localStorage.removeItem(AUTH_SESSION_STORAGE_KEY);
+    if (hadStoredSession) {
+      emitAuthSessionChange();
+    }
+    return hadStoredSession;
+  } catch {
+    return false;
+  }
+}
+
+function clearRejectedStoredAuthSession() {
+  if (isTauriRuntime()) {
+    clearLocalAuthSessionOnly();
+    return;
+  }
+
+  clearStoredAuthSession();
 }
 
 export function getStoredAuthSession(): StoredAuthSession | null {
@@ -196,17 +231,17 @@ export function getStoredAuthSession(): StoredAuthSession | null {
 
     const parsed = parseStoredAuthSession(raw);
     if (!parsed) {
-      clearStoredAuthSession();
+      clearRejectedStoredAuthSession();
       return null;
     }
     if (shouldRejectStoredAuthSession(parsed)) {
-      clearStoredAuthSession();
+      clearRejectedStoredAuthSession();
       return null;
     }
 
     return parsed;
   } catch {
-    clearStoredAuthSession();
+    clearRejectedStoredAuthSession();
     return null;
   }
 }
@@ -269,15 +304,31 @@ export function setStoredAuthSession(session: AuthSessionInput) {
     return;
   }
 
-  const next: StoredAuthSession = {
-    ...session,
-    savedAt: new Date().toISOString(),
-    savedAtMs: Date.now(),
-  };
+  const next = createStoredAuthSession(session);
 
   window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify(next));
   void mirrorAuthSessionToTauri(next);
   emitAuthSessionChange();
+}
+
+export async function setStoredAuthSessionAndWaitForTauriMirror(session: AuthSessionInput) {
+  if (!canUseStorage()) {
+    return null;
+  }
+
+  const current = getStoredAuthSession();
+  const next = sameAuthSession(current, session) && current ? current : createStoredAuthSession(session);
+  const nextRaw = JSON.stringify(next);
+  const currentRaw = window.localStorage.getItem(AUTH_SESSION_STORAGE_KEY);
+
+  window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, nextRaw);
+
+  await storeAuthSessionToTauriMirror(next).catch(() => undefined);
+  if (currentRaw !== nextRaw) {
+    emitAuthSessionChange();
+  }
+
+  return next;
 }
 
 export function clearStoredAuthSession() {

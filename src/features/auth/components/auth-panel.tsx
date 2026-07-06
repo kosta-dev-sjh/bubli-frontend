@@ -7,7 +7,9 @@ import { useEffect, useState, type CSSProperties, type PointerEvent } from "reac
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { siteConfig } from "@/config/site";
 import { AuthConfigurationError, authApi } from "@/features/auth/api/authApi";
-import { useLiveAuthUser } from "@/features/auth/hooks/use-live-auth-user";
+import { useLiveAuthState } from "@/features/auth/hooks/use-live-auth-user";
+import { getApiBaseUrl } from "@/lib/api/client";
+import { setStoredAuthSessionAndWaitForTauriMirror } from "@/lib/auth/auth-session";
 import { useI18n } from "@/lib/i18n";
 import { tauriCommands } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
@@ -85,6 +87,7 @@ function shouldUseTauriDevLogin() {
 }
 
 const TAURI_LOOPBACK_REDIRECT_URI = "http://127.0.0.1:3791/auth/callback";
+const TAURI_MEMBER_APP_ROUTE = "/app/";
 
 function createTauriLoginState() {
   const nonce =
@@ -92,21 +95,37 @@ function createTauriLoginState() {
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-  return btoa(JSON.stringify({ nonce, returnTo: "/app" }));
+  return btoa(JSON.stringify({ nonce, returnTo: TAURI_MEMBER_APP_ROUTE }));
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  return "Unknown error";
+}
+
+async function runTauriLoginStep<T>(stage: string, task: () => Promise<T>) {
+  try {
+    return await task();
+  } catch (error) {
+    throw new Error(`${stage}: ${getErrorMessage(error)}`);
+  }
 }
 
 export function AuthPanel() {
   const { t } = useI18n();
   const router = useRouter();
-  const liveUser = useLiveAuthUser();
+  const liveAuth = useLiveAuthState();
+  const liveUser = liveAuth.user;
   const [isStartingLogin, setIsStartingLogin] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const isDevTauriLogin = shouldUseTauriDevLogin();
+  const isCheckingExistingSession = liveAuth.status === "checking";
 
   // 살아 있는 세션이면 다시 로그인하지 않고 곧바로 앱으로 보낸다.
   useEffect(() => {
     if (liveUser) {
-      router.replace("/app");
+      router.replace(isTauriRuntime() ? TAURI_MEMBER_APP_ROUTE : "/app");
     }
   }, [liveUser, router]);
 
@@ -117,33 +136,35 @@ export function AuthPanel() {
     try {
       if (isDevTauriLogin && process.env.NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN) {
         await authApi.loginWithDevAccessToken(process.env.NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN);
-        router.replace("/app");
+        router.replace(TAURI_MEMBER_APP_ROUTE);
         return;
       }
 
       if (isTauriRuntime()) {
-        try {
-          const state = createTauriLoginState();
-          const { authorizeUrl } = await authApi.getGoogleAuthorizationUrl({
-            clientType: "TAURI",
+        const state = createTauriLoginState();
+        const { authorizeUrl } = await runTauriLoginStep("authorize", () =>
+          tauriCommands.getTauriGoogleAuthorizationUrl({
+            apiBaseUrl: getApiBaseUrl(),
             redirectUri: TAURI_LOOPBACK_REDIRECT_URI,
             state,
-          });
-          const result = await tauriCommands.startTauriGoogleOauthLoopback({
+          }),
+        );
+        const token = await runTauriLoginStep("complete-oauth", () =>
+          tauriCommands.completeTauriGoogleOauth({
+            apiBaseUrl: getApiBaseUrl(),
             authorizeUrl,
             expectedState: state,
             redirectUri: TAURI_LOOPBACK_REDIRECT_URI,
-          });
-          await authApi.callbackGoogle({
-            clientType: "TAURI",
-            code: result.code,
-            redirectUri: TAURI_LOOPBACK_REDIRECT_URI,
-          });
-          router.replace("/app");
-          return;
-        } catch {
-          // If the loopback URI is not registered or the port is busy, keep the existing WebView OAuth path.
-        }
+          }),
+        );
+        await runTauriLoginStep("store-session", () =>
+          setStoredAuthSessionAndWaitForTauriMirror({ ...token, clientType: "TAURI" }),
+        );
+        await tauriCommands.openMainWindowRoute({ route: TAURI_MEMBER_APP_ROUTE }).catch(async () => {
+          await tauriCommands.showMainWindow().catch(() => undefined);
+        });
+        router.replace(TAURI_MEMBER_APP_ROUTE);
+        return;
       }
 
       const { authorizeUrl } = await authApi.getGoogleAuthorizationUrl({
@@ -154,7 +175,9 @@ export function AuthPanel() {
       setLoginError(
         error instanceof AuthConfigurationError
           ? t("auth.panel.errorConfig")
-          : t("auth.panel.errorStart"),
+          : isTauriRuntime()
+            ? `로그인 처리 실패: ${getErrorMessage(error)}`
+            : t("auth.panel.errorStart"),
       );
       setIsStartingLogin(false);
     }
@@ -202,7 +225,7 @@ export function AuthPanel() {
           ) : null}
           <button
             className="bubli-button bubli-button--primary bubli-button--lg auth-card__submit"
-            disabled={isStartingLogin}
+            disabled={isStartingLogin || isCheckingExistingSession}
             onClick={handleGoogleLogin}
             onPointerLeave={handleSubmitPointerLeave}
             onPointerMove={handleSubmitPointerMove}
@@ -219,7 +242,11 @@ export function AuthPanel() {
             type="button"
           >
             <GoogleIcon />
-            {isStartingLogin ? t("auth.panel.googleRedirecting") : t("auth.panel.googleLogin")}
+            {isCheckingExistingSession
+              ? t("common.loading")
+              : isStartingLogin
+                ? t("auth.panel.googleRedirecting")
+                : t("auth.panel.googleLogin")}
           </button>
           {loginError ? <p className="auth-card__error">{loginError}</p> : null}
         </div>

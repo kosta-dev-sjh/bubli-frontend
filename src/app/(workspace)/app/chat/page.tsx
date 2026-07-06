@@ -25,6 +25,7 @@ import { getApiBaseUrl } from "@/lib/api/client";
 import { ApiClientError } from "@/lib/api/errors";
 import { getAuthAccessToken } from "@/lib/auth/auth-session";
 import { notifyDataChanged } from "@/lib/data-changed";
+import { projectRoomRoute } from "@/lib/project-room-routes";
 import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import {
@@ -456,7 +457,7 @@ function ChatPageContent() {
     if (tauriChatRedirectSentRef.current || !isTauriRuntime()) return;
 
     tauriChatRedirectSentRef.current = true;
-    const fallbackRoute = queryRoomId ? `/app/project-rooms/${encodeURIComponent(queryRoomId)}/work` : "/app";
+    const fallbackRoute = queryRoomId ? projectRoomRoute(queryRoomId, "work") : "/app";
     void openTauriChatWidget({ eventType: "handoff:chat-route", roomId: queryRoomId })
       .then(() => router.replace(fallbackRoute))
       .catch(() => router.replace(fallbackRoute));
@@ -1017,6 +1018,7 @@ function ChatPageContent() {
       if (!message || message.chatRoomId !== chatRoomId) return;
 
       mergeIncomingMessages([message]);
+      notifyDataChanged("chat");
       // 남이 보낸(그리고 내 WS 에코) 이모지 전용 메시지 → 이모지 퐁퐁.
       maybeSplashEmojiMessage(message);
 
@@ -1560,6 +1562,8 @@ function ChatPageContent() {
         setSelectedAttachment(null);
         setEmoticonOpen(false);
         setComposerActive(true);
+        notifyDataChanged("agent");
+        notifyDataChanged("chat");
         setAgentCommandNotice(t("chat.notice.agentSent"));
       } catch {
         setAgentTyping(null);
@@ -1612,6 +1616,7 @@ function ChatPageContent() {
       // (계약과 페이로드는 emoji-splash-layer.tsx 상단 주석 참고 — 지금은 웹 오버레이만 구현).
       maybeSplashEmojiMessage(response);
       void syncCachedRoomMessages(response.chatRoomId, [response]);
+      notifyDataChanged("chat");
       setDraft("");
       setSelectedAttachment(null);
       setEmoticonOpen(false);
@@ -1758,7 +1763,7 @@ function ChatPageContent() {
               </div>
               <div className="workspace-route__thread-actions">
                 {selectedRoom?.chatType === "ROOM" && selectedRoom.roomId ? (
-                  <Link className="bubli-button" href={`/app/project-rooms/${selectedRoom.roomId}`}>
+                  <Link className="bubli-button" href={projectRoomRoute(selectedRoom.roomId, "work")}>
                     {t("chat.thread.projectRoom")}
                   </Link>
                 ) : null}

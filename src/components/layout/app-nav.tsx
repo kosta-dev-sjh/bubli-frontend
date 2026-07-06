@@ -17,6 +17,7 @@ import { useSyncExternalStore } from "react";
 import { siteConfig } from "@/config/site";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
+import { projectRoomRoute } from "@/lib/project-room-routes";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { cn } from "@/lib/utils";
 
@@ -63,7 +64,7 @@ function navHref(href: (typeof siteConfig.appNav)[number]["href"], activeRoomId?
   if (!activeRoomId) return href;
 
   if (href === "/app/project-rooms") {
-    return `/app/project-rooms/${activeRoomId}`;
+    return projectRoomRoute(activeRoomId, "work");
   }
 
   if (href === "/app/agent" || href === "/app/calendar") {

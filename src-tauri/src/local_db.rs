@@ -242,7 +242,7 @@ pub struct LocalRoomMessageSyncResult {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AuthSessionStoreInput {
-    session_json: String,
+    pub session_json: String,
 }
 
 #[derive(Serialize)]

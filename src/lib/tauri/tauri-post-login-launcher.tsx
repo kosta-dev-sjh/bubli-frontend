@@ -7,7 +7,6 @@ import { authApi } from "@/features/auth/api/authApi";
 import { ApiClientError } from "@/lib/api/errors";
 import {
   AUTH_SESSION_CHANGE_EVENT,
-  clearStoredAuthSession,
   getStoredAuthSession,
   getStoredAuthSessionDiagnostics,
   readTauriAuthSessionDiagnostics,
@@ -25,6 +24,7 @@ const runtimeSmokeEnabled =
   process.env.NODE_ENV === "development" &&
   process.env.NEXT_PUBLIC_BUBLI_TAURI_RUNTIME_SMOKE === "true";
 const authDiagnosticsEnabled = process.env.NEXT_PUBLIC_BUBLI_TAURI_AUTH_DIAGNOSTICS === "true";
+const realOAuthQaEnabled = process.env.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA === "true";
 
 declare global {
   interface Window {
@@ -82,7 +82,6 @@ export function TauriPostLoginLauncher() {
 
         if (error instanceof ApiClientError && error.status === 401) {
           await stopTauriAuthenticatedSurfaces();
-          clearStoredAuthSession();
         }
         return;
       }
@@ -96,7 +95,7 @@ export function TauriPostLoginLauncher() {
         return;
       }
 
-      void launchTauriAuthenticatedSurfaces().catch(() => undefined);
+      void launchTauriAuthenticatedSurfaces({ sessionAlreadyValidated: true }).catch(() => undefined);
     }
 
     const handleAuthSessionChange = () => void launchAuthenticatedSurfaces();
@@ -113,8 +112,7 @@ export function TauriPostLoginLauncher() {
 
   useEffect(() => {
     if (
-      process.env.NODE_ENV !== "development" ||
-      !authDiagnosticsEnabled ||
+      !(authDiagnosticsEnabled || realOAuthQaEnabled) ||
       !isTauriRuntime() ||
       isDesktopWidgetSurface ||
       runtimeSmokeEnabled

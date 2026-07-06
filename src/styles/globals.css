@@ -21844,6 +21844,11 @@ body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main-scroll::-web
   line-height: 1.65;
 }
 
+.public-download__file-link {
+  width: fit-content;
+  margin-top: 12px;
+}
+
 @media (max-width: 720px) {
   .public-download__grid {
     grid-template-columns: minmax(0, 1fr);

@@ -31,6 +31,7 @@ import { ApiClientError } from "@/lib/api/errors";
 import { notifyDataChanged, useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
+import { projectRoomRoute } from "@/lib/project-room-routes";
 import {
   shouldUseWorkspacePreviewData,
   workspacePreviewDashboard,
@@ -554,7 +555,7 @@ function ProjectRoomsWidget({ rooms }: { rooms: ProjectRoomResponse[] }) {
             <Link
               aria-label={t("dashboard.rooms.enterAria", { room: room.name })}
               className="workspace-dashboard__room-link"
-              href={`/app/project-rooms/${room.id}`}
+              href={projectRoomRoute(room.id, "work")}
             >
               {room.name}
             </Link>
@@ -960,7 +961,7 @@ export function WorkspaceDashboard() {
 
   // memo 도메인은 제외 — 메모 카드는 자체 조회를 갖고 있어(MemoDashboardCard) 스스로 갱신한다.
   useDataRefresh({
-    domains: ["project-room", "resource", "schedule", "todo"],
+    domains: ["agent", "chat", "notification", "project-room", "resource", "schedule", "timer", "todo"],
     ignoreSource: DASHBOARD_EVENT_SOURCE,
     minFocusIntervalMs: 30_000,
     onRefresh: refreshDashboard,
