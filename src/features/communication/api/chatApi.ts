@@ -81,6 +81,12 @@ export const chatApi = {
     });
   },
 
+  leaveRoom(chatRoomId: string) {
+    return apiRequest<void>(`/api/chat/rooms/${chatRoomId}/leave`, {
+      method: "POST",
+    });
+  },
+
   runRoomAgentCommand(roomId: string, { clientMessageId, ...body }: RoomAgentCommandRequest) {
     return apiRequest<RoomAgentCommandResponse>(`/api/project-rooms/${roomId}/agent/commands`, {
       body,

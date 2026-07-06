@@ -410,6 +410,9 @@ function ChatPageContent() {
   const [busyFriendRequestId, setBusyFriendRequestId] = useState<string | null>(null);
   // 친구 삭제는 결과를 먼저 알리고 삭제/유지로 확인받는 2단계 확인(프로젝트룸 설정 패널과 동일 패턴).
   const [pendingDeleteFriendUserId, setPendingDeleteFriendUserId] = useState<string | null>(null);
+  // 1:1/그룹 채팅방 나가기도 동일한 2단계 확인 패턴을 따른다.
+  const [pendingLeaveRoomId, setPendingLeaveRoomId] = useState<string | null>(null);
+  const [leavingRoomId, setLeavingRoomId] = useState<string | null>(null);
   const [busyInvitationId, setBusyInvitationId] = useState<string | null>(null);
   const [composerActive, setComposerActive] = useState(false);
   const [selectedAttachment, setSelectedAttachment] = useState<File | null>(null);
@@ -699,12 +702,14 @@ function ChatPageContent() {
     return t("chat.typing.one", { name: names[0] ?? t("chat.participant.fallbackName") });
   }, [activeChatRoomId, agentTypingActive, typingPeople, t]);
   const pendingRoomInvitations = roomInvitationsState.kind === "ready" ? roomInvitationsState.invitations.filter((invitation) => invitation.status === "PENDING") : [];
-  // 보이스는 프로젝트룸 전용이며 룸별로 독립 — 다른 프로젝트룸이나 1:1/그룹 뷰에서는 null
+  // 보이스는 채팅방별로 독립 — 프로젝트룸은 roomId, 1:1/그룹은 chatRoomId로 매칭
   const activeVoiceRoom =
     voiceState.kind === "ready" &&
     voiceState.room.status === "OPEN" &&
-    selectedRoom?.chatType === "ROOM" &&
-    voiceState.room.roomId === selectedRoom?.roomId
+    selectedRoom &&
+    (selectedRoom.chatType === "ROOM"
+      ? voiceState.room.roomId === selectedRoom.roomId
+      : voiceState.room.chatRoomId === selectedRoom.id)
       ? voiceState.room
       : null;
   const isInVoice = activeVoiceRoom !== null && activeVoiceRoom.participants.some(
@@ -1242,6 +1247,27 @@ function ChatPageContent() {
     [busyFriendUserId, loadSocial, socialState],
   );
 
+  const leaveChatRoom = useCallback(
+    async (room: ChatRoomResponse) => {
+      if (roomsState.kind !== "ready" || leavingRoomId) return;
+
+      setLeavingRoomId(room.id);
+      try {
+        await chatApi.leaveRoom(room.id);
+        setRoomsState({ kind: "ready", rooms: roomsState.rooms.filter((item) => item.id !== room.id) });
+        if (activeChatRoomId === room.id) {
+          setSelectedChatRoomId(null);
+        }
+      } catch {
+        // 실패 시 목록은 그대로 두고 다시 시도할 수 있게 한다
+      } finally {
+        setLeavingRoomId(null);
+        setPendingLeaveRoomId(null);
+      }
+    },
+    [activeChatRoomId, leavingRoomId, roomsState],
+  );
+
   const inviteFriendToRoom = useCallback(
     async (friend: FriendResponse) => {
       if (roomInviteState.kind === "sending") return;
@@ -1351,11 +1377,10 @@ function ChatPageContent() {
 
   const startVoice = useCallback(async () => {
     if (!selectedRoom) return;
-    if (selectedRoom.chatType !== "ROOM" || !selectedRoom.roomId) {
-      setVoiceState({ kind: "blocked", message: t("chat.notice.voiceOnlyRoom") });
-      return;
-    }
-    const voiceRoomId = selectedRoom.roomId;
+    const createRequest =
+      selectedRoom.chatType === "ROOM" && selectedRoom.roomId
+        ? { roomId: selectedRoom.roomId }
+        : { chatRoomId: selectedRoom.id };
 
     setVoiceState({ kind: "starting" });
     setVoiceAction(null);
@@ -1364,7 +1389,7 @@ function ChatPageContent() {
     setVoiceNotice(null);
 
     try {
-      const room = await voiceApi.createRoom({ roomId: voiceRoomId });
+      const room = await voiceApi.createRoom(createRequest);
       setVoiceState({ kind: "ready", room });
       setVoiceExpanded(true);
 
@@ -1731,21 +1756,43 @@ function ChatPageContent() {
             <aside className="workspace-route__section workspace-route__chat-list" aria-label={t("chat.list.aria")}>
               {directRooms.map((room) => {
                 const selected = room.id === activeChatRoomId;
+                const leavePending = pendingLeaveRoomId === room.id;
+                const leaving = leavingRoomId === room.id;
 
                 return (
-                  <button
-                    aria-pressed={selected}
+                  <div
                     className={`workspace-route__row workspace-route__chat-room${selected ? " workspace-route__chat-room--active" : ""}`}
                     key={room.id}
-                    onClick={() => selectChatRoom(room)}
-                    type="button"
                   >
-                    <span className="workspace-route__main">
-                      <strong>{room.name ?? roomTypeLabel(t, room)}</strong>
-                      <span>{updatedLabel(t, room)}</span>
-                    </span>
-                    <span className="workspace-route__meta">{roomTypeLabel(t, room)}</span>
-                  </button>
+                    <button
+                      aria-pressed={selected}
+                      className="workspace-route__chat-room-select"
+                      onClick={() => selectChatRoom(room)}
+                      type="button"
+                    >
+                      <span className="workspace-route__main">
+                        <strong>{room.name ?? roomTypeLabel(t, room)}</strong>
+                        <span>{updatedLabel(t, room)}</span>
+                      </span>
+                      <span className="workspace-route__meta">{roomTypeLabel(t, room)}</span>
+                    </button>
+                    {leavePending ? (
+                      <span className="workspace-route__friend-actions">
+                        <button disabled={leaving} onClick={() => void leaveChatRoom(room)} type="button">
+                          {leaving ? t("chat.list.leaving") : t("chat.list.leaveConfirmLeave")}
+                        </button>
+                        <button disabled={leaving} onClick={() => setPendingLeaveRoomId(null)} type="button">
+                          {t("chat.list.leaveConfirmKeep")}
+                        </button>
+                      </span>
+                    ) : (
+                      <span className="workspace-route__friend-actions">
+                        <button onClick={() => setPendingLeaveRoomId(room.id)} type="button">
+                          {t("chat.list.leave")}
+                        </button>
+                      </span>
+                    )}
+                  </div>
                 );
               })}
               {directRooms.length === 0 ? (
@@ -1770,6 +1817,7 @@ function ChatPageContent() {
                 {selectedRoom && !activeVoiceRoom ? (
                   <Button
                     disabled={voiceState.kind === "starting"}
+                    icon={<Phone aria-hidden="true" size={15} strokeWidth={2} />}
                     loading={voiceState.kind === "starting"}
                     onClick={() => void startVoice()}
                     type="button"
