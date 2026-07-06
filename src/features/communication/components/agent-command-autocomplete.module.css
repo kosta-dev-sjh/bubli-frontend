@@ -123,8 +123,8 @@
 
 .toneBubble .option:hover,
 .toneBubble .option[data-active="true"] {
-  border-color: color-mix(in srgb, var(--acc, #8ECDF6) 34%, transparent);
-  background: color-mix(in srgb, var(--acc, #8ECDF6) 12%, transparent);
+  border-color: color-mix(in srgb, var(--acc, #66C3FF) 34%, transparent);
+  background: color-mix(in srgb, var(--acc, #66C3FF) 12%, transparent);
 }
 
 /* ---------- Night Bubble 다크 패리티 ---------- */
@@ -153,6 +153,6 @@
 
 :global([data-theme="dark"]) .toneBubble .option:hover,
 :global([data-theme="dark"]) .toneBubble .option[data-active="true"] {
-  border-color: color-mix(in srgb, var(--acc, #7CC4F5) 40%, transparent);
-  background: color-mix(in srgb, var(--acc, #7CC4F5) 14%, transparent);
+  border-color: color-mix(in srgb, var(--acc, #53BAFF) 40%, transparent);
+  background: color-mix(in srgb, var(--acc, #53BAFF) 14%, transparent);
 }

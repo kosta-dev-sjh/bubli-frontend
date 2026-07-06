@@ -715,7 +715,7 @@ export function PersonalResourceWorkspace() {
                     <Link className="bubli-button bubli-button--primary bubli-button--sm" href={roomBoardHref}>
                       {t("resources.workspace.emptyPersonalGoRoomBoard")}
                     </Link>
-                    <Link className="bubli-button bubli-button--sm" href="/#download">
+                    <Link className="bubli-button bubli-button--sm" href="/download">
                       {t("resources.workspace.emptyPersonalGetDesktop")}
                     </Link>
                   </div>

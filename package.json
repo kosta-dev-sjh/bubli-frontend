@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:tauri-static:macos": "node scripts/build-tauri-static-dist.mjs --build --env .env.macos.production",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
@@ -33,6 +34,7 @@
     "tauri:dev:backend": "node scripts/dev-widget-real-backend.mjs tauri",
     "tauri:build": "tauri build && node scripts/publish-tauri-windows-download.mjs",
     "publish:tauri-windows-download": "node scripts/publish-tauri-windows-download.mjs",
+    "publish:tauri-macos-download": "node scripts/publish-tauri-macos-download.mjs",
     "qa:tauri-real-oauth": "node scripts/qa-tauri-real-oauth-manual.mjs"
   },
   "dependencies": {

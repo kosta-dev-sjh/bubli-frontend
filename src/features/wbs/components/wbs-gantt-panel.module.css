@@ -103,7 +103,7 @@
 .primaryButton {
   align-items: center;
   appearance: none;
-  background: #3A78B8;
+  background: #1B68B8;
   border: 0;
   border-radius: 9px;
   color: #FFFFFF;
@@ -120,7 +120,7 @@
 }
 
 .primaryButton:hover:not(:disabled) {
-  background: #36729A;
+  background: #1B6597;
 }
 
 .primaryButton:disabled {
@@ -150,7 +150,7 @@
 }
 
 .progressFill {
-  background: var(--signal-ok, #93CFA8);
+  background: var(--signal-ok, #69DA91);
   block-size: 100%;
   border-radius: 999px;
   display: block;
@@ -200,11 +200,11 @@
 }
 
 .syncTrigger[data-state="recording"] .syncDot {
-  background: var(--signal-ok, #93CFA8);
+  background: var(--signal-ok, #69DA91);
 }
 
 .syncTrigger[data-state="pending"] .syncDot {
-  background: var(--color-warning, #F1D7B8);
+  background: var(--color-warning, #F9CA92);
 }
 
 .syncPopover {
@@ -248,7 +248,7 @@
 .syncConnectButton {
   align-items: center;
   appearance: none;
-  background: #3A78B8;
+  background: #1B68B8;
   border: 0;
   border-radius: 9px;
   color: #FFFFFF;
@@ -267,7 +267,7 @@
 }
 
 .syncConnectButton:hover:not(:disabled) {
-  background: #36729A;
+  background: #1B6597;
 }
 
 .syncConnectButton:disabled {
@@ -335,12 +335,12 @@
 }
 
 .createInlineButton {
-  background: #3A78B8;
+  background: #1B68B8;
   color: #FFFFFF;
 }
 
 .createInlineButton:hover {
-  background: #36729A;
+  background: #1B6597;
 }
 
 .createInlineButtonSecondary {
@@ -388,7 +388,7 @@
 /* 항목이 하나도 없을 때: 전체 폭 점선 어포던스로 첫 작업 생성을 유도한다. */
 .addRowButton[data-empty="true"] {
   border: 1px dashed rgba(58, 120, 184, 0.5);
-  color: #36729A;
+  color: #1B6597;
   justify-content: center;
   margin: 4px 2px;
   min-block-size: 44px;
@@ -605,14 +605,14 @@
   border: 1px solid rgba(111, 184, 242, 0.5);
   border-block-start: 0;
   border-radius: 0 0 8px 8px;
-  color: #36729A;
+  color: #1B6597;
   font-size: 14px;
   font-weight: 700;
   padding: 2px 8px;
 }
 
 .ganttSurface :global([data-roadmap-ui="gantt-today"] > div:last-child) {
-  background: #6FB8F2;
+  background: #43ACFF;
   inline-size: 2px;
 }
 
@@ -684,12 +684,12 @@
 }
 
 [data-theme="dark"] .primaryButton {
-  background: #9ED8FF;
+  background: #7FCCFF;
   color: #121A28;
 }
 
 [data-theme="dark"] .primaryButton:hover:not(:disabled) {
-  background: #7CC4F5;
+  background: #53BAFF;
 }
 
 [data-theme="dark"] .progressChip {
@@ -733,12 +733,12 @@
 }
 
 [data-theme="dark"] .syncConnectButton {
-  background: #9ED8FF;
+  background: #7FCCFF;
   color: #121A28;
 }
 
 [data-theme="dark"] .syncConnectButton:hover:not(:disabled) {
-  background: #7CC4F5;
+  background: #53BAFF;
 }
 
 [data-theme="dark"] .createInline {
@@ -762,12 +762,12 @@
 }
 
 [data-theme="dark"] .createInlineButton {
-  background: #9ED8FF;
+  background: #7FCCFF;
   color: #121A28;
 }
 
 [data-theme="dark"] .createInlineButton:hover {
-  background: #7CC4F5;
+  background: #53BAFF;
 }
 
 [data-theme="dark"] .createInlineButtonSecondary {
@@ -791,7 +791,7 @@
 
 [data-theme="dark"] .addRowButton[data-empty="true"] {
   border-color: rgba(158, 216, 255, 0.4);
-  color: #9ED8FF;
+  color: #7FCCFF;
 }
 
 [data-theme="dark"] .addRowButton[data-empty="true"]:hover,
@@ -888,11 +888,11 @@
 [data-theme="dark"] .ganttSurface :global([data-roadmap-ui="gantt-today"] > div:first-child) {
   background: rgba(34, 46, 72, 0.95);
   border-color: rgba(158, 216, 255, 0.4);
-  color: #9ED8FF;
+  color: #7FCCFF;
 }
 
 [data-theme="dark"] .ganttSurface :global([data-roadmap-ui="gantt-today"] > div:last-child) {
-  background: #9ED8FF;
+  background: #7FCCFF;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -918,5 +918,5 @@
 }
 
 :global([data-theme="dark"]) .syncReconsentNote {
-  color: #9ED8FF;
+  color: #7FCCFF;
 }

@@ -6,7 +6,7 @@ export type NotificationResponse = {
   id: string;
   readAt?: string | null;
   sourceId?: string | null;
-  sourceType?: "MESSAGE" | "COMMENT" | "RESOURCE" | "AGENT" | null;
+  sourceType?: "MESSAGE" | "COMMENT" | "RESOURCE" | "AGENT" | "VOICE_CALL" | null;
   status: NotificationStatus;
   title: string;
 };

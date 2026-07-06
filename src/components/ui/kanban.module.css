@@ -439,7 +439,7 @@
 
 .addButton {
   align-items: center;
-  background: #3A78B8;
+  background: #1B68B8;
   border: 0;
   border-radius: 8px;
   color: #FFFFFF;
@@ -455,7 +455,7 @@
 }
 
 .addButton:hover {
-  background: #36729A;
+  background: #1B6597;
 }
 
 .addCardButton {
@@ -662,7 +662,7 @@
 }
 
 [data-theme="dark"] .assigneeCheck {
-  color: var(--sky, #9ED8FF);
+  color: var(--sky, #7FCCFF);
 }
 
 [data-theme="dark"] .addEditor {
@@ -671,12 +671,12 @@
 }
 
 [data-theme="dark"] .addButton {
-  background: #9ED8FF;
+  background: #7FCCFF;
   color: #121A28;
 }
 
 [data-theme="dark"] .addButton:hover {
-  background: #7CC4F5;
+  background: #53BAFF;
 }
 
 [data-theme="dark"] .addCardButton {

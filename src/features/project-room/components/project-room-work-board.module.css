@@ -271,7 +271,7 @@
 
 .inspectorClose:hover {
   background: rgba(215, 234, 244, 0.54);
-  color: #3a78b8;
+  color: #1B68B8;
   transform: translateY(-1px);
 }
 
@@ -703,7 +703,7 @@
 [data-theme="dark"] .generateError {
   background: rgba(230, 196, 156, 0.1);
   border-color: rgba(230, 196, 156, 0.3);
-  color: var(--signal-memo, #E6C49C);
+  color: var(--signal-memo, #F1B773);
 }
 
 [data-theme="dark"] .viewSwitch {

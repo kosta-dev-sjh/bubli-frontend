@@ -59,11 +59,14 @@ import {
   POMODORO_FOCUS_MAX,
   POMODORO_FOCUS_MIN,
   readPomodoroState,
+  readWidgetTimerKind,
   readWidgetTimerMode,
   writePomodoroState,
+  writeWidgetTimerKind,
   writeWidgetTimerMode,
   type PomodoroPhase,
   type PomodoroState,
+  type WidgetTimerKind,
   type WidgetTimerMode,
 } from "@/lib/widget/widget-pref-client";
 import { readCurrentTauriWindowMonitorState, startWidgetWindowDragging, tauriCommands, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
@@ -1183,6 +1186,56 @@ const POMODORO_PRESETS: Array<{ breakMinutes: number; focusMinutes: number; labe
   { breakMinutes: 3, focusMinutes: 15, labelKey: "widget.timer.pomodoroPreset15" },
 ];
 
+// 집중/휴식 분을 직접 입력하는 필드 — 숫자만 허용, 범위로 클램프. +/− 스텝퍼와 함께 쓴다.
+function PomodoroMinuteField({
+  ariaLabel,
+  disabled,
+  max,
+  min,
+  onCommit,
+  value,
+}: {
+  ariaLabel: string;
+  disabled: boolean;
+  max: number;
+  min: number;
+  onCommit: (next: number) => void;
+  value: number;
+}) {
+  const { t } = useI18n();
+  const [draft, setDraft] = useState<string>(String(value));
+
+  const commit = () => {
+    const parsed = Number.parseInt(draft, 10);
+    const next = Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : value;
+    setDraft(String(next));
+    if (next !== value) onCommit(next);
+  };
+
+  return (
+    <span className={styles.pomodoroMinuteField}>
+      <input
+        aria-label={ariaLabel}
+        className={styles.pomodoroMinuteInput}
+        disabled={disabled}
+        inputMode="numeric"
+        maxLength={2}
+        onBlur={commit}
+        onChange={(event) => setDraft(event.target.value.replace(/[^0-9]/g, ""))}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            event.currentTarget.blur();
+          }
+        }}
+        pattern="[0-9]*"
+        value={draft}
+      />
+      <span className={styles.pomodoroMinuteUnit}>{t("widget.timer.minuteUnit")}</span>
+    </span>
+  );
+}
+
 function PomodoroView({ selectedRoomId }: { selectedRoomId: string | null }) {
   const { t } = useI18n();
   const prefersReducedMotion = useReducedMotion();
@@ -1332,13 +1385,13 @@ function PomodoroView({ selectedRoomId }: { selectedRoomId: string | null }) {
           <div className={styles.pomodoroStepper}>
             <span className={styles.pomodoroStepperLabel}>{t("widget.timer.pomodoroFocus")}</span>
             <button aria-label={t("widget.timer.pomodoroFocusDown")} disabled={settingsDisabled || state.focusMinutes <= POMODORO_FOCUS_MIN} onClick={() => applyMinutes(state.focusMinutes - 5, state.breakMinutes)} type="button">−</button>
-            <b>{t("widget.timer.minuteValue", { value: state.focusMinutes })}</b>
+            <PomodoroMinuteField ariaLabel={t("widget.timer.pomodoroFocus")} disabled={settingsDisabled} key={`focus-${state.focusMinutes}`} max={POMODORO_FOCUS_MAX} min={POMODORO_FOCUS_MIN} onCommit={(next) => applyMinutes(next, state.breakMinutes)} value={state.focusMinutes} />
             <button aria-label={t("widget.timer.pomodoroFocusUp")} disabled={settingsDisabled || state.focusMinutes >= POMODORO_FOCUS_MAX} onClick={() => applyMinutes(state.focusMinutes + 5, state.breakMinutes)} type="button">+</button>
           </div>
           <div className={styles.pomodoroStepper}>
             <span className={styles.pomodoroStepperLabel}>{t("widget.timer.pomodoroBreak")}</span>
             <button aria-label={t("widget.timer.pomodoroBreakDown")} disabled={settingsDisabled || state.breakMinutes <= POMODORO_BREAK_MIN} onClick={() => applyMinutes(state.focusMinutes, state.breakMinutes - 1)} type="button">−</button>
-            <b>{t("widget.timer.minuteValue", { value: state.breakMinutes })}</b>
+            <PomodoroMinuteField ariaLabel={t("widget.timer.pomodoroBreak")} disabled={settingsDisabled} key={`break-${state.breakMinutes}`} max={POMODORO_BREAK_MAX} min={POMODORO_BREAK_MIN} onCommit={(next) => applyMinutes(state.focusMinutes, next)} value={state.breakMinutes} />
             <button aria-label={t("widget.timer.pomodoroBreakUp")} disabled={settingsDisabled || state.breakMinutes >= POMODORO_BREAK_MAX} onClick={() => applyMinutes(state.focusMinutes, state.breakMinutes + 1)} type="button">+</button>
           </div>
         </div>
@@ -1440,36 +1493,40 @@ function TimerBody({
 }) {
   const { t } = useI18n();
   const selectedRoomId = bubble.roomId?.trim() || null;
-  const hasWorkTimer = bubble.rows.length > 0;
   const [mode, setMode] = useState<WidgetTimerMode>("work");
+  // 타이머 탭 하위 종류(작업=프로젝트룸용 서버 누적 / 개인=로컬 임시 스톱워치).
+  // 룸이 있으면 작업, 없으면 개인이 기본. 사용자가 자유롭게 전환할 수 있다(강제 고정 없음).
+  const [timerKind, setTimerKind] = useState<WidgetTimerKind>(selectedRoomId ? "work" : "personal");
 
-  // 선택 모드 복원(재오픈). 실행 중/일시정지 서버 타이머가 있으면 타이머 탭으로 진입한다.
+  // 선택 모드/종류 복원(재오픈).
   useEffect(() => {
     let cancelled = false;
-    if (hasWorkTimer) {
-      return () => {
-        cancelled = true;
-      };
-    }
-
     void readWidgetTimerMode(selectedRoomId).then((stored) => {
       if (cancelled) return;
-      setMode(stored && stored !== "clock" ? stored : "work");
+      if (stored) setMode(stored);
+    });
+    void readWidgetTimerKind(selectedRoomId).then((stored) => {
+      if (cancelled) return;
+      if (stored) setTimerKind(stored);
     });
     return () => {
       cancelled = true;
     };
-  }, [hasWorkTimer, selectedRoomId]);
+  }, [selectedRoomId]);
 
   const changeMode = (index: number) => {
     const next = TIMER_MODE_ORDER[index] ?? "work";
     setMode(next);
     void writeWidgetTimerMode(next, selectedRoomId);
   };
-  const displayedMode: WidgetTimerMode = hasWorkTimer ? "work" : mode;
-  // 타이머 탭은 별도 선택 없이 컨텍스트로 결정한다 — 룸이면 작업(누적), 개인(룸 없음)이면 임시 스톱워치.
-  // 서버 타이머가 실행 중이면 언제나 작업으로 본다. (작업/개인 토글은 혼란·버그를 만들어 제거)
-  const showWorkTimer = hasWorkTimer || Boolean(selectedRoomId);
+  const changeTimerKind = (index: number) => {
+    const next: WidgetTimerKind = index === 1 ? "personal" : "work";
+    setTimerKind(next);
+    void writeWidgetTimerKind(next, selectedRoomId);
+  };
+  const displayedMode: WidgetTimerMode = mode;
+  // 사용자의 선택을 그대로 따른다 — 서버 타이머가 돌아도 개인 탭으로 자유롭게 전환된다(튕김 없음).
+  const displayedKind: WidgetTimerKind = timerKind;
 
   return (
     <div className={styles.body}>
@@ -1482,19 +1539,28 @@ function TimerBody({
       />
       {displayedMode === "clock" ? <ClockView /> : null}
       {displayedMode === "work" ? (
-        showWorkTimer ? (
-          <>
-            {isBubbleSyncPending(bubble) ? (
-              <div className={styles.syncLine} role="status">
-                <RefreshCw size={12} strokeWidth={2.2} />
-                <span>{t("widget.data.syncPending")}</span>
-              </div>
-            ) : null}
-            <WorkView bubble={bubble} onItemStateChange={onItemStateChange} onPauseTimer={onPauseTimer} onPrimaryTimerAction={onPrimaryTimerAction} />
-          </>
-        ) : (
-          <PersonalTimerView />
-        )
+        <>
+          {/* 프로젝트룸용(작업, 서버 누적) ↔ 개인용(임시 스톱워치, 저장 안 함). */}
+          <SegmentedControl
+            ariaLabel={t("widget.timer.kindAria")}
+            labels={[t("widget.timer.kindWork"), t("widget.timer.kindPersonal")]}
+            onChange={changeTimerKind}
+            value={displayedKind === "personal" ? 1 : 0}
+          />
+          {displayedKind === "work" ? (
+            <>
+              {isBubbleSyncPending(bubble) ? (
+                <div className={styles.syncLine} role="status">
+                  <RefreshCw size={12} strokeWidth={2.2} />
+                  <span>{t("widget.data.syncPending")}</span>
+                </div>
+              ) : null}
+              <WorkView bubble={bubble} onItemStateChange={onItemStateChange} onPauseTimer={onPauseTimer} onPrimaryTimerAction={onPrimaryTimerAction} />
+            </>
+          ) : (
+            <PersonalTimerView />
+          )}
+        </>
       ) : null}
       {displayedMode === "pomodoro" ? <PomodoroView selectedRoomId={selectedRoomId} /> : null}
     </div>

@@ -1823,40 +1823,22 @@ function DesktopWidgetSurface() {
     }
   }, [activeBubble, isTauri, selectedWidgetRoomId, windowId]);
 
+  // 닫기(X)는 최소화와 다르다 — 완전히 닫아 바에서도 사라지고, 다시 열기는 메뉴(런처)에서 한다.
+  // (이전엔 setWidgetWindowMode(MINIMIZED)를 불러 최소화와 동작이 겹쳤다.)
   const closeWindow = useCallback(async () => {
-    setMode("MINIMIZED");
     setWindowVisible(false);
 
     if (!isTauri) return;
 
     try {
-      const state = await tauriCommands.setWidgetWindowMode({
+      const state = await tauriCommands.closeWidgetWindow({
         bubbleType: activeBubble,
-        mode: "MINIMIZED",
-        selectedRoomId: selectedWidgetRoomId,
         windowId,
       });
-      const settingPatch = getSettingPatch(activeBubble, state.mode);
-      if (settingPatch) {
-        const size = getWidgetWindowSize(activeBubble, state.mode);
-        void widgetApi
-          .updateSettings({
-            bubbles: [
-              {
-                ...settingPatch,
-                height: size.height,
-                width: size.width,
-                x: widgetSettingCoordinate(state.position.x),
-                y: widgetSettingCoordinate(state.position.y),
-              },
-            ],
-          })
-          .catch(() => undefined);
-      }
       void tauriCommands
         .recordWidgetUsageEvent({
           bubbleType: activeBubble,
-          eventType: "close:minimize",
+          eventType: "close",
           occurredAt: new Date().toISOString(),
         })
         .catch(() => undefined);
@@ -1867,7 +1849,7 @@ function DesktopWidgetSurface() {
     } catch {
       // Browser preview fallback.
     }
-  }, [activeBubble, isTauri, selectedWidgetRoomId, windowId]);
+  }, [activeBubble, isTauri, windowId]);
 
   const restoreBubbleFromBar = useCallback(
     async (bubbleType: WidgetBubbleType) => {
@@ -2380,6 +2362,51 @@ function DesktopWidgetSurface() {
     [recordLocalTimerState],
   );
 
+  const refreshTimerFromServer = useCallback(
+    async (roomId?: string | null) => {
+      const selectedRoomId = roomId?.trim() || null;
+      const [summaryResult, dashboardResult] = await Promise.allSettled([
+        readWidgetDisplaySummary(selectedRoomId),
+        widgetDisplayApi.getDashboardWork(),
+      ]);
+      const summaryTimer =
+        summaryResult.status === "fulfilled" ? (summaryResult.value?.runningTimer ?? null) : null;
+      const dashboardTimer =
+        dashboardResult.status === "fulfilled" ? (dashboardResult.value.runningTimer ?? null) : null;
+      const runningTimer = summaryTimer ?? dashboardTimer;
+
+      if (runningTimer && (!selectedRoomId || runningTimer.roomId === selectedRoomId)) {
+        applyTimerResult(runningTimer);
+      } else {
+        setTimerRevision((current) => current + 1);
+      }
+      publishWidgetDataChanged("timer");
+    },
+    [applyTimerResult, publishWidgetDataChanged],
+  );
+
+  const handleWidgetTimerActionError = useCallback(
+    async (error: unknown, roomId?: string | null) => {
+      if (error instanceof ApiClientError) {
+        // 이미 실행 중인 타이머(409)는 서버가 알려준 현재 상태를 화면에 반영하면 된다.
+        // 빠른 연타나 느린 배경 갱신으로 start가 한 번 더 나가는 경우에도 dev overlay가 뜨지 않게 한다.
+        if (error.status === 409 && error.code === "PERSONAL_409_001") {
+          await refreshTimerFromServer(roomId);
+          return;
+        }
+
+        if (error.code.startsWith("PERSONAL_")) {
+          await refreshTimerFromServer(roomId);
+          return;
+        }
+      }
+
+      console.error("Widget timer action failed", error);
+      await refreshTimerFromServer(roomId);
+    },
+    [refreshTimerFromServer],
+  );
+
   useEffect(() => {
     if (!widgetSessionReady) return;
     if (!isTauri || isWidgetChrome) return;
@@ -2430,46 +2457,55 @@ function DesktopWidgetSurface() {
     async (bubble: WidgetPreviewBubble) => {
       const timeLogId = bubble.rows[0]?.id;
       if (!timeLogId || bubble.rows[0]?.status !== "RUNNING") return;
+      const roomId = bubble.roomId ?? widgetContext?.selectedRoomId ?? null;
 
-      const timeLog = await timerApi.pause(timeLogId);
-      applyTimerResult(timeLog);
-      recordTimerUsage("timer:pause", timeLog.id);
-      publishWidgetDataChanged("timer");
+      try {
+        const timeLog = await timerApi.pause(timeLogId);
+        applyTimerResult(timeLog);
+        recordTimerUsage("timer:pause", timeLog.id);
+        publishWidgetDataChanged("timer");
+      } catch (error) {
+        await handleWidgetTimerActionError(error, roomId);
+      }
     },
-    [applyTimerResult, publishWidgetDataChanged, recordTimerUsage],
+    [applyTimerResult, handleWidgetTimerActionError, publishWidgetDataChanged, recordTimerUsage, widgetContext?.selectedRoomId],
   );
 
   const runPrimaryTimerAction = useCallback(
     async (bubble: WidgetPreviewBubble) => {
       const currentTimer = bubble.rows[0];
-
-      if (currentTimer?.status === "RUNNING") {
-        const timeLog = await timerApi.stop(currentTimer.id);
-        applyTimerResult(timeLog);
-        recordTimerUsage("timer:stop", timeLog.id);
-        publishWidgetDataChanged("timer");
-        return;
-      }
-
-      if (currentTimer?.status === "PAUSED") {
-        const timeLog = await timerApi.resume(currentTimer.id);
-        applyTimerResult(timeLog);
-        recordTimerUsage("timer:resume", timeLog.id);
-        publishWidgetDataChanged("timer");
-        return;
-      }
-
       const roomId = bubble.roomId ?? widgetContext?.selectedRoomId ?? null;
-      const timeLog = await timerApi.start({
-        idempotencyKey: `widget-timer-${crypto.randomUUID()}`,
-        roomId,
-        timerType: roomId ? "WORK" : "GENERAL",
-      });
-      applyTimerResult(timeLog);
-      recordTimerUsage("timer:start", timeLog.id);
-      publishWidgetDataChanged("timer");
+
+      try {
+        if (currentTimer?.status === "RUNNING") {
+          const timeLog = await timerApi.stop(currentTimer.id);
+          applyTimerResult(timeLog);
+          recordTimerUsage("timer:stop", timeLog.id);
+          publishWidgetDataChanged("timer");
+          return;
+        }
+
+        if (currentTimer?.status === "PAUSED") {
+          const timeLog = await timerApi.resume(currentTimer.id);
+          applyTimerResult(timeLog);
+          recordTimerUsage("timer:resume", timeLog.id);
+          publishWidgetDataChanged("timer");
+          return;
+        }
+
+        const timeLog = await timerApi.start({
+          idempotencyKey: `widget-timer-${crypto.randomUUID()}`,
+          roomId,
+          timerType: roomId ? "WORK" : "GENERAL",
+        });
+        applyTimerResult(timeLog);
+        recordTimerUsage("timer:start", timeLog.id);
+        publishWidgetDataChanged("timer");
+      } catch (error) {
+        await handleWidgetTimerActionError(error, roomId);
+      }
     },
-    [applyTimerResult, publishWidgetDataChanged, recordTimerUsage, widgetContext?.selectedRoomId],
+    [applyTimerResult, handleWidgetTimerActionError, publishWidgetDataChanged, recordTimerUsage, widgetContext?.selectedRoomId],
   );
 
   const startWidgetVoice = useCallback(

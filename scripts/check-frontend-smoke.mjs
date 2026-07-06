@@ -4,6 +4,7 @@ const TARGET = process.env.SMOKE_TARGET ?? "all";
 
 const ROUTES = [
   "/",
+  "/download",
   "/login",
   "/app",
   "/app/project-rooms",
