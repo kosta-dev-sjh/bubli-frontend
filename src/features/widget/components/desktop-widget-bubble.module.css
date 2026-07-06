@@ -1810,53 +1810,60 @@
 
 /* ---------- Ghost signal ---------- */
 
+/* 고스트 시그널 — 깔끔한 프로스티드 원형 배지(어색한 245deg 부분 링 제거).
+   accent 틴트 유리 디스크에 지표를 크게, 라벨은 아래로 작게. */
 .ghostSignal {
   position: relative;
   z-index: 1;
-  display: grid;
-  place-items: center;
-  width: 142px;
-  height: 142px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 138px;
+  height: 138px;
   align-self: center;
-  border: 1px solid rgba(255, 255, 255, 0.48);
+  border: 1px solid color-mix(in srgb, var(--acc) 45%, rgba(255, 255, 255, 0.5));
   border-radius: 999px;
   background:
-    radial-gradient(circle, rgba(255, 255, 255, 0.42) 0 56%, transparent 57%),
-    conic-gradient(var(--acc) 0 245deg, color-mix(in srgb, var(--acc) 14%, transparent) 245deg 360deg);
+    radial-gradient(circle at 38% 30%, rgba(255, 255, 255, 0.9), transparent 62%),
+    color-mix(in srgb, var(--acc) 16%, rgba(255, 255, 255, 0.72));
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.58),
-    0 0 0 1px rgba(255, 255, 255, 0.22);
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 8px 20px -12px color-mix(in srgb, var(--acc) 60%, transparent);
+  backdrop-filter: blur(8px) saturate(1.05);
+  -webkit-backdrop-filter: blur(8px) saturate(1.05);
   pointer-events: none;
 }
 
-.ghostSignal span {
-  color: rgba(44, 53, 64, 0.78);
-  font-size: 28px;
-  font-weight: 900;
-  line-height: 1;
-  text-shadow: 0 1px 10px rgba(255, 255, 255, 0.82);
+.ghostMetric,
+.ghostClock {
+  color: var(--acc-ink);
+  font-size: 26px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
 }
 
 .ghostSignal strong,
 .ghostSignal small {
-  max-width: 98px;
+  max-width: 110px;
   overflow: hidden;
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
-  text-shadow: 0 1px 10px rgba(255, 255, 255, 0.74);
 }
 
 .ghostSignal strong {
-  color: rgba(44, 53, 64, 0.74);
-  font-size: 14px;
-  font-weight: 900;
+  color: color-mix(in srgb, var(--widget-text) 82%, transparent);
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .ghostSignal small {
-  color: rgba(90, 103, 114, 0.64);
-  font-size: 14px;
-  font-weight: 700;
+  color: var(--widget-muted);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 /* ---------- 최소화 오브 / 숨김 카드 ---------- */
@@ -2883,19 +2890,22 @@
 }
 
 :global([data-theme="dark"]) .ghostSignal {
-  border-color: rgba(150, 170, 215, 0.28);
+  border-color: color-mix(in srgb, var(--acc) 42%, rgba(150, 170, 215, 0.28));
   background:
-    radial-gradient(circle, rgba(19, 26, 40, 0.4) 0 56%, transparent 57%),
-    conic-gradient(var(--acc) 0 245deg, rgba(150, 170, 215, 0.14) 245deg 360deg);
+    radial-gradient(circle at 38% 30%, rgba(180, 205, 240, 0.16), transparent 62%),
+    color-mix(in srgb, var(--acc) 20%, rgba(19, 26, 40, 0.62));
   box-shadow:
     inset 0 1px 0 rgba(180, 205, 240, 0.14),
-    0 0 0 1px rgba(150, 170, 215, 0.12);
+    0 8px 20px -12px rgba(10, 16, 28, 0.6);
 }
 
-:global([data-theme="dark"]) .ghostSignal span,
+:global([data-theme="dark"]) .ghostMetric,
+:global([data-theme="dark"]) .ghostClock {
+  color: #EAF0F8;
+}
+
 :global([data-theme="dark"]) .ghostSignal strong {
   color: #EAF0F8;
-  text-shadow: 0 1px 10px rgba(10, 16, 28, 0.6);
 }
 
 :global([data-theme="dark"]) .ghostSignal small {

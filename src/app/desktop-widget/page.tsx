@@ -187,7 +187,7 @@ function getWidgetWindowSize(bubbleType: WidgetBubbleType, mode: WidgetWindowMod
   if (mode === "GHOST") return { height: 212, width: 212 };
   if (bubbleType === "chat") return { height: 420 + WIDGET_WINDOW_GUTTER, width: 336 + WIDGET_WINDOW_GUTTER };
   if (bubbleType === "agent") return { height: 484 + WIDGET_WINDOW_GUTTER, width: 332 + WIDGET_WINDOW_GUTTER };
-  if (bubbleType === "timer") return { height: 352 + WIDGET_WINDOW_GUTTER, width: 324 + WIDGET_WINDOW_GUTTER };
+  if (bubbleType === "timer") return { height: 400 + WIDGET_WINDOW_GUTTER, width: 324 + WIDGET_WINDOW_GUTTER };
   if (bubbleType === "resource") return { height: 330 + WIDGET_WINDOW_GUTTER, width: 324 + WIDGET_WINDOW_GUTTER };
   if (bubbleType === "memo") return { height: 348 + WIDGET_WINDOW_GUTTER, width: 308 + WIDGET_WINDOW_GUTTER };
   if (bubbleType === "schedule") return { height: 340 + WIDGET_WINDOW_GUTTER, width: 324 + WIDGET_WINDOW_GUTTER };

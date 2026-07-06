@@ -230,6 +230,7 @@ static WIDGET_POINTER_STATES: LazyLock<Mutex<HashMap<String, WidgetPointerState>
 #[derive(Default)]
 struct WidgetAppliedWindowState {
     always_on_top: Option<bool>,
+    shadow: Option<bool>,
     background_applied: bool,
     // macOS는 OS 드래그 좌표를 그대로 신뢰해 apply에서 위치를 다시 쓰지 않으므로 캐시도 두지 않는다.
     #[cfg(not(target_os = "macos"))]
@@ -419,6 +420,13 @@ fn spawn_widget_pointer_poller(app: &AppHandle, label: String) {
 
 fn widget_native_shadow_enabled() -> bool {
     !cfg!(target_os = "windows")
+}
+
+fn widget_native_shadow_for_state(widget: &WidgetWindowState) -> bool {
+    widget_native_shadow_enabled()
+        && widget.mode != "GHOST"
+        && widget.active_bubble != "bar"
+        && widget.active_bubble != "menu"
 }
 
 fn widget_waits_for_dom_ready_before_show() -> bool {
@@ -1220,7 +1228,7 @@ fn widget_default_bubble_size(bubble_type: &str) -> LogicalSize<f64> {
     match bubble_type {
         "chat" => LogicalSize::new(336.0 + WIDGET_WINDOW_GUTTER, 420.0 + WIDGET_WINDOW_GUTTER),
         "agent" => LogicalSize::new(332.0 + WIDGET_WINDOW_GUTTER, 430.0 + WIDGET_WINDOW_GUTTER),
-        "timer" => LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 352.0 + WIDGET_WINDOW_GUTTER),
+        "timer" => LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 400.0 + WIDGET_WINDOW_GUTTER),
         "resource" => LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 330.0 + WIDGET_WINDOW_GUTTER),
         "memo" => LogicalSize::new(308.0 + WIDGET_WINDOW_GUTTER, 320.0 + WIDGET_WINDOW_GUTTER),
         "schedule" => LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 340.0 + WIDGET_WINDOW_GUTTER),
@@ -1924,6 +1932,22 @@ fn apply_widget_window_state(
                 .map_err(|error| error.to_string())?;
         }
 
+        let shadow = widget_native_shadow_for_state(widget);
+        let shadow_changed = with_widget_applied_window_state(&label, |applied| {
+            if applied.shadow == Some(shadow) {
+                false
+            } else {
+                applied.shadow = Some(shadow);
+                true
+            }
+        })
+        .unwrap_or(true);
+        if shadow_changed {
+            window
+                .set_shadow(shadow)
+                .map_err(|error| error.to_string())?;
+        }
+
         let ignore_changed = with_widget_pointer_state(&label, |state| {
             state.last_applied_ignore != Some(widget.click_through)
         })
@@ -2045,11 +2069,8 @@ fn build_widget_window(
     .devtools(false)
     // 바/메뉴 창은 작은 콘텐츠(pill·오브)가 큰 투명창에 떠 있어, 네이티브 창 그림자가
     // 콘텐츠를 두르는 "창 테두리"처럼 보인다 → 이 두 창만 그림자를 끈다(버블 창은 유지).
-    .shadow(
-        widget_native_shadow_enabled()
-            && widget.active_bubble != "bar"
-            && widget.active_bubble != "menu",
-    )
+    // GHOST 모드도 콘텐츠만 떠야 하므로 런타임 전환 시 set_shadow(false)로 맞춘다.
+    .shadow(widget_native_shadow_for_state(widget))
     .resizable(false)
     .always_on_top(widget.always_on_top)
     .skip_taskbar(true)
@@ -2082,6 +2103,7 @@ fn build_widget_window(
     // 빌더가 이미 적용한 값을 캐시에 기록해, 바로 뒤의 apply가 같은 setter를 중복 호출하지 않게 한다.
     with_widget_applied_window_state(&label, |applied| {
         applied.always_on_top = Some(widget.always_on_top);
+        applied.shadow = Some(widget_native_shadow_for_state(widget));
         applied.background_applied = true;
         applied.size = Some((size.width.round() as i64, size.height.round() as i64));
         #[cfg(not(target_os = "macos"))]
