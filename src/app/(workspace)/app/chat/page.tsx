@@ -37,6 +37,12 @@ import { websocketTopics } from "@/lib/websocket/topics";
 import { useI18n } from "@/lib/i18n";
 import type { TranslateVars, MessageKey } from "@/lib/i18n";
 import { readCachedRoomMessages, syncCachedRoomMessages } from "@/lib/local";
+import {
+  connectLiveKitRoom,
+  disconnectLiveKitRoom,
+  getActiveLiveKitVoiceRoomId,
+  setLiveKitMicEnabled,
+} from "@/lib/livekit-client";
 import { voiceStore } from "@/lib/voice-store";
 import {
   ACTIVE_PROJECT_ROOM_CHANGE_EVENT,
@@ -716,6 +722,26 @@ function ChatPageContent() {
     (p) => p.userId === currentUser?.id && p.status === "JOINED"
   );
   const isVoiceCreator = activeVoiceRoom !== null && activeVoiceRoom.createdByUserId === currentUser?.id;
+
+  // 새로고침 등으로 실제 LiveKit 연결만 끊긴 채 DB상 참여 상태가 남아있으면 조용히 재연결한다.
+  useEffect(() => {
+    if (!isInVoice || !activeVoiceRoom) return;
+    if (getActiveLiveKitVoiceRoomId() === activeVoiceRoom.id) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const token = await voiceApi.getToken(activeVoiceRoom.id);
+        if (cancelled) return;
+        await connectLiveKitRoom(activeVoiceRoom.id, token);
+      } catch {
+        // 조용히 실패 — "보이스 참여" 버튼으로 재시도 가능
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isInVoice, activeVoiceRoom]);
   const voiceParticipants = useMemo<VoiceParticipantResponse[]>(() => {
     if (voiceState.kind === "ready") {
       return voiceState.room.participants.map((participant) => ({
@@ -1393,9 +1419,10 @@ function ChatPageContent() {
       setVoiceState({ kind: "ready", room });
       setVoiceExpanded(true);
 
-      // 개설자는 곧바로 참여 처리 — 참여 토큰은 내부에서만 발급/사용하고 화면에 노출하지 않는다.
+      // 개설자는 곧바로 참여 처리 — 참여 토큰으로 실제 LiveKit 오디오까지 연결한다.
       try {
-        await voiceApi.getToken(room.id);
+        const token = await voiceApi.getToken(room.id);
+        await connectLiveKitRoom(room.id, token);
         const refreshed = await voiceApi.getRoom(room.id);
         setVoiceState({ kind: "ready", room: refreshed });
       } catch {
@@ -1406,13 +1433,14 @@ function ChatPageContent() {
     }
   }, [selectedRoom, t]);
 
-  // 보이스 참여: 참여 토큰 발급은 join 흐름 내부에서 자동 수행하고 토큰 자체는 사용자에게 보여주지 않는다.
+  // 보이스 참여: 참여 토큰으로 실제 LiveKit 오디오 연결까지 수행한다(토큰 자체는 화면에 노출하지 않음).
   const joinVoice = useCallback(async () => {
     if (!activeVoiceRoom || voiceAction) return;
 
     setVoiceAction("join");
     try {
-      await voiceApi.getToken(activeVoiceRoom.id);
+      const token = await voiceApi.getToken(activeVoiceRoom.id);
+      await connectLiveKitRoom(activeVoiceRoom.id, token);
       const room = await voiceApi.getRoom(activeVoiceRoom.id);
       setVoiceState({ kind: "ready", room });
       setVoiceMicMuted(false);
@@ -1439,6 +1467,7 @@ function ChatPageContent() {
 
     try {
       await voiceApi.updateMicStatus(activeVoiceRoom.id, { micStatus: nextMicStatus });
+      await setLiveKitMicEnabled(!nextMuted);
       setVoiceMicMuted(nextMuted);
       voiceStore.update({ micMuted: nextMuted });
       setVoiceState((state) => {
@@ -1467,6 +1496,7 @@ function ChatPageContent() {
 
     setVoiceAction("leave");
     try {
+      await disconnectLiveKitRoom();
       const room = await voiceApi.leave(activeVoiceRoom.id);
       setVoiceState({ kind: "ready", room });
       setVoiceNotice(null);
@@ -1483,6 +1513,7 @@ function ChatPageContent() {
 
     setVoiceAction("end");
     try {
+      await disconnectLiveKitRoom();
       const room = await voiceApi.end(activeVoiceRoom.id);
       setVoiceState({ kind: "ready", room });
       setVoiceNotice(null);
@@ -1493,6 +1524,13 @@ function ChatPageContent() {
       setVoiceAction(null);
     }
   }, [activeVoiceRoom, voiceAction, t]);
+
+  // 다른 참여자가 종료했거나 폴링으로 ENDED를 확인한 경우, 실제 오디오 연결도 정리한다.
+  useEffect(() => {
+    if (voiceState.kind !== "ready" || voiceState.room.status !== "OPEN") {
+      void disconnectLiveKitRoom();
+    }
+  }, [voiceState]);
 
   // 이모지 피커: Escape 또는 바깥 클릭으로 닫기
   useEffect(() => {

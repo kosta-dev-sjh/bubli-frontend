@@ -50,6 +50,14 @@ const ko = {
   "layout.voice.end": "통화 종료",
   "layout.voice.ending": "종료 중",
 
+  // 보이스 통화 수신 알림(전화 오는 UI)
+  "layout.voiceCall.aria": "보이스 통화 수신",
+  "layout.voiceCall.hint": "보이스 통화를 시작했어요",
+  "layout.voiceCall.accept": "수락",
+  "layout.voiceCall.connecting": "연결 중",
+  "layout.voiceCall.later": "이따 참여",
+  "layout.voiceCall.decline": "거절",
+
   // 상단바 알림 패널
   "layout.notifications.aria": "알림 패널",
   "layout.gate.redirecting": "로그인이 필요해요. 로그인 화면으로 이동 중…",
@@ -137,6 +145,13 @@ const en: Record<Key, string> = {
   "layout.voice.end": "End call",
   "layout.voice.ending": "Ending",
 
+  "layout.voiceCall.aria": "Incoming voice call",
+  "layout.voiceCall.hint": "started a voice call",
+  "layout.voiceCall.accept": "Accept",
+  "layout.voiceCall.connecting": "Connecting",
+  "layout.voiceCall.later": "Join later",
+  "layout.voiceCall.decline": "Decline",
+
   "layout.notifications.aria": "Notifications panel",
   "layout.gate.redirecting": "Sign-in required. Redirecting to login…",
   "layout.invites.title": "Invitations",
@@ -219,6 +234,13 @@ const ja: Record<Key, string> = {
   "layout.voice.goToChat": "コミュニケーションへ",
   "layout.voice.end": "通話終了",
   "layout.voice.ending": "終了中",
+
+  "layout.voiceCall.aria": "ボイス通話の着信",
+  "layout.voiceCall.hint": "ボイス通話を開始しました",
+  "layout.voiceCall.accept": "応答",
+  "layout.voiceCall.connecting": "接続中",
+  "layout.voiceCall.later": "後で参加",
+  "layout.voiceCall.decline": "拒否",
 
   "layout.notifications.aria": "通知パネル",
   "layout.gate.redirecting": "ログインが必要です。ログイン画面へ移動中…",
