@@ -1,8 +1,6 @@
 "use client";
 
 import {
-  ArrowDownToLine,
-  ArrowUpToLine,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -17,7 +15,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
@@ -708,20 +706,41 @@ function CalendarPageContent() {
     });
   };
 
-  // 구글 연동이 활성이면 "보내기"를 누르지 않아도 새/미동기 일정을 자동으로 구글에 올린다(백그라운드).
+  // 연동(동의) 상태면 수동 버튼 없이 pull(구글→Bubli) + push(Bubli→구글)를 자동으로 한 번 돈다(#6).
+  // 진입/월 이동/생성·수정·삭제 후에 호출되며, 동시 실행 가드(autoSyncInFlightRef)로 중복을 막는다.
   // 룸 일정은 백엔드 ensureRoomCalendar가 룸 전용 캘린더를 지연 생성해 그쪽으로 보낸다.
-  const autoSyncToGoogle = () => {
-    if (!googleConnected) return;
-    void calendarApi
-      .pushUnsyncedGoogleEvents({ from: range.start, to: range.end })
-      .then((pushed) => {
-        if (pushed.length > 0) {
-          mergeSyncedEvents(pushed);
-          void loadGoogleEvents();
-        }
-      })
-      .catch(() => undefined);
+  const autoSyncInFlightRef = useRef(false);
+  const autoSyncToGoogle = async () => {
+    if (!googleConnected || autoSyncInFlightRef.current) return;
+    autoSyncInFlightRef.current = true;
+    try {
+      const pullRange = {
+        calendarIds: googleCalendars.length > 0 ? googleCalendars.map((calendar) => calendar.id) : undefined,
+        from: range.start,
+        to: range.end,
+      };
+      const pulled = await calendarApi.syncGoogleEvents(pullRange).catch(() => [] as ScheduleResponse[]);
+      if (pulled.length > 0) mergeSyncedEvents(pulled);
+      const pushed = await calendarApi
+        .pushUnsyncedGoogleEvents({ from: range.start, to: range.end })
+        .catch(() => [] as ScheduleResponse[]);
+      if (pushed.length > 0) mergeSyncedEvents(pushed);
+      if (pulled.length > 0 || pushed.length > 0) void loadGoogleEvents();
+    } finally {
+      autoSyncInFlightRef.current = false;
+    }
   };
+
+  // 진입/월 이동 시 자동 동기화 — 최신 콜백을 ref로 잡아 디바운스(연속 이동 시 마지막 한 번만) 실행한다.
+  const autoSyncRef = useRef(autoSyncToGoogle);
+  useEffect(() => {
+    autoSyncRef.current = autoSyncToGoogle;
+  });
+  useEffect(() => {
+    if (!googleConnected) return;
+    const timeoutId = window.setTimeout(() => void autoSyncRef.current(), 500);
+    return () => window.clearTimeout(timeoutId);
+  }, [googleConnected, range.start, range.end]);
 
   const runGoogleAction = async (action: SyncAction) => {
     setSyncAction(action);
@@ -1013,30 +1032,8 @@ function CalendarPageContent() {
                               <RefreshCw className={syncAction === "sync" ? styles.syncSpinner : undefined} size={14} strokeWidth={2.1} />
                               <span>{syncAction === "sync" ? t("calendar.google.syncing") : t("calendar.google.sync")}</span>
                             </button>
-                            <button
-                              className={styles.syncPopoverItem}
-                              disabled={syncAction !== null}
-                              onClick={() => {
-                                setSyncMenuOpen(false);
-                                void runGoogleAction("pull");
-                              }}
-                              type="button"
-                            >
-                              <ArrowDownToLine size={14} strokeWidth={2.1} />
-                              <span>{t("calendar.google.pullOnly")}</span>
-                            </button>
-                            <button
-                              className={styles.syncPopoverItem}
-                              disabled={syncAction !== null}
-                              onClick={() => {
-                                setSyncMenuOpen(false);
-                                void runGoogleAction("push");
-                              }}
-                              type="button"
-                            >
-                              <ArrowUpToLine size={14} strokeWidth={2.1} />
-                              <span>{t("calendar.google.pushOnly")}</span>
-                            </button>
+                            {/* 연동되면 진입/변경 시 자동으로 pull+push가 돌아, 개별 "가져오기만/보내기만" 버튼은
+                                혼란만 주어 제거했다(#7). 수동은 "지금 동기화"(pull+push) 하나만 남긴다. */}
                             <button
                               className={`${styles.syncPopoverItem} ${styles.syncPopoverQuiet}`}
                               disabled={syncAction !== null}
