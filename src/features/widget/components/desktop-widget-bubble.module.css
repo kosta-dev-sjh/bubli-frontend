@@ -37,18 +37,18 @@
 }
 
 .accAmber {
-  --acc: #FF9B3D;
-  --acc-ink: #B85C00;
+  --acc: #FF6B3D;
+  --acc-ink: #AE3009;
 }
 
 .accCream {
-  --acc: #F7C83E;
-  --acc-ink: #9A7400;
+  --acc: #FFC20D;
+  --acc-ink: #715500;
 }
 
 .accSand {
-  --acc: #C6864A;
-  --acc-ink: #7A4A16;
+  --acc: #C37124;
+  --acc-ink: #603507;
 }
 
 .accRose {
@@ -2497,15 +2497,15 @@
 }
 
 .menuShortcut.accAmber {
-  --acc-ink: #994D00;
+  --acc-ink: #982400;
 }
 
 .menuShortcut.accCream {
-  --acc-ink: #7B5D00;
+  --acc-ink: #523E00;
 }
 
 .menuShortcut.accSand {
-  --acc-ink: #713B00;
+  --acc-ink: #482500;
 }
 
 .menuShortcut.accRose {

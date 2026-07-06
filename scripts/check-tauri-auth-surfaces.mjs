@@ -602,8 +602,13 @@ assertContains(
 );
 assertContains(
   widgetPage,
-  /const closeWindow = useCallback[\s\S]*setWidgetWindowMode\(\{[\s\S]*mode: "MINIMIZED"[\s\S]*selectedRoomId: selectedWidgetRoomId[\s\S]*eventType: "close:minimize"/,
-  "Desktop widget minimize control must use MINIMIZED mode so the bubble remains restorable from the bar.",
+  /const setWindowMode = useCallback[\s\S]*setWidgetWindowMode\(\{[\s\S]*mode: nextMode[\s\S]*selectedRoomId: selectedWidgetRoomId[\s\S]*eventType: `mode:\$\{state\.mode\}`/,
+  "Desktop widget mode control must persist MINIMIZED mode so minimized bubbles remain restorable from the bar.",
+);
+assertContains(
+  widgetPage,
+  /const closeWindow = useCallback[\s\S]*closeWidgetWindow\(\{[\s\S]*bubbleType: activeBubble[\s\S]*windowId[\s\S]*eventType: "close"/,
+  "Desktop widget close control must fully close the bubble instead of minimizing it to the bar.",
 );
 assertContains(
   runtimeSmokeRunner,

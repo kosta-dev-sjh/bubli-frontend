@@ -1204,9 +1204,6 @@ function PomodoroMinuteField({
 }) {
   const { t } = useI18n();
   const [draft, setDraft] = useState<string>(String(value));
-  useEffect(() => {
-    setDraft(String(value));
-  }, [value]);
 
   const commit = () => {
     const parsed = Number.parseInt(draft, 10);
@@ -1388,13 +1385,13 @@ function PomodoroView({ selectedRoomId }: { selectedRoomId: string | null }) {
           <div className={styles.pomodoroStepper}>
             <span className={styles.pomodoroStepperLabel}>{t("widget.timer.pomodoroFocus")}</span>
             <button aria-label={t("widget.timer.pomodoroFocusDown")} disabled={settingsDisabled || state.focusMinutes <= POMODORO_FOCUS_MIN} onClick={() => applyMinutes(state.focusMinutes - 5, state.breakMinutes)} type="button">−</button>
-            <PomodoroMinuteField ariaLabel={t("widget.timer.pomodoroFocus")} disabled={settingsDisabled} max={POMODORO_FOCUS_MAX} min={POMODORO_FOCUS_MIN} onCommit={(next) => applyMinutes(next, state.breakMinutes)} value={state.focusMinutes} />
+            <PomodoroMinuteField ariaLabel={t("widget.timer.pomodoroFocus")} disabled={settingsDisabled} key={`focus-${state.focusMinutes}`} max={POMODORO_FOCUS_MAX} min={POMODORO_FOCUS_MIN} onCommit={(next) => applyMinutes(next, state.breakMinutes)} value={state.focusMinutes} />
             <button aria-label={t("widget.timer.pomodoroFocusUp")} disabled={settingsDisabled || state.focusMinutes >= POMODORO_FOCUS_MAX} onClick={() => applyMinutes(state.focusMinutes + 5, state.breakMinutes)} type="button">+</button>
           </div>
           <div className={styles.pomodoroStepper}>
             <span className={styles.pomodoroStepperLabel}>{t("widget.timer.pomodoroBreak")}</span>
             <button aria-label={t("widget.timer.pomodoroBreakDown")} disabled={settingsDisabled || state.breakMinutes <= POMODORO_BREAK_MIN} onClick={() => applyMinutes(state.focusMinutes, state.breakMinutes - 1)} type="button">−</button>
-            <PomodoroMinuteField ariaLabel={t("widget.timer.pomodoroBreak")} disabled={settingsDisabled} max={POMODORO_BREAK_MAX} min={POMODORO_BREAK_MIN} onCommit={(next) => applyMinutes(state.focusMinutes, next)} value={state.breakMinutes} />
+            <PomodoroMinuteField ariaLabel={t("widget.timer.pomodoroBreak")} disabled={settingsDisabled} key={`break-${state.breakMinutes}`} max={POMODORO_BREAK_MAX} min={POMODORO_BREAK_MIN} onCommit={(next) => applyMinutes(state.focusMinutes, next)} value={state.breakMinutes} />
             <button aria-label={t("widget.timer.pomodoroBreakUp")} disabled={settingsDisabled || state.breakMinutes >= POMODORO_BREAK_MAX} onClick={() => applyMinutes(state.focusMinutes, state.breakMinutes + 1)} type="button">+</button>
           </div>
         </div>
@@ -1496,7 +1493,6 @@ function TimerBody({
 }) {
   const { t } = useI18n();
   const selectedRoomId = bubble.roomId?.trim() || null;
-  const hasWorkTimer = bubble.rows.length > 0;
   const [mode, setMode] = useState<WidgetTimerMode>("work");
   // 타이머 탭 하위 종류(작업=프로젝트룸용 서버 누적 / 개인=로컬 임시 스톱워치).
   // 룸이 있으면 작업, 없으면 개인이 기본. 사용자가 자유롭게 전환할 수 있다(강제 고정 없음).
@@ -1517,14 +1513,6 @@ function TimerBody({
       cancelled = true;
     };
   }, [selectedRoomId]);
-
-  // 서버 작업 타이머가 실행 중이면 타이머 탭·작업 종류로 끌어올려 상태가 보이게 한다.
-  useEffect(() => {
-    if (hasWorkTimer) {
-      setMode("work");
-      setTimerKind("work");
-    }
-  }, [hasWorkTimer]);
 
   const changeMode = (index: number) => {
     const next = TIMER_MODE_ORDER[index] ?? "work";

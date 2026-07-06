@@ -22504,7 +22504,7 @@ body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main-scroll::-web
   align-items: center;
   justify-content: center;
   color: #fff;
-  background: linear-gradient(145deg, var(--sky, #9ED8FF) 0%, var(--bubble-blue, #6FB8F2) 100%);
+  background: linear-gradient(145deg, var(--sky, #7FCCFF) 0%, var(--bubble-blue, #43ACFF) 100%);
   box-shadow: 0 8px 22px -6px rgba(58, 120, 184, 0.42);
 }
 
@@ -22514,12 +22514,12 @@ body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main-scroll::-web
   position: absolute;
   inset: -8px;
   border-radius: 50%;
-  border: 2px solid var(--bubble-blue, #6FB8F2);
+  border: 2px solid var(--bubble-blue, #43ACFF);
   animation: voice-float-ripple 2.4s ease-out infinite;
 }
 
 .voice-call-invite__avatar::after {
-  border-color: var(--sky, #9ED8FF);
+  border-color: var(--sky, #7FCCFF);
   animation-delay: 0.9s;
 }
 
@@ -22560,7 +22560,7 @@ body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main-scroll::-web
 .voice-call-invite__accept {
   border: none;
   color: #fff;
-  background: linear-gradient(145deg, var(--sky, #9ED8FF) 0%, var(--bubble-blue, #6FB8F2) 100%);
+  background: linear-gradient(145deg, var(--sky, #7FCCFF) 0%, var(--bubble-blue, #43ACFF) 100%);
   box-shadow: 0 10px 22px -8px rgba(58, 120, 184, 0.5);
 }
 
