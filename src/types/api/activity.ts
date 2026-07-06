@@ -12,6 +12,9 @@ export type ActivityLogResponse = {
 
 export type ActivityLogsTodayResponse = ActivityLogResponse[];
 
+// GET /api/activity/logs?date=YYYY-MM-DD — same shape as getToday(), scoped to one calendar date.
+export type ActivityLogsByDateResponse = ActivityLogResponse[];
+
 // POST /api/activity/current-app — record the current app/window context.
 // Consent-gated (user_privacy_consents ACTIVITY_CONTEXT). The values come from
 // the Tauri read_activity_context IPC; no full-screen or keystroke capture.

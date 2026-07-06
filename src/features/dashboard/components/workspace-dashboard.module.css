@@ -287,6 +287,113 @@
   opacity: 0.88;
 }
 
+/* 집중 시간 통계: 날짜 선택 줄 */
+.focusDateRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.focusDateInput {
+  padding: 4px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--color-text);
+  font-size: 12.5px;
+  font-weight: 640;
+}
+
+.focusDateInput:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 1px;
+}
+
+/* 활동 히트맵: 52주 x 7일 그리드 */
+.heatmapBlock {
+  display: grid;
+  gap: 10px;
+}
+
+.heatmapScroll {
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.heatmapGrid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, 11px);
+  gap: 3px;
+  width: max-content;
+}
+
+.heatmapCell {
+  width: 11px;
+  height: 11px;
+  padding: 0;
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.heatmapCell:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 1px;
+}
+
+.heatmapCell[data-selected="true"] {
+  outline: 2px solid var(--color-blue-deep);
+  outline-offset: 1px;
+}
+
+.heatmapCellPad {
+  display: block;
+  width: 11px;
+  height: 11px;
+}
+
+.heatmapCell[data-level="0"],
+.heatmapSwatch[data-level="0"] {
+  background: rgba(120, 150, 180, 0.16);
+}
+
+.heatmapCell[data-level="1"],
+.heatmapSwatch[data-level="1"] {
+  background: rgba(111, 184, 242, 0.38);
+}
+
+.heatmapCell[data-level="2"],
+.heatmapSwatch[data-level="2"] {
+  background: rgba(111, 184, 242, 0.62);
+}
+
+.heatmapCell[data-level="3"],
+.heatmapSwatch[data-level="3"] {
+  background: rgba(76, 150, 225, 0.85);
+}
+
+.heatmapCell[data-level="4"],
+.heatmapSwatch[data-level="4"] {
+  background: var(--bubble-blue);
+}
+
+.heatmapLegend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-faint);
+  font-size: 11px;
+}
+
+.heatmapSwatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
 /* AI 후보 대기 */
 .queueBlock {
   display: grid;
@@ -331,13 +438,25 @@
     padding-top: 6px;
     padding-bottom: 6px;
   }
+
+  .focusDateInput {
+    min-height: 36px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
 }
 
 /* 다크 테마(Night Bubble) 보정: 글로벌 다크 패스와 별개로 이 모듈 소유 조각만 손본다. */
-[data-theme="dark"] .roomPicker {
+[data-theme="dark"] .roomPicker,
+[data-theme="dark"] .focusDateInput {
   border-color: rgba(158, 216, 255, 0.24);
   background: rgba(20, 30, 42, 0.72);
   color: var(--color-text);
+}
+
+[data-theme="dark"] .heatmapCell[data-level="0"],
+[data-theme="dark"] .heatmapSwatch[data-level="0"] {
+  background: rgba(158, 216, 255, 0.14);
 }
 
 [data-theme="dark"] .editHint {

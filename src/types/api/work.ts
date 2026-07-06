@@ -78,6 +78,7 @@ export type DashboardWorkResponse = {
   upcomingDeadlines: TaskResponse[];
 };
 
+// GET /api/dashboard/activity-heatmap?days=N — one entry per calendar date (KST), oldest first.
 export type DashboardActivityHeatmapResponse = {
   count: number;
   date: string;
