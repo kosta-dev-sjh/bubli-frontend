@@ -49,7 +49,6 @@ const WIDGET_WINDOW_GUTTER: f64 = 44.0;
 // 통과시키므로 창이 커도 무해하다.
 const WIDGET_BAR_WIDTH: f64 = 640.0;
 const WIDGET_BAR_HEIGHT: f64 = 430.0;
-const WIDGET_BAR_MENU_EXPANDED_HEIGHT: f64 = 620.0;
 // 바 창은 투명 여유를 포함하므로 native top-left가 화면 밖으로 일부 나갈 수 있다.
 // 그래도 복원 시 사용자가 찾을 수 있도록 최소한 이 폭만큼은 선호 모니터 안에 남긴다.
 #[cfg(target_os = "macos")]
@@ -628,15 +627,6 @@ struct WidgetBarPreviewPlacementInput {
     current_offset_top: f64,
     nav_height: f64,
     next_offset_top: f64,
-    placement: String,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct WidgetBarMenuExpandedInput {
-    current_offset_top: f64,
-    expanded: bool,
-    nav_height: f64,
     placement: String,
 }
 
@@ -1263,8 +1253,7 @@ fn onboarding_overlay_window_geometry(
 
 fn widget_window_size(widget: &WidgetWindowState) -> LogicalSize<f64> {
     if widget.active_bubble == "bar" {
-        // 기본 바 창은 pill이 자유롭게 움직이는 느낌을 유지하도록 작게 둔다.
-        // 메뉴가 열리는 동안만 set_widget_bar_menu_expanded가 임시로 높이를 키운다.
+        // 바 창은 칩 수와 무관하게 최대 폭 고정. 리사이즈가 없어 macOS에서 잘림/깜빡임이 없다.
         return LogicalSize::new(WIDGET_BAR_WIDTH, WIDGET_BAR_HEIGHT);
     }
     if widget.active_bubble == "menu" {
@@ -2749,117 +2738,6 @@ fn set_widget_bar_preview_placement(
         },
     )?;
     persist_widget_window_state(&app, &state)?;
-
-    Ok(WidgetBarDragResult {
-        placement: input.placement,
-        state: widget,
-    })
-}
-
-#[tauri::command]
-fn set_widget_bar_menu_expanded(
-    app: AppHandle,
-    window: WebviewWindow,
-    state: tauri::State<'_, WidgetState>,
-    input: WidgetBarMenuExpandedInput,
-) -> Result<WidgetBarDragResult, String> {
-    let label = window.label().to_string();
-    if !is_widget_window_label(&label) || !label.ends_with("-bar") {
-        return Err("set_widget_bar_menu_expanded can only be called from the bar widget".to_string());
-    }
-    if input.placement != "above" && input.placement != "below" {
-        return Err("widget bar menu placement must be above or below".to_string());
-    }
-
-    let scale = window
-        .scale_factor()
-        .map_err(|error| error.to_string())?
-        .max(0.5);
-    let current_position = window.outer_position().map_err(|error| error.to_string())?;
-    let monitor = window
-        .current_monitor()
-        .map_err(|error| error.to_string())?
-        .map(|monitor| {
-            let (monitors, _primary) = list_monitors(&app)?;
-            let id = monitors
-                .iter()
-                .enumerate()
-                .find(|(_, candidate)| monitors_match(candidate, &monitor))
-                .map(|(index, candidate)| monitor_id(candidate, index))
-                .unwrap_or_else(|| PRIMARY_MONITOR_ID.to_string());
-            Ok::<(Monitor, String), String>((monitor, id))
-        })
-        .transpose()?;
-    let origin = monitor.as_ref().map(|(monitor, _)| monitor.position());
-    let origin_x = origin.map_or(0.0, |position| position.x as f64);
-    let origin_y = origin.map_or(0.0, |position| position.y as f64);
-
-    let target_height = if input.expanded {
-        WIDGET_BAR_MENU_EXPANDED_HEIGHT
-    } else {
-        WIDGET_BAR_HEIGHT
-    };
-    let target_size = LogicalSize::new(WIDGET_BAR_WIDTH, target_height);
-    let nav_height = input.nav_height * scale;
-    let padding = WIDGET_BAR_ROOT_PADDING * scale;
-    let target_height_physical = target_height * scale;
-    let current_visible_y = current_position.y as f64 + input.current_offset_top * scale;
-    let next_offset_top = if input.placement == "below" {
-        padding
-    } else {
-        target_height_physical - nav_height - padding
-    };
-    let next_y = current_visible_y - next_offset_top;
-
-    let size_key = (
-        target_size.width.round() as i64,
-        target_size.height.round() as i64,
-    );
-    let size_changed = with_widget_applied_window_state(&label, |applied| {
-        if applied.size == Some(size_key) {
-            false
-        } else {
-            applied.size = Some(size_key);
-            true
-        }
-    })
-    .unwrap_or(true);
-    if size_changed {
-        window
-            .set_min_size(None::<Size>)
-            .map_err(|error| error.to_string())?;
-        window
-            .set_max_size(Some(Size::Logical(target_size)))
-            .map_err(|error| error.to_string())?;
-        window
-            .set_min_size(Some(Size::Logical(target_size)))
-            .map_err(|error| error.to_string())?;
-        window
-            .set_size(Size::Logical(target_size))
-            .map_err(|error| error.to_string())?;
-    }
-
-    let next_position = PhysicalPosition::new(current_position.x, next_y.round() as i32);
-    note_widget_window_moved(&label);
-    window
-        .set_position(Position::Physical(next_position))
-        .map_err(|error| error.to_string())?;
-
-    let widget = with_widget_state(
-        &state,
-        Some("bar".to_string()),
-        Some("bar".to_string()),
-        |widget| {
-            widget.position = WidgetWindowPosition {
-                x: ((next_position.x as f64 - origin_x) / scale).round() as i32,
-                y: ((next_position.y as f64 - origin_y) / scale).round() as i32,
-            };
-            widget.monitor_id = monitor.as_ref().map(|(_, id)| id.clone());
-        },
-    )?;
-    if !input.expanded {
-        persist_widget_window_state(&app, &state)?;
-    }
 
     Ok(WidgetBarDragResult {
         placement: input.placement,
@@ -4538,7 +4416,6 @@ pub fn run() {
             callback_tauri_google_oauth,
             complete_tauri_google_oauth,
             start_tauri_google_oauth_loopback,
-            set_widget_bar_menu_expanded,
             set_widget_bar_preview_placement,
             open_onboarding_overlay,
             close_onboarding_overlay,

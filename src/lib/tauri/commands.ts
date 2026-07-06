@@ -26,7 +26,6 @@ export const TAURI_COMMANDS = {
   callbackTauriGoogleOauth: "callback_tauri_google_oauth",
   completeTauriGoogleOauth: "complete_tauri_google_oauth",
   dragWidgetBarWindow: "drag_widget_bar_window",
-  setWidgetBarMenuExpanded: "set_widget_bar_menu_expanded",
   setWidgetBarPreviewPlacement: "set_widget_bar_preview_placement",
   extractLocalFileKeySentences: "extract_local_file_key_sentences",
   findLocalFileByResourceId: "find_local_file_by_resource_id",
@@ -750,13 +749,6 @@ export type WidgetBarDragResult = {
   state: WidgetWindowState;
 };
 
-export type WidgetBarMenuExpandedInput = {
-  currentOffsetTop: number;
-  expanded: boolean;
-  navHeight: number;
-  placement: "above" | "below";
-};
-
 export type WidgetBarPreviewPlacementInput = {
   currentOffsetTop: number;
   navHeight: number;
@@ -931,10 +923,6 @@ export type TauriCommandContract = {
   };
   drag_widget_bar_window: {
     args: WidgetBarDragInput;
-    result: WidgetBarDragResult;
-  };
-  set_widget_bar_menu_expanded: {
-    args: WidgetBarMenuExpandedInput;
     result: WidgetBarDragResult;
   };
   set_widget_bar_preview_placement: {
@@ -1290,9 +1278,6 @@ export const tauriCommands = {
   },
   dragWidgetBarWindow(input: WidgetBarDragInput) {
     return invokeTauri<WidgetBarDragResult>(TAURI_COMMANDS.dragWidgetBarWindow, { input });
-  },
-  setWidgetBarMenuExpanded(input: WidgetBarMenuExpandedInput) {
-    return invokeTauri<WidgetBarDragResult>(TAURI_COMMANDS.setWidgetBarMenuExpanded, { input });
   },
   setWidgetBarPreviewPlacement(input: WidgetBarPreviewPlacementInput) {
     return invokeTauri<WidgetBarDragResult>(TAURI_COMMANDS.setWidgetBarPreviewPlacement, { input });

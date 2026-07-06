@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, memo, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, type Ref, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { Fragment, memo, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, type Ref, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { AnimatePresence, LayoutGroup, MotionConfig, motion, useReducedMotion } from "motion/react";
 import {
   Bell,
@@ -70,7 +70,6 @@ import {
   type WidgetTimerMode,
 } from "@/lib/widget/widget-pref-client";
 import { readCurrentTauriWindowMonitorState, startWidgetWindowDragging, tauriCommands, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
-import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { isMacTauriRuntime } from "@/lib/tauri/platform";
 
 import styles from "./desktop-widget-bubble.module.css";
@@ -130,11 +129,6 @@ const accentClassNames: Record<BubbleMeta["accent"], string> = {
 
 const BAR_ROOT_PADDING_PX = 4;
 const BAR_PREVIEW_FLIP_THRESHOLD_PX = 188;
-const BAR_MENU_EDGE_GUTTER_PX = 12;
-const BAR_MENU_GAP_PX = 10;
-const BAR_MENU_MIN_HEIGHT_PX = 180;
-const BAR_MENU_TARGET_HEIGHT_PX = 540;
-const BAR_MENU_TARGET_WIDTH_PX = 320;
 type BarPreviewPlacement = "above" | "below";
 
 // 서버 부분 동기화 실패는 회색 웰 대신 헤더 아래 얇은 상태 한 줄로만 알린다.
@@ -3121,12 +3115,6 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   const barNavRef = useRef<HTMLElement | null>(null);
   const suppressNextBarClickRef = useRef(false);
   const [barPreviewPlacement, setBarPreviewPlacement] = useState<BarPreviewPlacement>("above");
-  const [barMenuLayout, setBarMenuLayout] = useState({
-    anchorOffset: 68,
-    maxHeight: 352,
-    maxWidth: 280,
-  });
-  const [barMenuWindowExpanded, setBarMenuWindowExpanded] = useState(false);
   useEffect(() => {
     const rootElement = barRootRef.current;
     if (!rootElement) return;
@@ -3137,132 +3125,42 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
     };
   }, [armIdleTimer]);
 
-  const updateBarMenuLayout = useCallback((placement: BarPreviewPlacement = barPreviewPlacement) => {
+  const syncBarPreviewPlacement = useCallback(async () => {
+    if (!isMacTauriRuntime()) return;
     const rootElement = barRootRef.current;
     const navElement = barNavRef.current;
     if (!rootElement || !navElement) return;
 
-    const rootRect = rootElement.getBoundingClientRect();
-    const navRect = navElement.getBoundingClientRect();
-    const anchorOffset = Math.ceil(navRect.height + BAR_ROOT_PADDING_PX + BAR_MENU_GAP_PX);
-    const navTop = navRect.top - rootRect.top;
-    const navBottom = navRect.bottom - rootRect.top;
-    const insideSpace =
-      placement === "below"
-        ? rootRect.height - navBottom - BAR_MENU_GAP_PX - BAR_MENU_EDGE_GUTTER_PX
-        : navTop - BAR_MENU_GAP_PX - BAR_MENU_EDGE_GUTTER_PX;
-    const maxHeight = Math.floor(
-      Math.max(BAR_MENU_MIN_HEIGHT_PX, Math.min(BAR_MENU_TARGET_HEIGHT_PX, insideSpace)),
-    );
-    const maxWidth = Math.floor(
-      Math.max(260, Math.min(BAR_MENU_TARGET_WIDTH_PX, rootRect.width - BAR_MENU_EDGE_GUTTER_PX * 2)),
-    );
-
-    setBarMenuLayout((current) =>
-      current.anchorOffset === anchorOffset && current.maxHeight === maxHeight && current.maxWidth === maxWidth
-        ? current
-        : { anchorOffset, maxHeight, maxWidth },
-    );
-  }, [barPreviewPlacement]);
-
-  const syncBarPreviewPlacement = useCallback(async (
-    requiredLayerHeight = BAR_PREVIEW_FLIP_THRESHOLD_PX,
-    options: { moveWindow?: boolean } = {},
-  ): Promise<BarPreviewPlacement | null> => {
-    const moveWindow = options.moveWindow ?? true;
-    const rootElement = barRootRef.current;
-    const navElement = barNavRef.current;
-    if (!rootElement || !navElement) return null;
-
-    let nextPlacement: BarPreviewPlacement = barPreviewPlacement;
-    const rootRect = rootElement.getBoundingClientRect();
-    const navRect = navElement.getBoundingClientRect();
-
     try {
-      const monitorState = isTauriRuntime() ? await readCurrentTauriWindowMonitorState() : null;
-      if (!monitorState) {
-        const navTop = navRect.top - rootRect.top;
-        const navBottom = navRect.bottom - rootRect.top;
-        const availableAbove = navTop - BAR_MENU_EDGE_GUTTER_PX;
-        const availableBelow = rootRect.height - navBottom - BAR_MENU_EDGE_GUTTER_PX;
-        nextPlacement =
-          availableAbove >= requiredLayerHeight || availableAbove >= availableBelow ? "above" : "below";
-        if (nextPlacement !== barPreviewPlacement) setBarPreviewPlacement(nextPlacement);
-        updateBarMenuLayout(nextPlacement);
-        return nextPlacement;
-      }
-
+      const monitorState = await readCurrentTauriWindowMonitorState();
+      if (!monitorState) return;
       const { outerPosition, monitor } = monitorState;
       const scale = monitor?.scaleFactor ?? (window.devicePixelRatio || 1);
       const originY = (monitor?.position.y ?? 0) / scale;
       const windowY = outerPosition.y / scale - originY;
       const workAreaTop = monitor ? monitor.workArea.position.y / scale - originY : 0;
-      const workAreaBottom = monitor
-        ? (monitor.workArea.position.y + monitor.workArea.size.height) / scale - originY
-        : window.innerHeight;
-      const currentOffsetTop = navRect.top - rootRect.top;
-      const visibleY = windowY + currentOffsetTop;
-      const availableAbove = visibleY - workAreaTop - BAR_MENU_EDGE_GUTTER_PX;
-      const availableBelow = workAreaBottom - (visibleY + navRect.height) - BAR_MENU_EDGE_GUTTER_PX;
-      nextPlacement =
-        availableBelow >= requiredLayerHeight && availableBelow > availableAbove ? "below" : "above";
-      if (availableAbove < requiredLayerHeight && availableBelow > availableAbove) {
-        nextPlacement = "below";
-      }
-
-      if (nextPlacement !== barPreviewPlacement) setBarPreviewPlacement(nextPlacement);
-      updateBarMenuLayout(nextPlacement);
-
-      const nextOffsetTop =
-        nextPlacement === "below" ? BAR_ROOT_PADDING_PX : rootRect.height - navRect.height - BAR_ROOT_PADDING_PX;
-      if (moveWindow && (nextPlacement !== barPreviewPlacement || isMacTauriRuntime())) {
-        await tauriCommands.setWidgetBarPreviewPlacement({
-          currentOffsetTop,
-          navHeight: navRect.height,
-          nextOffsetTop,
-          placement: nextPlacement,
-        });
-      }
-      return nextPlacement;
-    } catch {
-      // Browser preview fallback and older Tauri runtimes keep the default above placement.
-      updateBarMenuLayout(nextPlacement);
-      return nextPlacement;
-    }
-  }, [barPreviewPlacement, updateBarMenuLayout]);
-
-  const applyBarMenuWindowExpanded = useCallback(
-    async (expanded: boolean, placement: BarPreviewPlacement) => {
-      const rootElement = barRootRef.current;
-      const navElement = barNavRef.current;
-      if (!rootElement || !navElement) return;
-
-      if (!isTauriRuntime()) {
-        setBarMenuWindowExpanded(expanded);
-        window.requestAnimationFrame(() => updateBarMenuLayout(placement));
-        return;
-      }
-
       const rootRect = rootElement.getBoundingClientRect();
       const navRect = navElement.getBoundingClientRect();
       const currentOffsetTop = navRect.top - rootRect.top;
-      try {
-        const result = await tauriCommands.setWidgetBarMenuExpanded({
-          currentOffsetTop,
-          expanded,
-          navHeight: navRect.height,
-          placement,
-        });
-        setBarPreviewPlacement(result.placement);
-        setBarMenuWindowExpanded(expanded);
-        window.requestAnimationFrame(() => updateBarMenuLayout(result.placement));
-      } catch {
-        setBarMenuWindowExpanded(false);
-        updateBarMenuLayout(placement);
-      }
-    },
-    [updateBarMenuLayout],
-  );
+      const visibleY = windowY + currentOffsetTop;
+      const nextPlacement: BarPreviewPlacement =
+        visibleY < workAreaTop + BAR_PREVIEW_FLIP_THRESHOLD_PX ? "below" : "above";
+
+      if (nextPlacement === barPreviewPlacement) return;
+      setBarPreviewPlacement(nextPlacement);
+
+      const nextOffsetTop =
+        nextPlacement === "below" ? BAR_ROOT_PADDING_PX : rootRect.height - navRect.height - BAR_ROOT_PADDING_PX;
+      await tauriCommands.setWidgetBarPreviewPlacement({
+        currentOffsetTop,
+        navHeight: navRect.height,
+        nextOffsetTop,
+        placement: nextPlacement,
+      });
+    } catch {
+      // Browser preview fallback and older Tauri runtimes keep the default above placement.
+    }
+  }, [barPreviewPlacement]);
 
   useEffect(() => {
     if (!isMacTauriRuntime()) return;
@@ -3279,27 +3177,6 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
       cancelled = true;
     };
   }, [syncBarPreviewPlacement]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    void (async () => {
-      const placement = menuOpen
-        ? (await syncBarPreviewPlacement(BAR_MENU_TARGET_HEIGHT_PX, { moveWindow: false })) ?? barPreviewPlacement
-        : barPreviewPlacement;
-      if (cancelled) return;
-      await applyBarMenuWindowExpanded(menuOpen, placement);
-    })();
-
-    const handleResize = () => {
-      if (menuOpen) void syncBarPreviewPlacement(BAR_MENU_TARGET_HEIGHT_PX, { moveWindow: false });
-    };
-    window.addEventListener("resize", handleResize);
-    return () => {
-      cancelled = true;
-      window.removeEventListener("resize", handleResize);
-    };
-  }, [applyBarMenuWindowExpanded, barPreviewPlacement, menuOpen, syncBarPreviewPlacement]);
 
   const moveBarToCursor = useCallback(
     async (
@@ -3472,37 +3349,22 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   const gooEnter = prefersReducedMotion ? gooEnterReduced : gooEnterFull;
   const gooShown = prefersReducedMotion ? gooShownReduced : gooShownFull;
   const gooExit = prefersReducedMotion ? gooExitReduced : gooExitFull;
-  const barMenuStyle = useMemo(
-    () =>
-      ({
-        "--bar-menu-anchor-offset": `${barMenuLayout.anchorOffset}px`,
-        "--bar-menu-max-height": `${barMenuLayout.maxHeight}px`,
-        "--bar-menu-max-width": `${barMenuLayout.maxWidth}px`,
-      }) as CSSProperties,
-    [barMenuLayout],
-  );
 
   // 바 창은 pill 하나만 시각적으로 유지한다(접힘 상시 미리보기 카드 없음).
   // 창 너비는 Rust(WIDGET_BAR_WIDTH)가 640 고정이고 칩이 아이콘 전용 36px 타일이라
   // 접힌 칩 전부(알림 버블 제외 최대 7개)가 어떤 조합에서도 창을 넘지 않는다 — "+N" 없음.
-  // pill 위/아래 투명 영역에는 hover 팝오버와 Bubli 메뉴 패널이 뜬다(absolute라 pill이 밀리지 않는다).
-  // 메뉴는 현재 모니터·pill 위치에 맞춰 위/아래와 max-height를 계산하고, 창 높이는 Rust와 맞춘다.
+  // pill 위 투명 영역에는 hover 팝오버와 Bubli 메뉴 morph 패널이 뜬다(absolute라 pill이 밀리지 않는다).
+  // 창 높이는 Rust WIDGET_BAR_HEIGHT(430)가 패널(≈352px)을 수용한다.
   return (
     <MotionConfig reducedMotion="user">
       {/* memo된 형제(칩)들 사이에서 layoutId 프로젝션이 함께 갱신되도록 LayoutGroup으로 묶는다. */}
       <LayoutGroup>
       <div
-        className={[
-          styles.root,
-          styles.barRoot,
-          barMenuWindowExpanded ? styles.barRootMenuExpanded : "",
-          barPreviewPlacement === "below" ? styles.barRootBelow : "",
-        ]
+        className={[styles.root, styles.barRoot, barPreviewPlacement === "below" ? styles.barRootBelow : ""]
           .filter(Boolean)
           .join(" ")}
         data-bubli-desktop-widget
         ref={barRootRef}
-        style={barMenuStyle}
       >
         <GooeyFilter />
         <AnimatePresence>
