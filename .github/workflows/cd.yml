@@ -41,6 +41,7 @@ jobs:
             NEXT_PUBLIC_API_BASE_URL=${{ vars.NEXT_PUBLIC_API_BASE_URL }}
             NEXT_PUBLIC_APP_BASE_URL=${{ vars.NEXT_PUBLIC_APP_BASE_URL }}
             NEXT_PUBLIC_TAURI_APP_URL=${{ vars.NEXT_PUBLIC_TAURI_APP_URL }}
+            NEXT_PUBLIC_WS_URL=${{ vars.NEXT_PUBLIC_WS_URL }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
