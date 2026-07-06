@@ -9,7 +9,6 @@ import {
   Download,
   FileText,
   ListChecks,
-  MessageSquareText,
   NotebookPen,
   Pause,
   RefreshCw,
@@ -26,7 +25,6 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import type { StatusTone } from "@/components/ui/status-badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { agentApi } from "@/features/agent/api/agentApi";
-import { chatApi } from "@/features/communication/api/chatApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { notifyDataChanged, useDataRefresh } from "@/lib/data-changed";
@@ -50,7 +48,6 @@ import type {
   RoomAiDocumentResponse,
 } from "@/types/api/agent";
 import type { AiDocumentStatus } from "@/types/api/resource";
-import type { RoomMemorySummaryResponse } from "@/types/api/chat";
 import type { ProjectRoomResponse } from "@/types/api/projectRoom";
 
 import styles from "./page.module.css";
@@ -65,7 +62,6 @@ type AgentPageState =
       heldSuggestions: AgentSuggestionResponse[];
       kind: "ready";
       roomAiDocuments: RoomAiDocumentResponse[];
-      roomMemorySummaries: RoomMemorySummaryResponse[];
       rooms: ProjectRoomResponse[];
       selectedRoomId: string | null;
       suggestions: AgentSuggestionResponse[];
@@ -94,7 +90,7 @@ type FeedItem = {
   evidenceText: string | null;
   expandable: boolean;
   id: string;
-  kind: "aiDocument" | "confirmed" | "dailySummary" | "generatedDocument" | "held" | "memory" | "suggestion";
+  kind: "aiDocument" | "confirmed" | "dailySummary" | "generatedDocument" | "held" | "suggestion";
   roomLabel: string | null;
   sortAt: number;
   sourceLabel: string | null;
@@ -198,13 +194,49 @@ function displayText(payload: Record<string, unknown>, fallback: string) {
   return firstString ?? fallback;
 }
 
+function isCommandLikeCandidateTitle(value: string) {
+  const text = value.trim().toLowerCase();
+  return (
+    /^\/?bubli\b/.test(text) ||
+    /(?:todo|to-do|할일)\s*.*후보/.test(text) ||
+    /후보\s*만들/.test(text)
+  );
+}
+
+function displaySuggestionText(suggestion: AgentSuggestionResponse, fallback: string) {
+  const title = displayText(suggestion.payloadJson, fallback);
+  if ((suggestion.suggestionType === "TODO" || suggestion.suggestionType === "TASK") && isCommandLikeCandidateTitle(title)) {
+    const candidate = ["taskTitle", "todoTitle", "action", "summary", "description", "content", "detail"]
+      .map((key) => suggestion.payloadJson[key])
+      .find((value): value is string => typeof value === "string" && value.trim().length > 0 && !isCommandLikeCandidateTitle(value));
+
+    return candidate ?? fallback;
+  }
+
+  return title;
+}
+
+function isUnusableCommandCandidate(suggestion: AgentSuggestionResponse, fallback: string) {
+  if (suggestion.suggestionType !== "TODO" && suggestion.suggestionType !== "TASK") return false;
+
+  const title = displayText(suggestion.payloadJson, fallback);
+  if (!isCommandLikeCandidateTitle(title)) return false;
+
+  return !["taskTitle", "todoTitle", "action", "summary", "description", "content", "detail"]
+    .map((key) => suggestion.payloadJson[key])
+    .some((value) => typeof value === "string" && value.trim().length > 0 && !isCommandLikeCandidateTitle(value));
+}
+
 // 제목과 겹치지 않는 두 번째 설명 문자열(내용 요약)을 찾는다.
 function displaySecondaryText(payload: Record<string, unknown>, title: string) {
   const secondary = ["summary", "description", "content", "detail", "body", "text"]
     .map((key) => payload[key])
     .find(
       (value): value is string =>
-        typeof value === "string" && value.trim().length > 0 && value.trim() !== title.trim(),
+        typeof value === "string" &&
+        value.trim().length > 0 &&
+        value.trim() !== title.trim() &&
+        !isCommandLikeCandidateTitle(value),
     );
 
   return secondary ?? null;
@@ -242,7 +274,7 @@ function evidenceDisplay(evidence: Record<string, unknown> | null | undefined) {
   return { fromSource: true, text: null as string | null };
 }
 
-// JSON 문자열(하루 정리·대화 요약)에서 사람이 읽을 문장만 줄 단위로 뽑는다.
+// JSON 문자열(하루 정리)에서 사람이 읽을 문장만 줄 단위로 뽑는다.
 function readableJsonLines(value: string): string[] {
   const lines: string[] = [];
   const visit = (node: unknown) => {
@@ -339,7 +371,6 @@ function AgentPageContent() {
           generatedDocuments: [],
           heldSuggestions: [],
           roomAiDocuments: [],
-          roomMemorySummaries: [],
           selectedRoomId: roomId,
           suggestions: [],
         };
@@ -348,7 +379,7 @@ function AgentPageContent() {
     });
 
     try {
-      const [roomPage, suggestions, heldSuggestions, dailySummaryPage, generatedDocumentPage, roomMemorySummaries, confirmedRequirements, contractReferences, roomAiDocuments] = await Promise.all([
+      const [roomPage, suggestions, heldSuggestions, dailySummaryPage, generatedDocumentPage, confirmedRequirements, contractReferences, roomAiDocuments] = await Promise.all([
         projectRoomApi.list(),
         roomId ? agentApi.listRoomSuggestions(roomId, { status: "DRAFT" }) : agentApi.listPersonalSuggestions({ status: "DRAFT" }),
         // 보류한 후보도 함께 불러와 보류함 필터에서 다시 볼 수 있게 한다.
@@ -360,7 +391,6 @@ function AgentPageContent() {
         ),
         agentApi.listDailySummaries(),
         roomId ? agentApi.listRoomGeneratedDocuments(roomId) : agentApi.listGeneratedDocuments(),
-        roomId ? chatApi.listRoomMemorySummaries(roomId) : Promise.resolve([]),
         roomId
           ? agentApi.listRoomConfirmedRequirements(roomId).catch((error: unknown) => {
               if (error instanceof ApiClientError && error.status === 401) throw error;
@@ -397,7 +427,6 @@ function AgentPageContent() {
         heldSuggestions,
         kind: "ready",
         roomAiDocuments,
-        roomMemorySummaries,
         rooms: roomPage.items,
         selectedRoomId: selectedRoom?.id ?? null,
         suggestions,
@@ -422,7 +451,6 @@ function AgentPageContent() {
           heldSuggestions: [],
           kind: "ready",
           roomAiDocuments: [],
-          roomMemorySummaries: [],
           rooms: workspacePreviewRooms,
           selectedRoomId: selectedRoom?.id ?? null,
           suggestions: selectedRoom ? workspacePreviewRoomSuggestions(selectedRoom.id) : workspacePreviewPersonalSuggestions(),
@@ -471,7 +499,9 @@ function AgentPageContent() {
 
     for (const suggestion of state.suggestions) {
       const typeLabel = t(typeLabelKeys[suggestion.suggestionType]);
-      const title = displayText(suggestion.payloadJson, typeLabel);
+      if (isUnusableCommandCandidate(suggestion, typeLabel)) continue;
+
+      const title = displaySuggestionText(suggestion, typeLabel);
       const evidence = evidenceDisplay(suggestion.evidenceJson);
 
       items.push({
@@ -637,35 +667,6 @@ function AgentPageContent() {
       });
     }
 
-    for (const memory of state.roomMemorySummaries) {
-      const lines = readableJsonLines(memory.summaryJson);
-
-      items.push({
-        badge: {
-          label: memory.status === "APPROVED" ? t("agent.page.statusApproved") : t("agent.page.statusDraft"),
-          tone: memory.status === "APPROVED" ? "approved" : "pending",
-        },
-        body: lines.length > 1 ? lines.join("\n") : null,
-        category: "daily",
-        dailySummaryApproved: false,
-        dailySummaryId: null,
-        documentId: null,
-        evidenceSource: false,
-        evidenceText: null,
-        expandable: lines.length > 1,
-        id: `memory-${memory.id}`,
-        kind: "memory",
-        roomLabel: null,
-        sortAt: Date.parse(memory.createdAt) || 0,
-        sourceLabel: null,
-        suggestion: null,
-        summary: lines[0] ?? t("agent.page.roomMemoryContentFallback"),
-        timeLabel: relativeDate(memory.createdAt),
-        title: t("agent.page.memoryRangeSummary", { count: Math.max(memory.toSequence - memory.fromSequence + 1, 1) }),
-        typeTag: t("agent.page.tagMemory"),
-      });
-    }
-
     return items.sort((a, b) => b.sortAt - a.sortAt);
   }, [relativeDate, state, t]);
 
@@ -676,8 +677,10 @@ function AgentPageContent() {
     return state.heldSuggestions
       .map((suggestion): FeedItem => {
         const typeLabel = t(typeLabelKeys[suggestion.suggestionType]);
+        if (isUnusableCommandCandidate(suggestion, typeLabel)) return null;
+
         const heldAt = suggestion.reviewedAt ?? suggestion.updatedAt;
-        const title = displayText(suggestion.payloadJson, typeLabel);
+        const title = displaySuggestionText(suggestion, typeLabel);
 
         return {
           badge: { label: t("agent.page.statusHeldLabel"), tone: "warning" },
@@ -701,6 +704,7 @@ function AgentPageContent() {
           typeTag: typeLabel,
         };
       })
+      .filter((item): item is FeedItem => item !== null)
       .sort((a, b) => b.sortAt - a.sortAt);
   }, [relativeDate, state, t]);
 
@@ -1063,7 +1067,7 @@ function AgentPageContent() {
           ) : (
             <div aria-label={t("agent.page.feedAria")} className={styles.feed}>
               {visibleItems.map((item) => {
-                const Icon = item.kind === "memory" ? MessageSquareText : categoryIcons[item.category];
+                const Icon = categoryIcons[item.category];
                 const expanded = expandedId === item.id;
                 const reviewable = item.kind === "suggestion" && item.suggestion?.status === "DRAFT";
                 const reviewBusy = item.suggestion ? updatingId === item.suggestion.suggestionId : false;
