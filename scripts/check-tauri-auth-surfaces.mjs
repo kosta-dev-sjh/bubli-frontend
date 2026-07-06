@@ -1,14 +1,26 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 const files = {
   packageJson: "package.json",
+  publicDownloadRoute: "src/app/(public)/download/page.tsx",
+  publicHomePage: "src/app/(public)/page.tsx",
+  publicHeader: "src/components/layout/public-header.tsx",
+  publicRouteContract: "src/config/public-route-contract.ts",
+  publicSiteConfig: "src/config/site.ts",
+  publicHero: "src/features/public-site/components/public-hero.tsx",
+  publicLandingNav: "src/features/public-site/components/landing-nav.tsx",
+  personalResourceWorkspace: "src/features/resources/components/personal-resource-workspace.tsx",
+  settingsPage: "src/app/(workspace)/app/settings/page.tsx",
+  frontendSmoke: "scripts/check-frontend-smoke.mjs",
   appNav: "src/components/layout/app-nav.tsx",
   appShell: "src/components/layout/app-shell.tsx",
   appChat: "src/app/(workspace)/app/chat/page.tsx",
+  apiClient: "src/lib/api/client.ts",
   authApi: "src/features/auth/api/authApi.ts",
   authPanel: "src/features/auth/components/auth-panel.tsx",
   authSession: "src/lib/auth/auth-session.ts",
   activityAutoCapture: "src/lib/local/activity-auto-capture.ts",
+  activityClient: "src/lib/local/activity-client.ts",
   authenticatedSurfaces: "src/lib/tauri/authenticated-surfaces.ts",
   chatWidgetRouting: "src/lib/tauri/chat-widget-routing.ts",
   desktopWidgetPage: "src/app/desktop-widget/page.tsx",
@@ -24,9 +36,17 @@ const files = {
   runtimeSmokeRunner: "src/lib/tauri/tauri-runtime-smoke-runner.tsx",
   tauriCapability: "src-tauri/capabilities/default.json",
   tauriConf: "src-tauri/tauri.conf.json",
+  tauriMain: "src-tauri/src/main.rs",
+  tauriIconIco: "src-tauri/icons/icon.ico",
+  tauriIconPng: "src-tauri/icons/icon.png",
+  brandAppIconPng: "public/brand/icon-app-512.png",
+  tauriInstallerHeaderBmp: "src-tauri/icons/installer-header.bmp",
+  tauriInstallerSidebarBmp: "src-tauri/icons/installer-sidebar.bmp",
   tauriDevtoolsGuard: "src/lib/tauri/tauri-devtools-guard.tsx",
   tauriLib: "src-tauri/src/lib.rs",
   prepareTauriDist: "scripts/prepare-tauri-dist.mjs",
+  buildTauriWindowsDownload: "scripts/build-tauri-windows-download.mjs",
+  publishTauriWindowsDownload: "scripts/publish-tauri-windows-download.mjs",
   runtimePreflight: "scripts/check-tauri-runtime-preflight.mjs",
   oauthLiveContract: "scripts/check-tauri-oauth-live-contract.mjs",
   realOAuthQaScript: "scripts/qa-tauri-real-oauth-manual.mjs",
@@ -40,6 +60,10 @@ const files = {
 
 function read(path) {
   return readFileSync(path, "utf8");
+}
+
+function readBuffer(path) {
+  return readFileSync(path);
 }
 
 function assertContains(source, pattern, message) {
@@ -86,8 +110,55 @@ function extractTypeObject(source, typeName) {
   return source.slice(objectStart, objectEnd + 2);
 }
 
+function readIcoSizes(buffer) {
+  if (buffer.length < 6) {
+    throw new Error("ICO file is too small.");
+  }
+
+  const reserved = buffer.readUInt16LE(0);
+  const type = buffer.readUInt16LE(2);
+  const count = buffer.readUInt16LE(4);
+  if (reserved !== 0 || type !== 1 || count <= 0) {
+    throw new Error("Invalid Windows ICO header.");
+  }
+
+  const sizes = [];
+  for (let index = 0; index < count; index += 1) {
+    const offset = 6 + index * 16;
+    if (offset + 16 > buffer.length) {
+      throw new Error("ICO directory is truncated.");
+    }
+
+    const width = buffer[offset] === 0 ? 256 : buffer[offset];
+    const height = buffer[offset + 1] === 0 ? 256 : buffer[offset + 1];
+    sizes.push(`${width}x${height}`);
+  }
+
+  return sizes.sort((left, right) => Number(left.split("x")[0]) - Number(right.split("x")[0]));
+}
+
+function readBmpSize(buffer) {
+  if (buffer.length < 26 || buffer.toString("ascii", 0, 2) !== "BM") {
+    throw new Error("Invalid Windows BMP header.");
+  }
+
+  return {
+    height: Math.abs(buffer.readInt32LE(22)),
+    width: buffer.readInt32LE(18),
+  };
+}
+
 const layout = read(files.layout);
 const packageJson = read(files.packageJson);
+const publicHomePage = read(files.publicHomePage);
+const publicHeader = read(files.publicHeader);
+const publicRouteContract = read(files.publicRouteContract);
+const publicSiteConfig = read(files.publicSiteConfig);
+const publicHero = read(files.publicHero);
+const publicLandingNav = read(files.publicLandingNav);
+const personalResourceWorkspace = read(files.personalResourceWorkspace);
+const settingsPage = read(files.settingsPage);
+const frontendSmoke = read(files.frontendSmoke);
 const launcher = read(files.postLoginLauncher);
 const realOAuthQaReporter = read(files.realOAuthQaReporter);
 const authWidgetQa = read(files.authWidgetQa);
@@ -96,9 +167,17 @@ const firstRunController = read(files.firstRunController);
 const runtimeSmokeRunner = read(files.runtimeSmokeRunner);
 const tauriCapability = read(files.tauriCapability);
 const tauriConf = read(files.tauriConf);
+const tauriMain = read(files.tauriMain);
+const tauriIconIco = readBuffer(files.tauriIconIco);
+const tauriIconPng = readBuffer(files.tauriIconPng);
+const brandAppIconPng = readBuffer(files.brandAppIconPng);
+const tauriInstallerHeaderBmp = readBuffer(files.tauriInstallerHeaderBmp);
+const tauriInstallerSidebarBmp = readBuffer(files.tauriInstallerSidebarBmp);
 const tauriDevtoolsGuard = read(files.tauriDevtoolsGuard);
 const tauriLib = read(files.tauriLib);
 const prepareTauriDist = read(files.prepareTauriDist);
+const buildTauriWindowsDownload = read(files.buildTauriWindowsDownload);
+const publishTauriWindowsDownload = read(files.publishTauriWindowsDownload);
 const runtimePreflight = read(files.runtimePreflight);
 const oauthLiveContract = read(files.oauthLiveContract);
 const realOAuthQaScript = read(files.realOAuthQaScript);
@@ -109,10 +188,12 @@ const chatWidgetRouting = read(files.chatWidgetRouting);
 const appNav = read(files.appNav);
 const appShell = read(files.appShell);
 const appChat = read(files.appChat);
+const apiClient = read(files.apiClient);
 const authApi = read(files.authApi);
 const authPanel = read(files.authPanel);
 const authSession = read(files.authSession);
 const activityAutoCapture = read(files.activityAutoCapture);
+const activityClient = read(files.activityClient);
 const widgetPage = read(files.desktopWidgetPage);
 const widgetAuthHeaders = read(files.widgetAuthHeaders);
 const workspaceActiveRoom = read(files.workspaceActiveRoom);
@@ -132,6 +213,74 @@ assertContains(
   packageJson,
   /"qa:tauri-real-oauth":\s*"node scripts\/qa-tauri-real-oauth-manual\.mjs"/,
   "package.json must expose the manual-assisted Tauri real Google OAuth QA script.",
+);
+assertContains(
+  packageJson,
+  /"qa:tauri-real-oauth:installed":\s*"node scripts\/qa-tauri-real-oauth-manual\.mjs --installed-release"/,
+  "package.json must expose the installed NSIS real Google OAuth QA script.",
+);
+assertContains(
+  packageJson,
+  /"tauri:build":\s*"node scripts\/build-tauri-windows-download\.mjs"/,
+  "package.json tauri:build must use the memory-safe Windows download build wrapper.",
+);
+assertContains(
+  buildTauriWindowsDownload,
+  /CARGO_BUILD_JOBS: process\.env\.CARGO_BUILD_JOBS \?\? "1"[\s\S]*CARGO_PROFILE_RELEASE_CODEGEN_UNITS: process\.env\.CARGO_PROFILE_RELEASE_CODEGEN_UNITS \?\? "16"[\s\S]*CARGO_PROFILE_RELEASE_OPT_LEVEL: process\.env\.CARGO_PROFILE_RELEASE_OPT_LEVEL \?\? "3"[\s\S]*CARGO_PROFILE_RELEASE_STRIP: process\.env\.CARGO_PROFILE_RELEASE_STRIP \?\? "symbols"[\s\S]*npm\.cmd run tauri -- build[\s\S]*scripts\/publish-tauri-windows-download\.mjs/,
+  "Windows download builds must use memory-safe Cargo release defaults before publishing the installer.",
+);
+assertContains(
+  publishTauriWindowsDownload,
+  /src-tauri\/target\/release\/bundle\/nsis\/Bubli_0\.1\.0_x64-setup\.exe[\s\S]*public\/downloads\/windows\/Bubli-Windows-latest\.exe[\s\S]*manifest\.json/,
+  "Windows download publish must copy the signed/iconed NSIS installer to the public direct-download exe path.",
+);
+if (existsSync(files.publicDownloadRoute)) {
+  throw new Error("/download must not be implemented as a public page; public CTAs must download installers directly from the landing page.");
+}
+assertNotContains(
+  publicRouteContract,
+  /path:\s*"\/download"/,
+  "The public route contract must not list /download as a page route.",
+);
+assertNotContains(
+  frontendSmoke,
+  /"\/download"/,
+  "Frontend smoke routes must not expect the removed /download page.",
+);
+assertContains(
+  publicSiteConfig,
+  /href:\s*"\/#download"/,
+  "Public site config must point download navigation to the landing-page download section.",
+);
+assertContains(
+  publicHeader,
+  /"\/#download":\s*"nav\.public\.download"/,
+  "Public header must map the download nav item to the landing-page download section.",
+);
+assertContains(
+  publicLandingNav,
+  /href:\s*"\/#download"[\s\S]*id:\s*"download"/,
+  "Landing nav must link to the in-page download section instead of /download.",
+);
+assertContains(
+  publicHero,
+  /const windowsInstallerHref = "\/downloads\/windows\/Bubli-Windows-latest\.exe";[\s\S]*download href=\{windowsInstallerHref\}/,
+  "Public hero download CTA must directly download the Windows installer instead of navigating to /download.",
+);
+assertContains(
+  publicHomePage,
+  /const windowsInstallerHref = "\/downloads\/windows\/Bubli-Windows-latest\.exe";[\s\S]*download href=\{windowsInstallerHref\}[\s\S]*href="\/#download"/,
+  "Public landing page must keep direct installer links and footer navigation to the in-page download section.",
+);
+assertContains(
+  personalResourceWorkspace,
+  /const windowsInstallerHref = "\/downloads\/windows\/Bubli-Windows-latest\.exe";[\s\S]*download href=\{windowsInstallerHref\}/,
+  "Resource empty-state desktop CTA must directly download the Windows installer instead of navigating to /download.",
+);
+assertContains(
+  settingsPage,
+  /const windowsInstallerHref = "\/downloads\/windows\/Bubli-Windows-latest\.exe";[\s\S]*download href=\{windowsInstallerHref\}/,
+  "Settings desktop CTA must directly download the Windows installer instead of navigating to /download.",
 );
 assertContains(
   packageJson,
@@ -165,8 +314,18 @@ assertContains(
 );
 assertContains(
   realOAuthQaReporter,
-  /type RealOAuthQaRouteProbe[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_EVENT_URL[\s\S]*const routeProbeGraceMs[\s\S]*assertTauriRealGoogleAuthWidgetQaBeforeTimeout[\s\S]*const recordRouteSample[\s\S]*const buildRouteProbe[\s\S]*latestAssertion = await assertTauriRealGoogleAuthWidgetQaBeforeTimeout\(startedAt\)[\s\S]*failedChecks: latestAssertion\.failedChecks[\s\S]*stage: "assertion"[\s\S]*stage: "report-posted"[\s\S]*stage: "report-error"/,
+  /type RealOAuthQaRouteProbe[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_EVENT_URL[\s\S]*const realOAuthQaAttemptTimeoutMs[\s\S]*const routeProbeGraceMs[\s\S]*const missingAuthSessionReportAttempts = 3[\s\S]*assertTauriRealGoogleAuthWidgetQaBeforeTimeout[\s\S]*Math\.min\(remainingMs, realOAuthQaAttemptTimeoutMs\)[\s\S]*hasAnyStoredAuthSessionForQa[\s\S]*const recordRouteSample[\s\S]*const buildRouteProbe[\s\S]*latestAssertion = await assertTauriRealGoogleAuthWidgetQaBeforeTimeout\(startedAt\)[\s\S]*failedChecks: latestAssertion\.failedChecks[\s\S]*stage: "assertion"[\s\S]*stage: "report-posted"[\s\S]*stage: "report-error"/,
   "TauriRealOAuthQaReporter must emit redacted lifecycle diagnostics and route/paint probes for release QA timeouts.",
+);
+assertContains(
+  realOAuthQaReporter,
+  /let missingAuthSessionCount = 0[\s\S]*if \(await hasAnyStoredAuthSessionForQa\(\)\) \{[\s\S]*missingAuthSessionCount = 0[\s\S]*missingAuthSessionCount \+= 1[\s\S]*missingAuthSessionCount >= missingAuthSessionReportAttempts[\s\S]*Missing a real Google TAURI session/,
+  "TauriRealOAuthQaReporter must fail fast with a redacted report when release QA starts without a stored auth session.",
+);
+assertContains(
+  realOAuthQaReporter,
+  /let realOAuthQaRunActive = false;[\s\S]*let realOAuthQaReportPosted = false;[\s\S]*const pathnameRef = useRef\(pathname\)[\s\S]*recordRouteSample = useCallback\(\(nextPathname = currentPathname\(pathnameRef\.current\)\)[\s\S]*pathnameRef\.current = pathname[\s\S]*realOAuthQaRunActive \|\| realOAuthQaReportPosted[\s\S]*realOAuthQaRunActive = true[\s\S]*realOAuthQaReportPosted = true[\s\S]*if \(!running\) \{[\s\S]*disposed = true[\s\S]*\}, \[buildRouteProbe, isDesktopWidgetSurface, recordRouteSample\]\);/,
+  "TauriRealOAuthQaReporter must keep one QA run alive across /app to /login route changes instead of starting duplicate runs.",
 );
 assertContains(
   realOAuthQaReporter,
@@ -195,7 +354,7 @@ assertNotContains(
 );
 assertContains(
   realOAuthQaScript,
-  /NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN:\s*"false"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_QA:\s*"true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_PREPARE_URL[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_SESSION_RESTORE_QA:\s*"true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STABILITY_QA_MS:\s*"15000"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STOP_CLEANUP_QA:\s*"true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA:\s*"true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_EVENT_URL[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_REPORT_URL/,
+  /NEXT_PUBLIC_BUBLI_ALLOW_TAURI_DEV_LOGIN:\s*"false"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_QA:\s*"true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_PREPARE_URL[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_WATCH_CREATE_URL[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_WATCH_DELETE_URL[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_WATCH_MUTATE_URL[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_SESSION_RESTORE_QA:\s*"true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STABILITY_QA_MS:\s*"15000"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STOP_CLEANUP_QA:\s*"true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA:\s*"true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_EVENT_URL[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_REPORT_URL/,
   "Manual real OAuth QA script must launch Tauri with dev-login disabled, local-sync, stability, session-restore, and stop-cleanup probes enabled, and the real OAuth QA report bridge enabled.",
 );
 assertNotContains(
@@ -210,7 +369,7 @@ assertContains(
 );
 assertContains(
   realOAuthQaScript,
-  /request\.on\("end"[\s\S]*const report = JSON\.parse\(body\);[\s\S]*validateRealOAuthQaReport\(report\)[\s\S]*resolveReport\(report\)/,
+  /request\.on\("end"[\s\S]*const report = decorateQaReport\(JSON\.parse\(body\)\);[\s\S]*validateRealOAuthQaReport\(report\)[\s\S]*resolveReport\(report\)/,
   "Manual real OAuth QA script must validate posted reports before accepting them.",
 );
 assertContains(
@@ -225,32 +384,42 @@ assertContains(
 );
 assertContains(
   realOAuthQaScript,
-  /const REPORTER_TIMEOUT_MS = Number\([\s\S]*Math\.max\(10_000, TIMEOUT_MS - 15_000\)[\s\S]*Reporter timeout: \$\{REPORTER_TIMEOUT_MS\}ms; harness timeout: \$\{TIMEOUT_MS\}ms[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_TIMEOUT_MS: String\(REPORTER_TIMEOUT_MS\)/,
-  "Manual real OAuth QA script must give the reporter a shorter timeout than the harness so failed reports can arrive before harness timeout.",
+  /const REPORTER_TIMEOUT_MS = Number\([\s\S]*Math\.max\(10_000, TIMEOUT_MS - 60_000\)[\s\S]*const REPORTER_ATTEMPT_TIMEOUT_MS = Number\([\s\S]*30_000[\s\S]*Reporter timeout: \$\{REPORTER_TIMEOUT_MS\}ms; harness timeout: \$\{TIMEOUT_MS\}ms[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_ATTEMPT_TIMEOUT_MS: String\(REPORTER_ATTEMPT_TIMEOUT_MS\)[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA_TIMEOUT_MS: String\(REPORTER_TIMEOUT_MS\)/,
+  "Manual real OAuth QA script must give the reporter a shorter timeout and cap each assertion so failed reports can arrive before harness timeout.",
 );
 assertContains(
   realOAuthQaScript,
-  /const report = await Promise\.race[\s\S]*validateRealOAuthQaReport\(report\)[\s\S]*const outputPaths = writeReport\(report\)[\s\S]*JSON\.stringify\(\{ \.\.\.outputPaths, \.\.\.report \}/,
+  /const rawReport = await Promise\.race[\s\S]*const report = decorateQaReport\(rawReport\)[\s\S]*validateRealOAuthQaReport\(report\)[\s\S]*const outputPaths = writeReport\(report\)[\s\S]*JSON\.stringify\(\{ \.\.\.outputPaths, \.\.\.report \}/,
   "Manual real OAuth QA script must validate the final report before writing JSON and markdown evidence outputs.",
 );
 assertContains(
   realOAuthQaScript,
-  /function validateRealOAuthQaReport[\s\S]*forbiddenReportFieldPattern[\s\S]*assert\(report\.assertion\?\.ok === true[\s\S]*assert\(snapshot\.localSession\.isDevAccessTokenSession === false[\s\S]*assert\([\s\S]*snapshot\.tauriMirrorSession\.isDevAccessTokenSession === false[\s\S]*assert\(snapshot\.widgetRuntime\?\.allExpectedWindowsVisible[\s\S]*assert\(snapshot\.syncRuntime\?\.allAutoSyncLoopsRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\?\.running === snapshot\.syncRuntime\.managedFolderAutoSyncRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\.lastStatus !== "failed"[\s\S]*assert\(snapshot\.localSyncProbe\?\.enabled[\s\S]*assert\(snapshot\.localSyncProbe\.sqlite\?\.ok[\s\S]*snapshot\.localSyncProbe\.localFiles\?\.enabled[\s\S]*initialPreviewIncludesMarker[\s\S]*initialSyncSyncedCount[\s\S]*mutationRequested[\s\S]*reindexStatus === "REINDEXED"[\s\S]*updatedPreviewIncludesMarker[\s\S]*updateSyncSyncedCount[\s\S]*remainingQaEvents === 0[\s\S]*snapshot\.localSyncProbe\.outbox\?\.widgetSentCount \?\? 0\) >= 1[\s\S]*snapshot\.localSyncProbe\.activity\?\.consentGranted[\s\S]*snapshot\.localSyncProbe\.activity\.nativeCaptured[\s\S]*snapshot\.localSyncProbe\.outbox\?\.activitySentCount \?\? 0\) >= 1[\s\S]*snapshot\.stabilityProbe\?\.enabled[\s\S]*snapshot\.stabilityProbe\.allExpectedWindowsVisible[\s\S]*snapshot\.stabilityProbe\.allAutoSyncLoopsRunning[\s\S]*snapshot\.sessionRestoreProbe\?\.enabled[\s\S]*snapshot\.sessionRestoreProbe\.restoredLocalSession[\s\S]*snapshot\.sessionRestoreProbe\.backendMeOk[\s\S]*snapshot\.stopCleanupProbe\?\.enabled[\s\S]*snapshot\.stopCleanupProbe\.activeProjectRoomCleared[\s\S]*snapshot\.stopCleanupProbe\.allExpectedWindowsHidden[\s\S]*snapshot\.stopCleanupProbe\.barWindowHidden[\s\S]*snapshot\.stopCleanupProbe\.syncLoopsStopped/,
+  /function validateRealOAuthQaReport[\s\S]*forbiddenReportFieldPattern[\s\S]*assert\(report\.assertion\?\.ok === true[\s\S]*assert\(snapshot\.localSession\.isDevAccessTokenSession === false[\s\S]*assert\([\s\S]*snapshot\.tauriMirrorSession\.isDevAccessTokenSession === false[\s\S]*assert\(snapshot\.widgetRuntime\?\.allExpectedWindowsVisible[\s\S]*assert\(snapshot\.syncRuntime\?\.allAutoSyncLoopsRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\?\.running === snapshot\.syncRuntime\.managedFolderAutoSyncRunning[\s\S]*assert\([\s\S]*snapshot\.syncRuntime\.managedFolderStatus\.lastStatus !== "failed"[\s\S]*lastFileAnalysisFailedCountScope[\s\S]*assert\(snapshot\.localSyncProbe\?\.enabled[\s\S]*assert\(snapshot\.localSyncProbe\.sqlite\?\.ok[\s\S]*snapshot\.localSyncProbe\.localFiles\?\.enabled[\s\S]*initialPreviewIncludesMarker[\s\S]*initialSyncSyncedCount[\s\S]*initialSyncAnalysisRequestedCount[\s\S]*initialSyncAnalysisFailedCount === 0[\s\S]*mutationRequested[\s\S]*reindexStatus === "REINDEXED"[\s\S]*updatedPreviewIncludesMarker[\s\S]*updateSyncSyncedCount[\s\S]*updateSyncAnalysisRequestedCount[\s\S]*updateSyncAnalysisFailedCount === 0[\s\S]*deleteRequested[\s\S]*stagedDeletedCount[\s\S]*deleteSyncSyncedCount[\s\S]*deletedSearchCleared[\s\S]*nativeWatchStarted[\s\S]*stagedNativeWatchCreatedCount[\s\S]*nativeWatchCreateSyncSyncedCount[\s\S]*nativeWatchInitialSearchMatched[\s\S]*nativeWatchMutationRequested[\s\S]*stagedNativeWatchUpdatedCount[\s\S]*nativeWatchUpdateSyncSyncedCount[\s\S]*nativeWatchUpdatedSearchMatched[\s\S]*nativeWatchDeleteRequested[\s\S]*stagedNativeWatchDeletedCount[\s\S]*nativeWatchDeleteSyncSyncedCount[\s\S]*remainingQaEvents === 0[\s\S]*snapshot\.localSyncProbe\.outbox\?\.widgetSentCount \?\? 0\) >= 1[\s\S]*snapshot\.localSyncProbe\.activity\?\.consentGranted[\s\S]*snapshot\.localSyncProbe\.activity\.nativeCaptured[\s\S]*snapshot\.localSyncProbe\.outbox\?\.activitySentCount \?\? 0\) >= 1[\s\S]*snapshot\.stabilityProbe\?\.enabled[\s\S]*snapshot\.stabilityProbe\.allExpectedWindowsVisible[\s\S]*snapshot\.stabilityProbe\.allAutoSyncLoopsRunning[\s\S]*snapshot\.sessionRestoreProbe\?\.enabled[\s\S]*snapshot\.sessionRestoreProbe\.restoredLocalSession[\s\S]*snapshot\.sessionRestoreProbe\.backendMeOk[\s\S]*snapshot\.stopCleanupProbe\?\.enabled[\s\S]*snapshot\.stopCleanupProbe\.activeProjectRoomCleared[\s\S]*snapshot\.stopCleanupProbe\.allExpectedWindowsHidden[\s\S]*snapshot\.stopCleanupProbe\.barWindowHidden[\s\S]*snapshot\.stopCleanupProbe\.syncLoopsStopped/,
   "Manual real OAuth QA script must prove redaction, real TAURI sessions, visible widgets, sync loops, managed-folder watcher status, local SQLite/file/widget/native-activity sync, stability dwell, session restore, and stop cleanup for passed reports.",
 );
 assertContains(
   realOAuthQaScript,
-  /const RELEASE_MODE[\s\S]*process\.argv\.includes\("--release"\)[\s\S]*const RELEASE_EXE_PATH = join\("src-tauri", "target", "release", "bubli\.exe"\)[\s\S]*const DEFAULT_API_BASE_URL = RELEASE_MODE \? "https:\/\/bubli\.n-e\.kr" : "http:\/\/localhost:8080"[\s\S]*if \(RELEASE_MODE\) \{[\s\S]*buildReleaseTauri\(qaEnv\)[\s\S]*spawn\(RELEASE_EXE_PATH[\s\S]*function buildReleaseTauri\(qaEnv\)[\s\S]*stopExistingReleaseExe\(\)[\s\S]*"npm\.cmd run tauri -- build --no-bundle"/,
+  /const RAW_RELEASE_MODE[\s\S]*process\.argv\.includes\("--release"\)[\s\S]*const RELEASE_EXE_PATH = join\("src-tauri", "target", "release", "bubli\.exe"\)[\s\S]*const DEFAULT_API_BASE_URL = RELEASE_MODE \? "https:\/\/bubli\.n-e\.kr" : "http:\/\/localhost:8080"[\s\S]*if \(RAW_RELEASE_MODE\) \{[\s\S]*buildReleaseTauri\(qaEnv\)[\s\S]*spawn\(RELEASE_EXE_PATH[\s\S]*function buildReleaseTauri\(qaEnv\)[\s\S]*stopProcessByPath\(RELEASE_EXE_ABSOLUTE_PATH\)[\s\S]*"npm\.cmd run tauri -- build --no-bundle"/,
   "Manual real OAuth QA script must support a QA-instrumented release exe mode without publishing the installer.",
 );
 assertContains(
   realOAuthQaScript,
-  /function stopExistingReleaseExe\(\)[\s\S]*GetFullPath\(\$env:BUBLI_QA_RELEASE_EXE_PATH\);[\s\S]*Get-CimInstance Win32_Process[\s\S]*ExecutablePath -eq \$target[\s\S]*Stop-Process[\s\S]*BUBLI_QA_RELEASE_EXE_PATH: RELEASE_EXE_ABSOLUTE_PATH/,
-  "Manual real OAuth QA release builds must stop only the existing raw release QA exe before rebuilding.",
+  /const INSTALLED_RELEASE_MODE[\s\S]*process\.argv\.includes\("--installed-release"\)[\s\S]*const NSIS_SETUP_PATH = join\("src-tauri", "target", "release", "bundle", "nsis", "Bubli_0\.1\.0_x64-setup\.exe"\)[\s\S]*const INSTALLED_EXE_PATH = join\([\s\S]*"Bubli"[\s\S]*"bubli\.exe"[\s\S]*if \(INSTALLED_RELEASE_MODE\) \{[\s\S]*buildInstalledReleaseTauri\(qaEnv\)[\s\S]*installReleaseBundle\(qaEnv\)[\s\S]*spawn\(INSTALLED_EXE_PATH[\s\S]*function buildInstalledReleaseTauri\(qaEnv\)[\s\S]*"npm\.cmd run tauri -- build"[\s\S]*function installReleaseBundle\(qaEnv\)[\s\S]*spawnSync\(NSIS_SETUP_PATH, \["\/S"\]/,
+  "Manual real OAuth QA script must support a QA-instrumented installed-release mode that proves the NSIS-installed app.",
 );
 assertContains(
   realOAuthQaScript,
-  /CARGO_BUILD_JOBS: process\.env\.CARGO_BUILD_JOBS \?\? "1"[\s\S]*CARGO_PROFILE_RELEASE_CODEGEN_UNITS: process\.env\.CARGO_PROFILE_RELEASE_CODEGEN_UNITS \?\? "256"[\s\S]*CARGO_PROFILE_RELEASE_OPT_LEVEL: process\.env\.CARGO_PROFILE_RELEASE_OPT_LEVEL \?\? "1"/,
+  /const PUBLIC_INSTALLER_PATH = join\("public", "downloads", "windows", "Bubli-Windows-latest\.exe"\)[\s\S]*const PUBLIC_MANIFEST_PATH = join\("public", "downloads", "windows", "manifest\.json"\)[\s\S]*const installedReleaseArtifactSnapshot = INSTALLED_RELEASE_MODE \? createInstalledReleaseArtifactSnapshot\(\) : null[\s\S]*restoreInstalledReleaseArtifacts\(installedReleaseArtifactSnapshot\)[\s\S]*function restoreInstalledReleaseArtifacts\(snapshot\)[\s\S]*copyFileSync\(snapshot\.installerPath, PUBLIC_INSTALLER_PATH\)[\s\S]*copyFileSync\(snapshot\.manifestPath, PUBLIC_MANIFEST_PATH\)[\s\S]*copyFileSync\(snapshot\.installerPath, NSIS_SETUP_PATH\)[\s\S]*reinstallPublicReleaseBundle\(snapshot\.installerPath\)/,
+  "Manual real OAuth installed-release QA must restore public installer artifacts and reinstall the clean public app after QA instrumentation.",
+);
+assertContains(
+  realOAuthQaScript,
+  /function stopProcessByPath\(executablePath\)[\s\S]*GetFullPath\(\$env:BUBLI_QA_RELEASE_EXE_PATH\);[\s\S]*Get-CimInstance Win32_Process[\s\S]*ExecutablePath -eq \$target[\s\S]*Stop-Process[\s\S]*BUBLI_QA_RELEASE_EXE_PATH: executablePath/,
+  "Manual real OAuth QA release builds must stop only the target QA executable before rebuilding or installing.",
+);
+assertContains(
+  realOAuthQaScript,
+  /CARGO_BUILD_JOBS: process\.env\.CARGO_BUILD_JOBS \?\? "1"[\s\S]*CARGO_PROFILE_RELEASE_CODEGEN_UNITS: process\.env\.CARGO_PROFILE_RELEASE_CODEGEN_UNITS \?\? "16"[\s\S]*CARGO_PROFILE_RELEASE_OPT_LEVEL: process\.env\.CARGO_PROFILE_RELEASE_OPT_LEVEL \?\? "3"[\s\S]*CARGO_PROFILE_RELEASE_STRIP: process\.env\.CARGO_PROFILE_RELEASE_STRIP \?\? "symbols"/,
   "Manual real OAuth QA release builds must use memory-safe Cargo defaults unless the caller overrides them.",
 );
 assertContains(
@@ -260,14 +429,53 @@ assertContains(
 );
 assertContains(
   realOAuthQaScript,
-  /function renderEvidenceSummary\(report, reportPath\)[\s\S]*Redacted Proof[\s\S]*Real TAURI local session[\s\S]*Backend \/api\/me[\s\S]*All widget windows visible[\s\S]*Local file scan\/read initial sync[\s\S]*Local file update\/reindex sync[\s\S]*Stability dwell ms[\s\S]*Session restored from Tauri mirror[\s\S]*Stop cleanup closed widgets and loops[\s\S]*Raw tokens, session JSON, user IDs, email, and Google subject are intentionally excluded/,
+  /function renderEvidenceSummary\(report, reportPath\)[\s\S]*Redacted Proof[\s\S]*Real TAURI local session[\s\S]*Backend \/api\/me[\s\S]*All widget windows visible[\s\S]*Local file scan\/read initial sync[\s\S]*Local file update\/reindex sync[\s\S]*Local file delete sync\/search clear[\s\S]*Native watcher create\/update\/delete sync[\s\S]*Stability dwell ms[\s\S]*Session restored from Tauri mirror[\s\S]*Stop cleanup closed widgets and loops[\s\S]*Raw tokens, session JSON, user IDs, email, and Google subject are intentionally excluded/,
   "Manual real OAuth QA evidence summary must stay redacted and list the core auth, backend, widget, stability, restore, and cleanup proofs.",
 );
-assertContains(
-  authWidgetQa,
-  /NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_QA === "true"[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_FOLDER[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_MUTATE_URL[\s\S]*NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_PREPARE_URL[\s\S]*prepareUrl[\s\S]*fixtureFileName[\s\S]*prepared\?\.fileName[\s\S]*selectManagedFolder\(\{ path: fixturePath \}\)[\s\S]*setFolderSync\(\{ enabled: true[\s\S]*scanManagedFolder[\s\S]*initialSearch\.items\.find\(\(item\) => item\.name === fixtureFileName\)[\s\S]*readLocalFilePreview[\s\S]*syncPersonalLocalFileEventsToServer[\s\S]*mutateUrl[\s\S]*reindexFile[\s\S]*syncPersonalLocalFileEventsToServer[\s\S]*removeManagedFolder\(\{ localFolderId \}\)[\s\S]*setActivityContextConsent[\s\S]*readActivityContext[\s\S]*recordActivityContext\(\{[\s\S]*recordWidgetUsageEvent\([\s\S]*syncAllLocalOutboxToServer\(\{[\s\S]*localFolderId: localFiles\.localFolderId[\s\S]*failedCountScope: "current-sync-attempt"[\s\S]*pendingCountScope: "global-sqlite-backlog"[\s\S]*localSyncProbe:sqliteQuickCheck[\s\S]*localSyncProbe:localFileInitialPreviewMarker[\s\S]*localSyncProbe:localFileUpdatedPreviewMarker[\s\S]*localSyncProbe:widgetUsageReachedBackend[\s\S]*localSyncProbe:activityNativeCaptured[\s\S]*localSyncProbe:activityReachedBackend/,
-  "Real OAuth widget QA must include an opt-in local SQLite, managed-folder scan/read/reindex/sync, widget outbox, and native activity outbox sync probe.",
-);
+const realOAuthWidgetQaRequiredPatterns = [
+  /NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_QA === "true"/,
+  /NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_FOLDER/,
+  /NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_MUTATE_URL/,
+  /NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_DELETE_URL/,
+  /NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_PREPARE_URL/,
+  /NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_WATCH_CREATE_URL/,
+  /NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_WATCH_DELETE_URL/,
+  /NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_LOCAL_SYNC_WATCH_MUTATE_URL/,
+  /selectManagedFolder\(\{ path: fixturePath \}\)/,
+  /setFolderSync\(\{ enabled: true/,
+  /scanManagedFolder/,
+  /readLocalFilePreview/,
+  /reindexFile/,
+  /searchLocalFilesUntilMissing/,
+  /watchManagedFolder/,
+  /nativeWatchStarted/,
+  /nativeWatchCreateSyncSyncedCount/,
+  /nativeWatchUpdateSyncSyncedCount/,
+  /nativeWatchDeleteSyncSyncedCount/,
+  /removeManagedFolder\(\{ localFolderId \}\)/,
+  /setActivityContextConsent/,
+  /readActivityContext/,
+  /recordActivityContext\(\{/,
+  /recordWidgetUsageEvent\(/,
+  /syncAllLocalOutboxToServer\(\{/,
+  /failedCountScope: "current-sync-attempt"/,
+  /pendingCountScope: "global-sqlite-backlog"/,
+  /localSyncProbe:sqliteQuickCheck/,
+  /localSyncProbe:localFileInitialPreviewMarker/,
+  /localSyncProbe:localFileUpdatedPreviewMarker/,
+  /localSyncProbe:localFileDeletedSynced/,
+  /localSyncProbe:nativeWatchStarted/,
+  /localSyncProbe:nativeWatchDeletedSynced/,
+  /localSyncProbe:activityNativeCaptured/,
+  /localSyncProbe:activityReachedBackend/,
+];
+for (const pattern of realOAuthWidgetQaRequiredPatterns) {
+  assertContains(
+    authWidgetQa,
+    pattern,
+    "Real OAuth widget QA must include an opt-in local SQLite, managed-folder scan/read/reindex/sync, widget outbox, and native activity outbox sync probe.",
+  );
+}
 assertContains(
   authWidgetQa,
   /const REAL_OAUTH_LOCAL_SYNC_FOLDER_MARKER = "bubli-real-oauth-local-sync-"[\s\S]*async function cleanupStaleRealOAuthQaManagedFolders\(currentFixturePath: string\)[\s\S]*tauriCommands\.listManagedFolders\(\)[\s\S]*folderPath\.includes\(REAL_OAUTH_LOCAL_SYNC_FOLDER_MARKER\)[\s\S]*tauriCommands\.removeManagedFolder\(\{ localFolderId: folder\.localFolderId \}\)[\s\S]*cleanupStaleRealOAuthQaManagedFolders\(fixturePath\)[\s\S]*staleQaFolderRemovedCount/,
@@ -289,14 +497,29 @@ assertContains(
   "Real OAuth widget QA must include an opt-in Tauri mirror session restore probe that proves backend auth after localStorage restart recovery.",
 );
 assertContains(
+  authSession,
+  /probeStoredAuthSessionRestoreFromTauriMirrorForQa[\s\S]*const originalSession = originalRawSession \? parseStoredAuthSession\(originalRawSession\) : null[\s\S]*finally \{[\s\S]*setStoredAuthSessionAndWaitForTauriMirror\(originalSession\)/,
+  "Tauri session restore QA must restore the original local session and Tauri mirror after the destructive localStorage probe.",
+);
+assertContains(
   authWidgetQa,
-  /NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STOP_CLEANUP_QA === "true"[\s\S]*stopTauriAuthenticatedSurfaces\(\)[\s\S]*readActiveProjectRoom\(\)[\s\S]*allExpectedWindowsHidden[\s\S]*barWindowHidden[\s\S]*syncLoopsStopped[\s\S]*readTauriAuthWidgetQaSnapshot\(\{ runStopCleanupProbe: false \}\)[\s\S]*failedChecks\.length === 0 && shouldRunRealOAuthStopCleanupProbe\(\)[\s\S]*runRealOAuthStopCleanupProbe\(\)[\s\S]*stopCleanupProbe:activeProjectRoomCleared[\s\S]*stopCleanupProbe:allExpectedWindowsHidden[\s\S]*stopCleanupProbe:syncLoopsStopped/,
+  /NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_STOP_CLEANUP_QA === "true"[\s\S]*stopTauriAuthenticatedSurfaces\(\)[\s\S]*waitForRealOAuthAutoSyncLoopsStopped\(\)[\s\S]*readActiveProjectRoom\(\)[\s\S]*allExpectedWindowsHidden[\s\S]*barWindowHidden[\s\S]*syncLoopsStopped[\s\S]*readTauriAuthWidgetQaSnapshot\(\{ runStopCleanupProbe: false \}\)[\s\S]*failedChecks\.length === 0 && shouldRunRealOAuthStopCleanupProbe\(\)[\s\S]*runRealOAuthStopCleanupProbe\(\)[\s\S]*stopCleanupProbe:activeProjectRoomCleared[\s\S]*stopCleanupProbe:allExpectedWindowsHidden[\s\S]*stopCleanupProbe:syncLoopsStopped/,
   "Real OAuth widget QA must run the destructive stop cleanup probe only after non-destructive readiness checks pass.",
 );
 assertContains(
   authWidgetQa,
   /getManagedFolderAutoSyncStatus[\s\S]*managedFolderStatus: ManagedFolderAutoSyncStatus[\s\S]*sync:managedFolderStatusMatchesRunningFlag[\s\S]*sync:managedFolderStatusNotFailed[\s\S]*managedFolderStatus,/,
   "Real OAuth widget QA must include managed-folder watcher status diagnostics in the redacted snapshot.",
+);
+assertContains(
+  authWidgetQa,
+  /function realOAuthAutoSyncLoopsRunning\(\)[\s\S]*function realOAuthAutoSyncLoopsStopped\(\)[\s\S]*async function waitForRealOAuthAutoSyncLoopsStopped[\s\S]*async function ensureTauriAuthenticatedSurfacesForQa\(localSession: AuthSessionDiagnostics\)[\s\S]*launchTauriAuthenticatedSurfaces\(\{ retryPolicy: "force", sessionAlreadyValidated: true \}\)[\s\S]*await waitForRealOAuthAutoSyncLoops\(\)[\s\S]*options\.ensureAuthenticatedSurfaces !== false[\s\S]*await ensureTauriAuthenticatedSurfacesForQa\(localSession\)/,
+  "Real OAuth widget QA must force relaunch authenticated surfaces when needed while allowing stop-cleanup checks to verify the stopped state.",
+);
+assertContains(
+  authWidgetQa,
+  /let localSession = getStoredAuthSessionDiagnostics\(\)[\s\S]*let tauriMirrorSession = await readTauriAuthSessionDiagnostics\(\)[\s\S]*await ensureTauriAuthenticatedSurfacesForQa\(localSession\)[\s\S]*localSession = getStoredAuthSessionDiagnostics\(\)[\s\S]*tauriMirrorSession = await readTauriAuthSessionDiagnostics\(\)[\s\S]*const hasAuthSession = localSession\.hasSession \|\| tauriMirrorSession\.hasSession[\s\S]*hasAuthSession[\s\S]*runRealOAuthLocalSyncProbe[\s\S]*: \{ enabled: false \}[\s\S]*hasAuthSession[\s\S]*runRealOAuthStabilityProbe[\s\S]*: \{ enabled: false \}/,
+  "Real OAuth widget QA must reread restored Tauri sessions and skip expensive probes while no auth session exists.",
 );
 assertContains(
   windowsRuntimeSoak,
@@ -390,6 +613,11 @@ assertContains(
   "The main Tauri hybrid app window must keep devtools disabled in tauri.conf.json.",
 );
 assertContains(
+  tauriMain,
+  /#!\[cfg_attr\(not\(debug_assertions\), windows_subsystem = "windows"\)\]/,
+  "Windows release executables must use the GUI subsystem so users never see a console window.",
+);
+assertContains(
   tauriConf,
   /"beforeBuildCommand":\s*"npm run build && node scripts\/prepare-tauri-dist\.mjs"[\s\S]*"frontendDist":\s*"\.\.\/\.tauri-dist"/,
   "Tauri release builds must package the prepared .tauri-dist directory instead of raw .next server output.",
@@ -400,9 +628,47 @@ assertContains(
   "The packaged hybrid app window must open /app/ so the release asset protocol resolves app/index.html.",
 );
 assertContains(
+  tauriConf,
+  /"icon":\s*\[[\s\S]*"icons\/icon\.png"[\s\S]*"icons\/icon\.ico"[\s\S]*\]/,
+  "Tauri Windows bundles must use the Bubli app PNG and ICO assets for the downloaded executable icon.",
+);
+assertContains(
+  tauriConf,
+  /"windows":\s*\{[\s\S]*"nsis":\s*\{[\s\S]*"installerIcon":\s*"icons\/icon\.ico"[\s\S]*"uninstallerIcon":\s*"icons\/icon\.ico"[\s\S]*"headerImage":\s*"icons\/installer-header\.bmp"[\s\S]*"sidebarImage":\s*"icons\/installer-sidebar\.bmp"[\s\S]*"uninstallerHeaderImage":\s*"icons\/installer-header\.bmp"/,
+  "Tauri NSIS bundles must explicitly use Bubli installer icons and branded setup UI bitmaps.",
+);
+if (!tauriIconPng.equals(brandAppIconPng)) {
+  throw new Error("src-tauri/icons/icon.png must match public/brand/icon-app-512.png so Windows builds use the Bubli app logo.");
+}
+{
+  const requiredIcoSizes = ["16x16", "24x24", "32x32", "48x48", "64x64", "128x128", "256x256"];
+  const icoSizes = readIcoSizes(tauriIconIco);
+  for (const requiredSize of requiredIcoSizes) {
+    if (!icoSizes.includes(requiredSize)) {
+      throw new Error(`src-tauri/icons/icon.ico must include ${requiredSize} for Windows explorer/download surfaces.`);
+    }
+  }
+}
+{
+  const headerSize = readBmpSize(tauriInstallerHeaderBmp);
+  if (headerSize.width !== 150 || headerSize.height !== 57) {
+    throw new Error("src-tauri/icons/installer-header.bmp must be the NSIS-recommended 150x57 bitmap.");
+  }
+
+  const sidebarSize = readBmpSize(tauriInstallerSidebarBmp);
+  if (sidebarSize.width !== 164 || sidebarSize.height !== 314) {
+    throw new Error("src-tauri/icons/installer-sidebar.bmp must be the NSIS-recommended 164x314 bitmap.");
+  }
+}
+assertContains(
   prepareTauriDist,
   /SERVER_APP_DIR[\s\S]*routeHtmlDestination[\s\S]*copyRequiredFile\(source, join\(TAURI_DIST_DIR, routeHtmlDestination\(relativePath\)\)\)[\s\S]*copyIfExists\(join\(NEXT_DIR, "static"\), join\(TAURI_DIST_DIR, "_next", "static"\)\)/,
   "prepare-tauri-dist must expand Next static route HTML into /route/index.html and copy _next/static for packaged Tauri release windows.",
+);
+assertContains(
+  prepareTauriDist,
+  /function shouldSkipPublicAsset\(relativePath\)[\s\S]*relativePath === "downloads"[\s\S]*relativePath\.startsWith\(`downloads\\\\`\)[\s\S]*relativePath\.startsWith\("downloads\/"\)[\s\S]*if \(shouldSkipPublicAsset\(relativePath\)\) continue;/,
+  "prepare-tauri-dist must exclude public/downloads so Windows installers are not recursively bundled inside the app.",
 );
 assertContains(
   tauriCapability,
@@ -596,23 +862,38 @@ assertContains(
   "TauriRuntimeSmokeRunner must verify post-login native bar plus all bubble widget windows and room context propagation.",
 );
 assertContains(
+  tauriLib,
+  /fn snapshot_widget_window_store\(state: &WidgetState\) -> Result<WidgetWindowStore, String>[\s\S]*fn restore_widget_window_store\([\s\S]*persist_widget_window_state\(app, state\)[\s\S]*fn rollback_open_widget_windows_failure\([\s\S]*restore_widget_window_store\(app, state, snapshot\.clone\(\)\)[\s\S]*apply_widget_window_state\(app, monitor_state, &restored_widget\)[\s\S]*window\.destroy\(\)/,
+  "Native batched widget open must restore persisted widget state and clean up touched windows when a partial open fails.",
+);
+assertContains(
+  tauriLib,
+  /async fn open_widget_windows\([\s\S]*let snapshot = snapshot_widget_window_store\(&state\)\?;[\s\S]*prepare_open_widget_window\(&app, &state, window\)\.map_err\(\|error\| \{[\s\S]*rollback_open_widget_windows_failure\([\s\S]*persist_widget_window_state\(&app, &state\)\.map_err\(\|error\| \{[\s\S]*rollback_open_widget_windows_failure\([\s\S]*for widget in &widgets \{[\s\S]*schedule_widget_window_build_and_raise\(&app, &monitor_state, widget\)\.map_err\([\s\S]*\|error\| \{[\s\S]*rollback_open_widget_windows_failure\([\s\S]*refresh_widget_bar_window\(&app, &monitor_state, &state\)\.map_err\(\|error\| \{/,
+  "open_widget_windows must route prepare, persist, build, and bar refresh failures through native batch rollback.",
+);
+assertContains(
   runtimeSmokeRunner,
   /setWidgetWindowPosition\(\{[\s\S]*all bubble widget positions persisted with project room context[\s\S]*setWidgetWindowMode\(\{[\s\S]*mode: "MINIMIZED"[\s\S]*all bubble widget windows minimized without losing project room context[\s\S]*getWidgetWindowState\(\{ bubbleType: "bar", windowId: "bar" \}\)[\s\S]*widget bar remains visible after all bubble widgets are minimized[\s\S]*getWidgetBarItems\(\)[\s\S]*all minimized bubble widgets appear as bar restore items[\s\S]*openWidgetWindows\(\{[\s\S]*mode: "DEFAULT" as const[\s\S]*all minimized bubble widget windows restore with position and project room context/,
   "TauriRuntimeSmokeRunner must verify all eight bubble widgets preserve position while minimizing to the bar and restoring with project-room context.",
 );
 assertContains(
   widgetPage,
-  /const setWindowMode = useCallback[\s\S]*setWidgetWindowMode\(\{[\s\S]*mode: nextMode[\s\S]*selectedRoomId: selectedWidgetRoomId[\s\S]*eventType: `mode:\$\{state\.mode\}`/,
-  "Desktop widget mode control must persist MINIMIZED mode so minimized bubbles remain restorable from the bar.",
+  /const setWindowMode = useCallback[\s\S]*const previousMode = mode;[\s\S]*const previousClickThrough = clickThrough;[\s\S]*const previousWindowVisible = windowVisible;[\s\S]*setWidgetWindowMode\(\{[\s\S]*mode: nextMode[\s\S]*selectedRoomId: selectedWidgetRoomId[\s\S]*eventType: `mode:\$\{state\.mode\}`[\s\S]*catch \{[\s\S]*setMode\(previousMode\);[\s\S]*setClickThrough\(previousClickThrough\);[\s\S]*setWindowVisible\(previousWindowVisible\);/,
+  "Desktop widget mode control must persist MINIMIZED mode and roll back optimistic UI when native mode changes fail.",
 );
 assertContains(
   widgetPage,
-  /const closeWindow = useCallback[\s\S]*closeWidgetWindow\(\{[\s\S]*bubbleType: activeBubble[\s\S]*windowId[\s\S]*eventType: "close"/,
-  "Desktop widget close control must fully close the bubble instead of minimizing it to the bar.",
+  /const restoreCurrentWindow = useCallback[\s\S]*const previousMode = mode;[\s\S]*const previousClickThrough = clickThrough;[\s\S]*const previousWindowVisible = windowVisible;[\s\S]*openWidgetWindow\(\{[\s\S]*mode: "DEFAULT"[\s\S]*selectedRoomId: selectedWidgetRoomId[\s\S]*eventType: "open"[\s\S]*catch \{[\s\S]*setMode\(previousMode\);[\s\S]*setClickThrough\(previousClickThrough\);[\s\S]*setWindowVisible\(previousWindowVisible\);/,
+  "Desktop widget restore control must roll back optimistic visible/default state when native restore fails.",
+);
+assertContains(
+  widgetPage,
+  /const closeWindow = useCallback[\s\S]*const previousWindowVisible = windowVisible;[\s\S]*closeWidgetWindow\(\{[\s\S]*bubbleType: activeBubble[\s\S]*windowId[\s\S]*eventType: "close"[\s\S]*catch \{[\s\S]*setWindowVisible\(previousWindowVisible\);/,
+  "Desktop widget close control must fully close the bubble and roll back optimistic hidden state when native close fails.",
 );
 assertContains(
   runtimeSmokeRunner,
-  /function runtimeSmokeWidgetPosition[\s\S]*async function verifyWidgetRestartLayout[\s\S]*widget layout restored visible positions after app restart[\s\S]*openWidgetWindows\(\{[\s\S]*widget layout rebuilt native windows after app restart[\s\S]*async function persistWidgetRestartLayoutCheckpoint[\s\S]*widget restart layout checkpoint persisted before app restart[\s\S]*smokePhase === "restore-verify"[\s\S]*await verifyWidgetRestartLayout\(assert\)[\s\S]*await tauriCommands\.closeAllWidgetWindows\(\)\.catch/,
+  /function runtimeSmokeWidgetPosition[\s\S]*async function verifyWidgetRestartLayout[\s\S]*widget layout restored positions and room context after app restart[\s\S]*openWidgetWindows\(\{[\s\S]*selectedRoomId: smokeRoomId[\s\S]*widget layout rebuilt native windows after app restart[\s\S]*async function persistWidgetRestartLayoutCheckpoint[\s\S]*widget restart layout checkpoint persisted before app restart[\s\S]*smokePhase === "restore-verify"[\s\S]*await verifyWidgetRestartLayout\(assert\)[\s\S]*await tauriCommands\.closeAllWidgetWindows\(\)\.catch/,
   "TauriRuntimeSmokeRunner must verify persisted widget layout before restore-verify cleanup overwrites the restart state.",
 );
 assertContains(
@@ -676,14 +957,49 @@ assertContains(
   "stopActivityAutoCapture must leave status stopped after flush so local-auto-sync smoke does not see a stale running state.",
 );
 assertContains(
+  activityClient,
+  /let activityRecordInFlight = false;[\s\S]*export async function recordCurrentActivityContext[\s\S]*if \(activityRecordInFlight\) \{[\s\S]*activity_no_new_duration[\s\S]*activityRecordInFlight = true;[\s\S]*const recordLock = tryAcquireActivityRecordLock\(\);[\s\S]*if \(!recordLock\) \{[\s\S]*activityRecordInFlight = false;[\s\S]*releaseActivityRecordLock\(recordLock\);[\s\S]*activityRecordInFlight = false;/,
+  "Activity recording must use a shared in-process guard plus the localStorage record lock so manual, flush, and auto capture cannot create duplicate segments.",
+);
+assertContains(
+  activityClient,
+  /function tryAcquireActivityRecordLock\(\)[\s\S]*window\.localStorage\.getItem\(ACTIVITY_RECORD_LOCK_KEY\)[\s\S]*window\.localStorage\.setItem\(ACTIVITY_RECORD_LOCK_KEY, value\)[\s\S]*window\.localStorage\.getItem\(ACTIVITY_RECORD_LOCK_KEY\) === value[\s\S]*function releaseActivityRecordLock\(lock: string\)[\s\S]*window\.localStorage\.removeItem\(ACTIVITY_RECORD_LOCK_KEY\)/,
+  "Activity record lock must keep compare-after-write localStorage semantics across Tauri webviews.",
+);
+assertContains(
   managedFolderAutoSync,
-  /export type ManagedFolderAutoSyncStatus[\s\S]*lastSyncedFolderId[\s\S]*lastWatchEventFolderId[\s\S]*lastWatchedCount[\s\S]*pendingFolderCount[\s\S]*export function getManagedFolderAutoSyncStatus\(\)[\s\S]*updateManagedFolderAutoSyncStatus/,
+  /export type ManagedFolderAutoSyncStatus[\s\S]*lastFileEventFailedCount\?: number;[\s\S]*lastStartupScanFailedCount\?: number;[\s\S]*lastSyncedFolderId[\s\S]*lastWatchEventFolderId[\s\S]*lastWatchedCount[\s\S]*pendingFolderCount[\s\S]*export function getManagedFolderAutoSyncStatus\(\)[\s\S]*updateManagedFolderAutoSyncStatus/,
   "Managed folder auto-sync must expose a non-UI status snapshot for runtime QA.",
 );
 assertContains(
   managedFolderAutoSync,
   /watchAllManagedFolders\(\)\.catch\(\(\) => null\)[\s\S]*lastSkippedCount: watchResult\.skippedCount[\s\S]*lastWatchedCount: watchResult\.watchedCount/,
   "Managed folder auto-sync status must retain native watchAllManagedFolders results.",
+);
+assertContains(
+  managedFolderAutoSync,
+  /let stopRequested = false;[\s\S]*export function startManagedFolderAutoSync\(\)[\s\S]*stopRequested = false;[\s\S]*export async function stopManagedFolderAutoSync[\s\S]*stopRequested = true;[\s\S]*window\.clearInterval\(syncIntervalId\);[\s\S]*clearPendingWatchEventSyncs\(\);[\s\S]*detachManagedFolderWatchListener\(\);[\s\S]*await tauriCommands\.unwatchAllManagedFolders\(\)[\s\S]*if \(input\?\.flush\) \{[\s\S]*await flushManagedFolderAutoSync\(\);/,
+  "stopManagedFolderAutoSync must stop intervals and native watchers before flushing so shutdown cannot re-arm watcher sync.",
+);
+assertContains(
+  managedFolderAutoSync,
+  /if \(!stopRequested && \(pendingFullSyncRequested \|\| pendingFolderSyncIds\.size > 0\)\) \{[\s\S]*await syncManagedFolderEventsOnce\(\);[\s\S]*if \(!stopRequested\) \{[\s\S]*attachManagedFolderWatchListener\(\);[\s\S]*watchAllManagedFolders\(\)/,
+  "Managed folder auto-sync must not recursively restart sync or reattach native watchers while stop is in progress.",
+);
+assertContains(
+  managedFolderAutoSync,
+  /if \(!startupScanHasRun\) \{[\s\S]*const startupScanFailedCount = await scanSyncEnabledManagedFoldersOnce\(consentGranted\);[\s\S]*startupScanHasRun = startupScanFailedCount === 0;[\s\S]*lastStartupScanFailedCount: startupScanFailedCount[\s\S]*async function scanSyncEnabledManagedFoldersOnce\(consentGranted: boolean\)[\s\S]*if \(folders\.status !== "ready"\) return 1;[\s\S]*let failedCount = 0;[\s\S]*if \(!result \|\| result\.status !== "ready"\) \{[\s\S]*failedCount \+= 1;[\s\S]*return failedCount;/,
+  "Managed folder startup scan must stay retryable when folder listing or scan fails.",
+);
+assertContains(
+  managedFolderAutoSync,
+  /type ManagedFolderDrainSummary = \{[\s\S]*errorMessage\?: string;[\s\S]*failedCount: number;[\s\S]*function managedFolderDrainStatus\(drained: ManagedFolderDrainSummary\)[\s\S]*drained\.failedCount > 0 \? "failed" : "synced"[\s\S]*lastFileEventFailedCount: drained\.failedCount[\s\S]*lastErrorMessage: drained\.errorMessage[\s\S]*lastStatus: managedFolderDrainStatus\(drained\)[\s\S]*lastSuccessAt: drained\.failedCount > 0 \? undefined : new Date\(\)\.toISOString\(\)/,
+  "Managed folder auto-sync must surface backend/auth local-file sync failures as failed instead of synced.",
+);
+assertContains(
+  managedFolderAutoSync,
+  /if \(result\.status !== "ready"\) \{[\s\S]*summary\.failedCount \+= 1;[\s\S]*summary\.errorMessage = result\.message;[\s\S]*return summary;[\s\S]*summary\.failedCount \+= result\.data\.failedCount;/,
+  "Managed folder drain must carry failed local-file sync attempts into status reporting.",
 );
 assertContains(
   runtimeSmokeRunner,
@@ -702,7 +1018,7 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /verifyLocalAutoSyncLoops[\s\S]*startActivityAutoCapture\(\)[\s\S]*startManagedFolderAutoSync\(\)[\s\S]*getActivityAutoCaptureStatus[\s\S]*local auto-sync activity loop repeated on smoke interval[\s\S]*getManagedFolderAutoSyncStatus[\s\S]*local auto-sync managed folder watcher restored active folders[\s\S]*triggerManagedFolderMutation[\s\S]*lastFileEventSentCount[\s\S]*lastFileEventSyncedCount[\s\S]*lastFileAnalysisFailedCount[\s\S]*local auto-sync managed folder events drained through backend sync[\s\S]*stopActivityAutoCapture\(\{ flush: true \}\)[\s\S]*stopManagedFolderAutoSync\(\{ flush: true \}\)/,
+  /verifyLocalAutoSyncLoops[\s\S]*startActivityAutoCapture\(\)[\s\S]*startManagedFolderAutoSync\(\)[\s\S]*getActivityAutoCaptureStatus[\s\S]*local auto-sync activity loop repeated on smoke interval[\s\S]*getManagedFolderAutoSyncStatus[\s\S]*local auto-sync managed folder watcher restored active folders[\s\S]*triggerManagedFolderMutation[\s\S]*lastFileEventSentCount[\s\S]*handledFileEventCount[\s\S]*lastFileAnalysisFailedCount[\s\S]*local auto-sync managed folder events drained through backend sync[\s\S]*stopActivityAutoCapture\(\{ flush: true \}\)[\s\S]*stopManagedFolderAutoSync\(\{ flush: true \}\)/,
   "TauriRuntimeSmokeRunner must provide a UI-free local-auto-sync phase for activity and managed-folder loops.",
 );
 assertContains(
@@ -843,8 +1159,13 @@ assertContains(
 );
 assertContains(
   launcher,
-  /error instanceof ApiClientError && error\.status === 401[\s\S]*await stopTauriAuthenticatedSurfaces\(\);[\s\S]*return;/,
-  "TauriPostLoginLauncher must close widgets on 401 while leaving auth invalidation to the API refresh and app shell path.",
+  /!pathname\.startsWith\("\/app"\)[\s\S]*async function redirectMissingSessionToLogin\(\)[\s\S]*getStoredAuthSession\(\) \?\? \(await restoreStoredAuthSessionFromTauri\(\)\)[\s\S]*await stopTauriAuthenticatedSurfaces\(\)\.catch\(\(\) => undefined\)[\s\S]*router\.replace\("\/login"\)[\s\S]*window\.location\.replace\("\/login"\)/,
+  "TauriPostLoginLauncher must route missing /app sessions to /login before the workspace auth gate can linger.",
+);
+assertContains(
+  appShell,
+  /error instanceof ApiClientError && error\.status === 401[\s\S]*setAuthOrDesktopRedirectState\(\)[\s\S]*redirectToLoginWhenTauri\(\)/,
+  "AppShell must own Tauri startup 401 handling so the post-login launcher does not duplicate backend auth validation.",
 );
 assertNotContains(
   launcher,
@@ -853,8 +1174,18 @@ assertNotContains(
 );
 assertContains(
   launcher,
-  /void launchTauriAuthenticatedSurfaces\(\{ sessionAlreadyValidated: true \}\)\.catch\(\(\) => undefined\);/,
-  "TauriPostLoginLauncher must launch authenticated native surfaces without repeating getMe after a valid session.",
+  /async function routeRestoredDesktopSession\(\)[\s\S]*const session = getStoredAuthSession\(\) \?\? \(await restoreStoredAuthSessionFromTauri\(\)\)[\s\S]*if \(!session\) \{[\s\S]*await stopTauriAuthenticatedSurfaces\(\);[\s\S]*return;[\s\S]*if \(!pathname\.startsWith\("\/app"\)\) \{[\s\S]*router\.replace\("\/app\/"\)/,
+  "TauriPostLoginLauncher must only restore/route a desktop session while AppShell owns backend auth validation and room-context widget launch.",
+);
+assertNotContains(
+  launcher,
+  /authApi\.getMe\(\)/,
+  "TauriPostLoginLauncher must not duplicate AppShell backend auth validation during Tauri startup.",
+);
+assertNotContains(
+  launcher,
+  /launchTauriAuthenticatedSurfaces/,
+  "TauriPostLoginLauncher must not open widgets before the AppShell has resolved project-room context.",
 );
 assertContains(
   launcher,
@@ -973,18 +1304,38 @@ assertContains(
 );
 assertContains(
   surfaces,
+  /for \(const setting of settings\)[\s\S]*if \(!setting\.enabled\) continue;[\s\S]*enabledByBubble\.set\(localType, setting\);[\s\S]*if \(enabledByBubble\.size === 0\) return \[\];[\s\S]*const startupBubbles: WidgetWindowOpenInput\[\] = \[loginStartupMenuWindow\];/,
+  "Tauri login startup must not treat the menu window as an enabled bubble; no enabled bubbles must fall back to the full default set.",
+);
+assertContains(
+  surfaces,
   /function getVisibleLoginStartupModeFromSetting\(setting: WidgetBubbleSettingResponse\): WidgetWindowMode[\s\S]*Login startup opens enabled widgets visibly[\s\S]*if \(setting\.ghostMode\) return "GHOST"[\s\S]*mode: getVisibleLoginStartupModeFromSetting\(setting\)/,
   "Tauri login startup must intentionally open enabled widgets visibly while preserving ghost/translucent modes.",
 );
 assertContains(
   surfaces,
-  /export type TauriAuthenticatedSurfaceLaunchTimeline[\s\S]*authGateAfterBackendAuth\?: boolean[\s\S]*backendAuthValidationSource\?: "caller" \| "launcher"[\s\S]*firstWidgetOpenAfterBackendAuth\?: boolean[\s\S]*export function readTauriAuthenticatedSurfacesLaunchTimeline\(\)/,
+  /export type TauriAuthenticatedSurfaceLaunchTimeline[\s\S]*authGateAfterBackendAuth\?: boolean[\s\S]*backendAuthValidationSource\?: "caller" \| "launcher"[\s\S]*firstWidgetOpenAfterBackendAuth\?: boolean[\s\S]*retrySuppressedAt\?: string[\s\S]*retrySuppressedUntil\?: string[\s\S]*export function readTauriAuthenticatedSurfacesLaunchTimeline\(\)/,
   "Tauri authenticated surface launcher must expose a redacted launch timeline for real OAuth QA ordering proof.",
+);
+assertContains(
+  surfaces,
+  /let lastAutoLaunchFailure: \{ failedAtMs: number; key: string \} \| null = null[\s\S]*const AUTO_LAUNCH_FAILURE_COOLDOWN_MS = 15_000[\s\S]*function autoLaunchFailureKey\(userId: string \| undefined, selectedRoomId: string \| null\)[\s\S]*selectedRoomId \?\? "personal"[\s\S]*function shouldApplyAutoLaunchCooldown\(options: LaunchTauriAuthenticatedSurfacesOptions\)[\s\S]*options\.retryPolicy === "cooldown"[\s\S]*function shouldSuppressAutoLaunchRetry\(key: string\)/,
+  "Tauri widget auto-launch retry suppression must be keyed by user id and room id or personal mode without exposing tokens.",
+);
+assertContains(
+  surfaces,
+  /let launchInFlightRoomId: string \| null = null;[\s\S]*let queuedLaunchOptions: LaunchTauriAuthenticatedSurfacesOptions \| null = null;[\s\S]*let queuedLaunchPromise: Promise<void> \| null = null;/,
+  "Tauri authenticated surface launcher must track in-flight and queued room launches.",
 );
 assertContains(
   surfaces,
   /launchTauriAuthenticatedSurfaces\(options: LaunchTauriAuthenticatedSurfacesOptions = \{\}\)[\s\S]*if \(!options\.sessionAlreadyValidated\) \{[\s\S]*await authApi\.getMe\(\);[\s\S]*\}[\s\S]*timeline\.backendAuthValidationSource = options\.sessionAlreadyValidated \? "caller" : "launcher"[\s\S]*timeline\.backendAuthValidatedAt = nowIso\(\);[\s\S]*const startupWindows = await resolveLoginStartupWindows\(\);/,
   "launchTauriAuthenticatedSurfaces must verify the live backend auth session unless the caller already validated it before opening widgets.",
+);
+assertContains(
+  surfaces,
+  /const requestedRoomId = requestedLaunchRoomId\(options\);[\s\S]*if \(launchRequested && launchPromise\) \{[\s\S]*if \(!requestedRoomId \|\| launchInFlightRoomId === requestedRoomId\) \{[\s\S]*return launchPromise;[\s\S]*\}[\s\S]*queuedLaunchOptions = options;[\s\S]*const supersededLaunchPromise = launchPromise;[\s\S]*launchGeneration \+= 1;[\s\S]*queuedLaunchPromise = supersededLaunchPromise[\s\S]*return launchTauriAuthenticatedSurfaces\(nextOptions\);[\s\S]*return queuedLaunchPromise;/,
+  "Tauri launcher must queue a latest-room relaunch instead of absorbing a project-room change into an in-flight launch.",
 );
 assertContains(
   surfaces,
@@ -1003,12 +1354,17 @@ assertContains(
 );
 assertContains(
   surfaces,
-  /const selectedRoomId = await resolveLaunchSelectedRoomId\(\);/,
-  "launchTauriAuthenticatedSurfaces must resolve active project-room context before opening widgets.",
+  /type LaunchTauriAuthenticatedSurfacesOptions = \{[\s\S]*retryPolicy\?: "cooldown" \| "force";[\s\S]*sessionAlreadyValidated\?: boolean;[\s\S]*selectedRoomId\?: string \| null;[\s\S]*Object\.prototype\.hasOwnProperty\.call\(options, "selectedRoomId"\)[\s\S]*options\.selectedRoomId \?\? null[\s\S]*await resolveLaunchSelectedRoomId\(\)/,
+  "launchTauriAuthenticatedSurfaces must reuse caller-resolved project-room context, preserve explicit null personal mode, and keep cooldown opt-in before falling back to extra API lookups.",
 );
 assertContains(
   surfaces,
-  /const startupWindows = await resolveLoginStartupWindows\(\);[\s\S]*const selectedRoomId = await resolveLaunchSelectedRoomId\(\);[\s\S]*if \(generation !== launchGeneration\) \{[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*return;/,
+  /const selectedRoomId = Object\.prototype\.hasOwnProperty\.call\(options, "selectedRoomId"\)[\s\S]*const launchFailureKey = autoLaunchFailureKey\(verifiedSession\?\.user\.id \?\? initialSession\.user\.id, selectedRoomId\)[\s\S]*const applyAutoLaunchCooldown = shouldApplyAutoLaunchCooldown\(options\)[\s\S]*if \(applyAutoLaunchCooldown && shouldSuppressAutoLaunchRetry\(launchFailureKey\)\)[\s\S]*retrySuppressedAt[\s\S]*await tauriCommands\.setAuthenticatedSurfacesEnabled\(\{ enabled: true \}\);/,
+  "launchTauriAuthenticatedSurfaces must allow personal-mode widgets when no project-room context exists and suppress only opt-in auto retries.",
+);
+assertContains(
+  surfaces,
+  /const startupWindows = await resolveLoginStartupWindows\(\);[\s\S]*const selectedRoomId = Object\.prototype\.hasOwnProperty\.call\(options, "selectedRoomId"\)[\s\S]*if \(generation !== launchGeneration\) \{[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*return;/,
   "launchTauriAuthenticatedSurfaces must cancel cleanly if auth/session state changes after resolving the project-room context.",
 );
 assertContains(
@@ -1038,13 +1394,18 @@ assertContains(
 );
 assertContains(
   surfaces,
+  /for \(const input of openedWindows\)[\s\S]*recordWidgetUsageEvent[\s\S]*if \(generation !== launchGeneration\) \{[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*return;[\s\S]*startActivityAutoCapture\(\);/,
+  "launchTauriAuthenticatedSurfaces must cancel cleanly after widget usage staging and before starting sync loops.",
+);
+assertContains(
+  surfaces,
   /seedWidgetBarItems\(\{ selectedRoomId \}\)/,
   "launchTauriAuthenticatedSurfaces must seed minimized bar items after at least one widget opens.",
 );
 assertContains(
   surfaces,
-  /openedWindows\.length < startupWindows\.length[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*Some Tauri widgets failed to open after login[\s\S]*launchedAuthenticatedSurfaces = true;[\s\S]*launchRequested = true;/,
-  "A partially opened widget session must fail closed so bar-only startup does not hide a failed bubble batch.",
+  /openedWindows\.length < startupWindows\.length[\s\S]*if \(applyAutoLaunchCooldown\) \{[\s\S]*lastAutoLaunchFailure = \{ failedAtMs: Date\.now\(\), key: launchFailureKey \}[\s\S]*\}[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*Some Tauri widgets failed to open after login[\s\S]*launchedAuthenticatedSurfaces = true[\s\S]*lastAutoLaunchFailure = null[\s\S]*launchRequested = true;/,
+  "A partially opened widget session must fail closed and record cooldown only for opt-in auto launches.",
 );
 assertContains(
   surfaces,
@@ -1053,7 +1414,7 @@ assertContains(
 );
 assertContains(
   surfaces,
-  /await stopActivityAutoCapture\(\{ flush: true \}\);[\s\S]*await stopManagedFolderAutoSync\(\{ flush: true \}\);[\s\S]*await stopWidgetUsageAutoSync\(\{ flush: true \}\);/,
+  /queuedLaunchOptions = null;[\s\S]*queuedLaunchPromise = null;[\s\S]*await stopActivityAutoCapture\(\{ flush: true \}\);[\s\S]*await stopManagedFolderAutoSync\(\{ flush: true \}\);[\s\S]*await stopWidgetUsageAutoSync\(\{ flush: true \}\);/,
   "stopTauriAuthenticatedSurfaces must flush all native sync loops.",
 );
 assertContains(
@@ -1085,17 +1446,17 @@ assertContains(
 );
 assertContains(
   appShell,
-  /state\.kind !== "ready" \|\| !isTauriRuntime\(\) \|\| runtimeSmokeEnabled/,
-  "AppShell must launch native surfaces only after authenticated shell data is ready and must not race the runtime smoke.",
+  /const shellContextReady = state\.kind === "ready"[\s\S]*if \(!shellContextReady \|\| !isTauriRuntime\(\) \|\| runtimeSmokeEnabled\) return;/,
+  "AppShell must launch native surfaces after the authenticated shell is ready and must not block personal widgets when no project room exists.",
 );
 assertContains(
   appShell,
-  /void launchTauriAuthenticatedSurfaces\(\{ sessionAlreadyValidated: true \}\)\.catch/,
-  "AppShell must trigger authenticated native surfaces after shell readiness without repeating getMe.",
+  /void launchTauriAuthenticatedSurfaces\(\{[\s\S]*retryPolicy: "cooldown"[\s\S]*selectedRoomId: launchSelectedRoomId[\s\S]*sessionAlreadyValidated: true[\s\S]*\}\)\.catch/,
+  "AppShell must trigger authenticated native surfaces after shell readiness with auto-launch cooldown and without repeating getMe or room-context lookup.",
 );
 assertContains(
   appShell,
-  /AUTH_SESSION_CHANGE_EVENT, getStoredAuthSession, restoreStoredAuthSessionFromTauri[\s\S]*async function restoreInitialWorkspaceSession\(\)[\s\S]*const storedSession = getStoredAuthSession\(\);[\s\S]*if \(storedSession\) \{[\s\S]*return storedSession;[\s\S]*restoreStoredAuthSessionFromTauri\(\)/,
+  /AUTH_SESSION_CHANGE_EVENT,[\s\S]*?getStoredAuthSession,[\s\S]*?restoreStoredAuthSessionFromTauri[\s\S]*async function restoreInitialWorkspaceSession\(\)[\s\S]*const storedSession = getStoredAuthSession\(\);[\s\S]*if \(storedSession\) \{[\s\S]*return storedSession;[\s\S]*restoreStoredAuthSessionFromTauri\(\)/,
   "AppShell must use the local auth session fast path before waiting on the Tauri mirror.",
 );
 assertContains(
@@ -1105,13 +1466,33 @@ assertContains(
 );
 assertContains(
   appShell,
+  /if \(isTauriRuntime\(\)\) \{[\s\S]*restoredSession\.user[\s\S]*\{ kind: "ready", notifications: \[\], rooms: roomsRef\.current, user: restoredSession\.user \}[\s\S]*user = await authApi\.getMe\(\);/,
+  "Hybrid Tauri app must paint the member shell from the restored OAuth session before waiting on /api/me validation.",
+);
+assertContains(
+  appShell,
   /if \(state\.kind === "auth"\) \{[\s\S]*if \(isDesktopRuntime\) \{[\s\S]*description: t\("layout\.project\.checking"\)[\s\S]*name: t\("layout\.project\.selectRoom"\)/,
   "Hybrid Tauri app must keep the topbar in a checking state instead of flashing login-required labels during auth recovery.",
 );
 assertContains(
   appShell,
+  /const \[authRecoveryNonce, setAuthRecoveryNonce\] = useState\(0\)[\s\S]*const setAuthOrDesktopRedirectState = \(\) => \{[\s\S]*setState\(isTauriRuntime\(\) \? \{ kind: "loading" \} : \{ kind: "auth" \}\)[\s\S]*\}, \[authRecoveryNonce, router\]\);[\s\S]*if \(state\.kind === "auth"\) \{[\s\S]*if \(isDesktopRuntime\) \{[\s\S]*restoreStoredAuthSessionFromTauri\(\)[\s\S]*setState\(\{ kind: "loading" \}\)[\s\S]*setAuthRecoveryNonce\(\(current\) => current \+ 1\)[\s\S]*stopTauriAuthenticatedSurfaces\(\)[\s\S]*router\.replace\("\/login"\)/,
+  "Hybrid Tauri app must retry the mirrored session and explicitly rerun shell loading before redirecting an auth reset to /login.",
+);
+assertContains(
+  appShell,
+  /const redirectToLoginWhenTauri = \(\) => \{[\s\S]*if \(isTauriRuntime\(\)\) \{[\s\S]*router\.replace\("\/login"\)[\s\S]*window\.setTimeout\(\(\) => \{[\s\S]*window\.location\.pathname\.startsWith\("\/app"\)[\s\S]*window\.location\.assign\("\/login"\)[\s\S]*const setAuthOrDesktopRedirectState = \(\) => \{[\s\S]*setState\(isTauriRuntime\(\) \? \{ kind: "loading" \} : \{ kind: "auth" \}\)[\s\S]*!restoredSession[\s\S]*setAuthOrDesktopRedirectState\(\)[\s\S]*redirectToLoginWhenTauri\(\)[\s\S]*error instanceof ApiClientError && error\.status === 401[\s\S]*setAuthOrDesktopRedirectState\(\)[\s\S]*redirectToLoginWhenTauri\(\)/,
+  "Hybrid Tauri app must route missing-session and 401 startup states directly to /login instead of lingering on the /app auth gate.",
+);
+assertContains(
+  appShell,
   /if \(isTauriRuntime\(\) && !getActiveProjectRoomId\(\) && roomPage\.items\[0\]\) \{[\s\S]*widgetApi\.updateContext\(\{ selectedRoomId: firstRoom\.id \}\)/,
   "AppShell first-room fallback must stay Tauri-only so the web shell does not silently change widget context.",
+);
+assertContains(
+  appShell,
+  /const launchSelectedRoomId = selectedRoomId \?\? getActiveProjectRoomId\(\);[\s\S]*launchTauriAuthenticatedSurfaces\(\{[\s\S]*retryPolicy: "cooldown"[\s\S]*selectedRoomId: launchSelectedRoomId[\s\S]*sessionAlreadyValidated: true/,
+  "AppShell must pass its resolved project-room context, including null personal mode, into Tauri widget launch to avoid duplicate startup context lookups and repeated auto-launch flicker.",
 );
 assertContains(
   appShell,
@@ -1156,8 +1537,13 @@ assertContains(
 );
 assertContains(
   authPanel,
-  /const liveAuth = useLiveAuthState\(\);[\s\S]*const isCheckingExistingSession = liveAuth\.status === "checking";[\s\S]*disabled=\{isStartingLogin \|\| isCheckingExistingSession\}[\s\S]*isCheckingExistingSession[\s\S]*t\("common\.loading"\)/,
-  "Tauri login must keep the Google login CTA disabled while restoring an existing session so release startup does not flash an unauthenticated login state.",
+  /const liveAuth = useLiveAuthState\(\);[\s\S]*const isCheckingExistingSession = liveAuth\.status === "checking";[\s\S]*const submitLabel = isTauriRuntime\(\)[\s\S]*t\("auth\.panel\.googleLogin"\)[\s\S]*isCheckingExistingSession[\s\S]*t\("common\.loading"\)[\s\S]*aria-busy=\{isStartingLogin \|\| isCheckingExistingSession\}[\s\S]*disabled=\{isStartingLogin \|\| isCheckingExistingSession\}[\s\S]*\{submitLabel\}/,
+  "Tauri login must keep the visible Google login CTA stable while using disabled/aria-busy for session restore and OAuth progress.",
+);
+assertContains(
+  authPanel,
+  /getStoredAuthSession,[\s\S]*restoreStoredAuthSessionFromTauri,[\s\S]*async function openStoredTauriSession\(\)[\s\S]*getStoredAuthSession\(\) \?\? \(await restoreStoredAuthSessionFromTauri\(\)\)[\s\S]*router\.replace\(TAURI_MEMBER_APP_ROUTE\)/,
+  "Tauri login must immediately route an existing mirrored session back to the packaged app instead of waiting for a login-page getMe check.",
 );
 assertNotContains(
   authPanel,
@@ -1183,6 +1569,16 @@ assertContains(
   authApi,
   /async callbackGoogle\(input: GoogleCallbackRequest\)[\s\S]*if \(input\.clientType === "TAURI"\) \{[\s\S]*await setStoredAuthSessionAndWaitForTauriMirror\(\{ \.\.\.token, clientType: input\.clientType \}\)[\s\S]*\} else \{[\s\S]*setStoredAuthSession\(\{ \.\.\.token, clientType: input\.clientType \}\)/,
   "Shared Google OAuth callback must wait for the Tauri auth mirror before redirecting when the client type is TAURI.",
+);
+assertContains(
+  authApi,
+  /async refresh\(\)[\s\S]*if \(isTauriRuntime\(\)\) \{[\s\S]*await setStoredAuthSessionAndWaitForTauriMirror\(\{ \.\.\.token, clientType \}\)[\s\S]*\} else \{[\s\S]*setStoredAuthSession\(\{ \.\.\.token, clientType \}\)/,
+  "Shared refresh must wait for the Tauri auth mirror so rotated refresh tokens survive app restarts.",
+);
+assertContains(
+  apiClient,
+  /if \(isTauriRuntime\(\)\) \{[\s\S]*await setStoredAuthSessionAndWaitForTauriMirror\(\{ \.\.\.payload\.data, clientType \}\)[\s\S]*\} else \{[\s\S]*setStoredAuthSession\(\{ \.\.\.payload\.data, clientType \}\)[\s\S]*\}[\s\S]*return true;[\s\S]*\} catch \{[\s\S]*return false;/,
+  "API client refresh must mirror successful Tauri refreshes and must not erase the desktop mirror on transient refresh fetch failures.",
 );
 assertContains(
   authSession,
@@ -1211,8 +1607,13 @@ assertContains(
 );
 assertContains(
   authSession,
-  /export async function readTauriAuthSessionDiagnostics\(\): Promise<AuthSessionDiagnostics>[\s\S]*tauriCommands\.readTauriAuthSession\(\)[\s\S]*createAuthSessionDiagnostics\("tauriMirror"/,
+  /let tauriAuthSessionReadPromise: Promise<TauriAuthSessionReadResult \| null> \| null = null[\s\S]*let tauriAuthSessionMutationEpoch = 0[\s\S]*function readTauriAuthSessionOnce\(\)[\s\S]*tauriCommands\.readTauriAuthSession\(\)\.finally\(\(\) => \{[\s\S]*tauriAuthSessionReadPromise = null[\s\S]*async function readTauriAuthSessionForRestore\(\)[\s\S]*const readEpoch = tauriAuthSessionMutationEpoch[\s\S]*return readEpoch === tauriAuthSessionMutationEpoch \? restored : null[\s\S]*export async function readTauriAuthSessionDiagnostics\(\): Promise<AuthSessionDiagnostics>[\s\S]*readTauriAuthSessionForRestore\(\)[\s\S]*createAuthSessionDiagnostics\("tauriMirror"/,
   "Manual Tauri OAuth QA must be able to inspect a redacted Tauri SQLite auth mirror snapshot.",
+);
+assertContains(
+  authSession,
+  /function storeAuthSessionToTauriMirror\(session: StoredAuthSession\)[\s\S]*invalidateTauriAuthSessionRead\(\)[\s\S]*storeTauriAuthSession[\s\S]*function clearTauriAuthSessionMirror\(\)[\s\S]*invalidateTauriAuthSessionRead\(\)[\s\S]*clearTauriAuthSession[\s\S]*function invalidateTauriAuthSessionRead\(\)[\s\S]*tauriAuthSessionMutationEpoch \+= 1[\s\S]*tauriAuthSessionReadPromise = null/,
+  "Tauri auth mirror writes and clears must invalidate any in-flight mirror read before later startup restores.",
 );
 assertContains(
   authSession,
@@ -1221,12 +1622,12 @@ assertContains(
 );
 assertContains(
   authSession,
-  /const parsed = parseStoredAuthSession\(restored\.sessionJson\);[\s\S]*shouldRejectStoredAuthSession\(parsed\)[\s\S]*clearTauriAuthSessionMirror\(\);/,
+  /const restored = await readTauriAuthSessionForRestore\(\);[\s\S]*const parsed = parseStoredAuthSession\(restored\.sessionJson\);[\s\S]*shouldRejectStoredAuthSession\(parsed\)[\s\S]*clearTauriAuthSessionMirror\(\);/,
   "Tauri mirrored auth session restore must clear stale dev-token sessions when the dev-login flag is not enabled.",
 );
 assertContains(
   authSession,
-  /probeStoredAuthSessionRestoreFromTauriMirrorForQa[\s\S]*window\.localStorage\.removeItem\(AUTH_SESSION_STORAGE_KEY\)[\s\S]*restoreStoredAuthSessionFromTauri\(\)[\s\S]*restoredRealOAuthSession[\s\S]*window\.localStorage\.setItem\(AUTH_SESSION_STORAGE_KEY, originalRawSession\)/,
+  /probeStoredAuthSessionRestoreFromTauriMirrorForQa[\s\S]*invalidateTauriAuthSessionRead\(\)[\s\S]*window\.localStorage\.removeItem\(AUTH_SESSION_STORAGE_KEY\)[\s\S]*restoreStoredAuthSessionFromTauri\(\)[\s\S]*restoredRealOAuthSession[\s\S]*invalidateTauriAuthSessionRead\(\)[\s\S]*window\.localStorage\.setItem\(AUTH_SESSION_STORAGE_KEY, originalRawSession\)/,
   "Manual Tauri OAuth QA must simulate renderer-session loss inside auth-session and restore from the Tauri SQLite auth mirror without exposing raw tokens.",
 );
 assertContains(

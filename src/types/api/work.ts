@@ -78,6 +78,12 @@ export type DashboardWorkResponse = {
   upcomingDeadlines: TaskResponse[];
 };
 
+export type DashboardActivityHeatmapResponse = {
+  count: number;
+  date: string;
+  focusMinutes: number;
+};
+
 export type ScheduleSyncStatus = "LOCAL_ONLY" | "SYNCED" | "SYNC_FAILED";
 
 export type ScheduleResponse = {

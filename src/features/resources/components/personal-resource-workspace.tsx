@@ -47,6 +47,7 @@ import {
 import styles from "./resource-workspace.module.css";
 
 const EMPTY_RESOURCES: ResourceResponse[] = [];
+const windowsInstallerHref = "/downloads/windows/Bubli-Windows-latest.exe";
 
 type PersonalState =
   | { kind: "loading" }
@@ -715,7 +716,7 @@ export function PersonalResourceWorkspace() {
                     <Link className="bubli-button bubli-button--primary bubli-button--sm" href={roomBoardHref}>
                       {t("resources.workspace.emptyPersonalGoRoomBoard")}
                     </Link>
-                    <Link className="bubli-button bubli-button--sm" href="/download">
+                    <Link className="bubli-button bubli-button--sm" download href={windowsInstallerHref}>
                       {t("resources.workspace.emptyPersonalGetDesktop")}
                     </Link>
                   </div>

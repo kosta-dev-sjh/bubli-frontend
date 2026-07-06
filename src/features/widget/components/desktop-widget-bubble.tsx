@@ -1128,13 +1128,13 @@ function FlipDigit({ digit }: { digit: string }) {
   const [previous, setPrevious] = useState(digit);
   const [flipping, setFlipping] = useState(false);
 
-  useEffect(() => {
-    if (digit !== current) {
-      setPrevious(current);
-      setCurrent(digit);
-      setFlipping(true);
-    }
-  }, [digit, current]);
+  // 렌더 중 prop 변화에 맞춰 상태를 조정 — effect에서 setState하면 불필요한 추가 렌더가
+  // 발생하므로(react-hooks/set-state-in-effect), React 공식 권장 패턴대로 렌더 본문에서 처리한다.
+  if (digit !== current) {
+    setPrevious(current);
+    setCurrent(digit);
+    setFlipping(true);
+  }
 
   if (prefersReducedMotion) {
     return (
@@ -1464,7 +1464,7 @@ function PomodoroView({ selectedRoomId }: { selectedRoomId: string | null }) {
 
   return (
     <>
-      {/* 깔끔한 원형 SVG 진행 링 — 남은 시간만큼 링이 차고, 시간이 지날수록 줄어든다(집중=coral / 휴식=teal). */}
+      {/* 깔끔한 원형 SVG 진행 링 — 남은 시간만큼 링이 차고, 시간이 지날수록 줄어든다(집중=coral / 휴식=sky). */}
       <div className={[styles.pomodoroCircle, phaseClass].join(" ")}>
         <svg className={styles.pomodoroSvg} viewBox="0 0 120 120" aria-hidden="true">
           <circle className={styles.pomodoroTrack} cx="60" cy="60" r="54" />

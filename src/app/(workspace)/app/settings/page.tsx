@@ -79,6 +79,8 @@ import type { LocalAdapterResult } from "@/types/local";
 
 import styles from "./settings-page.module.css";
 
+const windowsInstallerHref = "/downloads/windows/Bubli-Windows-latest.exe";
+
 type SettingsData = {
   activityLogs: ActivityLogResponse[] | null;
   folders: ManagedFolderResponse[];
@@ -1010,6 +1012,7 @@ export default function SettingsPage() {
     try {
       const result = await recordCurrentActivityContext({
         consentGranted,
+        recordMode: "incremental",
         roomId: getActiveProjectRoomId(),
       });
       if (result.status === "ready") {
@@ -1662,7 +1665,7 @@ export default function SettingsPage() {
                 <h2>{t("settings.nav.desktop")}</h2>
                 <p className={styles.sectionDesc}>{t("settings.desktop.webBody")}</p>
                 <div className={styles.sectionFoot}>
-                  <Link className="bubli-button bubli-button--primary" href="/download">
+                  <Link className="bubli-button bubli-button--primary" download href={windowsInstallerHref}>
                     {t("settings.desktop.webDownloadCta")}
                   </Link>
                 </div>

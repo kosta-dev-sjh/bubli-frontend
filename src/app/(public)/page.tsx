@@ -290,7 +290,7 @@ export default function HomePage() {
         <span className="landing-footer__copy">{t("public.footer.tagline")}</span>
         <nav aria-label={t("public.footer.navAria")} className="landing-footer__links">
           <Link href="/#features">{t("public.footer.features")}</Link>
-          <Link href="/download">{t("public.footer.download")}</Link>
+          <Link href="/#download">{t("public.footer.download")}</Link>
           <Link href="/#faq">{t("public.footer.faq")}</Link>
           <Link href="/login">{t("public.footer.login")}</Link>
         </nav>

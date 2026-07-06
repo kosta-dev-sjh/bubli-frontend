@@ -7,6 +7,7 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { getDeoverlappedActivityDurationSeconds } from "@/lib/activity/activity-duration";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import type { ActivityAutoCaptureStatus } from "@/lib/local/activity-auto-capture";
@@ -29,6 +30,7 @@ type ActivitySourceGroup = {
   durationSeconds: number;
   id: string;
   latestCreatedAt: number;
+  logs: ActivityLogResponse[];
   roomId?: string | null;
   startedAt?: string | null;
   windowTitle?: string | null;
@@ -95,9 +97,10 @@ function groupActivityLogs(activityLogs: ActivityLogResponse[]) {
     if (!existing) {
       groups.set(key, {
         appName,
-        durationSeconds: Math.max(0, activity.durationSeconds ?? 0),
+        durationSeconds: 0,
         id: activity.id,
         latestCreatedAt: createdAt,
+        logs: [activity],
         roomId,
         startedAt: activity.startedAt,
         windowTitle,
@@ -105,7 +108,7 @@ function groupActivityLogs(activityLogs: ActivityLogResponse[]) {
       continue;
     }
 
-    existing.durationSeconds += Math.max(0, activity.durationSeconds ?? 0);
+    existing.logs.push(activity);
     if (timestampOf(activity.startedAt) < timestampOf(existing.startedAt)) {
       existing.startedAt = activity.startedAt;
     }
@@ -115,7 +118,12 @@ function groupActivityLogs(activityLogs: ActivityLogResponse[]) {
     }
   }
 
-  return [...groups.values()].sort((left, right) => right.latestCreatedAt - left.latestCreatedAt);
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      durationSeconds: getDeoverlappedActivityDurationSeconds(group.logs),
+    }))
+    .sort((left, right) => right.latestCreatedAt - left.latestCreatedAt);
 }
 
 function shortRoomId(roomId: string) {

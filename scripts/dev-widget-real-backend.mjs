@@ -391,6 +391,29 @@ async function smokeBackend(accessToken) {
   const syncedResourceId = localFileSync.results[0].resourceId;
   assert(syncedResourceId, "local file event sync did not return a resource id");
 
+  const syncedPersonalResource = await apiGet(`/api/resources/${syncedResourceId}`, headers);
+  assert(
+    syncedPersonalResource.visibility === "PERSONAL",
+    "local file event sync did not create a PERSONAL resource",
+  );
+  assert(
+    syncedPersonalResource.roomId === null || syncedPersonalResource.roomId === undefined,
+    "local file event sync unexpectedly attached the resource to a project room",
+  );
+
+  const seededRoomResourcesAfterLocalSync = await apiGet(
+    `/api/project-rooms/${SEED_ROOM_ID}/resources?page=0&size=100`,
+    headers,
+  );
+  assert(
+    Array.isArray(seededRoomResourcesAfterLocalSync.items),
+    "seeded project room resources did not return an item array",
+  );
+  assert(
+    !seededRoomResourcesAfterLocalSync.items.some((item) => item.id === syncedResourceId),
+    "local file event sync leaked a personal resource into the seeded project room resources",
+  );
+
   const localFileSyncReplay = await apiPost("/api/local-file-events/sync", headers, {
     events: [
       {
@@ -555,7 +578,7 @@ async function smokeBackend(accessToken) {
   );
 
   console.log(
-    "Backend smoke passed: /api/widget/summary, /api/widget/settings GET/PATCH, /api/widget/context, /api/widget/items/{id}/state, /api/widget/items/states, /api/project-rooms, /api/me/project-rooms, /api/project-rooms/{roomId}, /api/project-rooms/{roomId}/events, /api/me/privacy-consents, /api/chat/rooms, /api/chat/rooms/{id}/messages, /api/chat/rooms/{id}/read, /api/voice/rooms, /api/voice/rooms/{id}, /api/voice/rooms/{id}/token, /api/voice/rooms/{id}/mic, /api/voice/rooms/{id}/leave, /api/time-logs/start, /api/time-logs/{id}/heartbeat, /api/time-logs/{id}/pause, /api/time-logs/{id}/resume, /api/time-logs/{id}/stop, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync CREATED/UPDATED/DELETED + duplicate localEventId replay, /api/local-file-analyses, /api/activity/current-app + duplicate localActivityId replay, /api/activity/today, DELETE /api/activity/{id}, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
+    "Backend smoke passed: /api/widget/summary, /api/widget/settings GET/PATCH, /api/widget/context, /api/widget/items/{id}/state, /api/widget/items/states, /api/project-rooms, /api/me/project-rooms, /api/project-rooms/{roomId}, /api/project-rooms/{roomId}/events, /api/me/privacy-consents, /api/chat/rooms, /api/chat/rooms/{id}/messages, /api/chat/rooms/{id}/read, /api/voice/rooms, /api/voice/rooms/{id}, /api/voice/rooms/{id}/token, /api/voice/rooms/{id}/mic, /api/voice/rooms/{id}/leave, /api/time-logs/start, /api/time-logs/{id}/heartbeat, /api/time-logs/{id}/pause, /api/time-logs/{id}/resume, /api/time-logs/{id}/stop, /api/dashboard/work, /api/widget/usage-summaries, /api/local-file-events/sync CREATED/UPDATED/DELETED + duplicate localEventId replay + PERSONAL room isolation, /api/local-file-analyses, /api/activity/current-app + duplicate localActivityId replay, /api/activity/today, DELETE /api/activity/{id}, /api/daily-summaries, /api/generated-documents/{id}/export, /api/project-rooms/{roomId}/memory-summaries.",
   );
 }
 

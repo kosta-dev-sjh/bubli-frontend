@@ -29,12 +29,9 @@ import { playNotificationSound } from "@/lib/sound/notification-sound";
 import { useI18n } from "@/lib/i18n";
 import type { TranslateVars, MessageKey } from "@/lib/i18n";
 import {
-  AUTH_SESSION_CHANGE_EVENT,
-  clearStoredAuthSession,
-  getStoredAuthSession,
-  restoreStoredAuthSessionFromTauri,
+  AUTH_SESSION_CHANGE_EVENT, getStoredAuthSession, restoreStoredAuthSessionFromTauri, clearStoredAuthSession,
 } from "@/lib/auth/auth-session";
-import { connectLiveKitRoom } from "@/lib/livekit-client";
+import { connectLiveKitRoom, onActiveSpeakersChanged } from "@/lib/livekit-client";
 import { voiceStore } from "@/lib/voice-store";
 import { projectRoomRoute } from "@/lib/project-room-routes";
 import { launchTauriAuthenticatedSurfaces, stopTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
@@ -180,6 +177,7 @@ export function AppShell({ children }: AppShellProps) {
   const [newRoomFiles, setNewRoomFiles] = useState<File[]>([]);
   const [newRoomName, setNewRoomName] = useState("");
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+  const [authRecoveryNonce, setAuthRecoveryNonce] = useState(0);
   const readyUserId = state.kind === "ready" ? state.user.id : null;
   const [topbarMenu, setTopbarMenu] = useState<TopbarMenu>(null);
   const [myInvitations, setMyInvitations] = useState<ProjectRoomInvitationResponse[]>([]);
@@ -212,51 +210,17 @@ export function AppShell({ children }: AppShellProps) {
       : `/app/chat?mode=direct`
     : "/app/chat";
 
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const micStreamRef = useRef<MediaStream | null>(null);
-
+  // "말하는 중" 표시 — LiveKit이 로컬/원격 참여자 전원의 오디오 레벨을 추적해 알려주므로
+  // 별도로 마이크 스트림을 열어 분석할 필요가 없다.
   useEffect(() => {
-    let active = true;
-    function stopAll() {
-      active = false;
-      audioCtxRef.current?.close().catch(() => {});
-      audioCtxRef.current = null;
-      analyserRef.current = null;
-      // AudioContext를 닫아도 getUserMedia로 받은 트랙 자체는 살아있으므로
-      // 명시적으로 stop()하지 않으면 마이크가 새로고침 전까지 계속 점유된다.
-      micStreamRef.current?.getTracks().forEach((track) => track.stop());
-      micStreamRef.current = null;
-      if (voiceStore.getSnapshot().isSpeaking) voiceStore.update({ isSpeaking: false });
+    if (!showVoiceFloat) {
+      voiceStore.update({ isSpeaking: false });
+      return;
     }
-    if (!showVoiceFloat || voiceSnap.micMuted) { stopAll(); return; }
-    if (typeof navigator === "undefined" || !navigator.mediaDevices) return;
-
-    void (async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        if (!active) { stream.getTracks().forEach((t) => t.stop()); return; }
-        micStreamRef.current = stream;
-        const ctx = new AudioContext();
-        audioCtxRef.current = ctx;
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 256;
-        analyserRef.current = analyser;
-        ctx.createMediaStreamSource(stream).connect(analyser);
-        const data = new Uint8Array(analyser.frequencyBinCount);
-        const tick = () => {
-          if (!active || !analyserRef.current) return;
-          analyserRef.current.getByteFrequencyData(data);
-          const speaking = data.some((v) => v > 20);
-          if (speaking !== voiceStore.getSnapshot().isSpeaking) voiceStore.update({ isSpeaking: speaking });
-          requestAnimationFrame(tick);
-        };
-        requestAnimationFrame(tick);
-      } catch { voiceStore.update({ isSpeaking: false }); }
-    })();
-
-    return () => stopAll();
-  }, [showVoiceFloat, voiceSnap.micMuted]);
+    return onActiveSpeakersChanged((speakingUserIds) => {
+      voiceStore.update({ isSpeaking: Boolean(readyUserId && speakingUserIds.has(readyUserId)) });
+    });
+  }, [showVoiceFloat, readyUserId]);
 
   useEffect(() => {
     if (!isTauriRuntime()) return;
@@ -281,6 +245,19 @@ export function AppShell({ children }: AppShellProps) {
     async function loadShell() {
       const runId = ++loadShellRun;
       const isCurrentRun = () => mounted && runId === loadShellRun;
+      const redirectToLoginWhenTauri = () => {
+        if (isTauriRuntime()) {
+          router.replace("/login");
+          window.setTimeout(() => {
+            if (window.location.pathname.startsWith("/app")) {
+              window.location.assign("/login");
+            }
+          }, 250);
+        }
+      };
+      const setAuthOrDesktopRedirectState = () => {
+        setState(isTauriRuntime() ? { kind: "loading" } : { kind: "auth" });
+      };
 
       try {
         const restoredSession = await restoreInitialWorkspaceSession();
@@ -290,10 +267,19 @@ export function AppShell({ children }: AppShellProps) {
           if (shouldUseWorkspacePreviewData()) {
             setState({ kind: "ready", notifications: [], rooms: workspacePreviewRooms, user: workspacePreviewUser });
           } else {
-            setState({ kind: "auth" });
+            setAuthOrDesktopRedirectState();
           }
+          redirectToLoginWhenTauri();
 
           return;
+        }
+
+        if (isTauriRuntime()) {
+          setState((current) =>
+            current.kind === "ready"
+              ? { ...current, user: restoredSession.user }
+              : { kind: "ready", notifications: [], rooms: roomsRef.current, user: restoredSession.user },
+          );
         }
 
         let user: AuthUser;
@@ -303,8 +289,11 @@ export function AppShell({ children }: AppShellProps) {
           if (!isCurrentRun()) return;
 
           if (error instanceof ApiClientError && error.status === 401) {
-            clearStoredAuthSession();
-            setState({ kind: "auth" });
+            setAuthOrDesktopRedirectState();
+            if (!isTauriRuntime()) {
+              clearStoredAuthSession();
+            }
+            redirectToLoginWhenTauri();
             return;
           }
 
@@ -328,7 +317,8 @@ export function AppShell({ children }: AppShellProps) {
 
         if (roomPageResult.status === "rejected") {
           if (roomPageResult.reason instanceof ApiClientError && roomPageResult.reason.status === 401) {
-            setState({ kind: "offline", user });
+            setAuthOrDesktopRedirectState();
+            redirectToLoginWhenTauri();
             return;
           }
 
@@ -393,8 +383,11 @@ export function AppShell({ children }: AppShellProps) {
       } catch (error) {
         if (!isCurrentRun()) return;
         if (error instanceof ApiClientError && error.status === 401) {
-          clearStoredAuthSession();
-          setState({ kind: "auth" });
+          setAuthOrDesktopRedirectState();
+          if (!isTauriRuntime()) {
+            clearStoredAuthSession();
+          }
+          redirectToLoginWhenTauri();
           return;
         }
 
@@ -403,7 +396,8 @@ export function AppShell({ children }: AppShellProps) {
           return;
         }
 
-        setState({ kind: "auth" });
+        setAuthOrDesktopRedirectState();
+        redirectToLoginWhenTauri();
       }
     }
 
@@ -418,7 +412,7 @@ export function AppShell({ children }: AppShellProps) {
       mounted = false;
       window.removeEventListener(AUTH_SESSION_CHANGE_EVENT, reloadShell);
     };
-  }, []);
+  }, [authRecoveryNonce, router]);
 
   // 프로필 저장(설정/온보딩) 즉시 반영 — 셸 재조회 없이 이벤트 페이로드로 탑바 사용자 표시를 갱신한다.
   useEffect(() => {
@@ -438,6 +432,7 @@ export function AppShell({ children }: AppShellProps) {
 
   // 룸 목록/알림/초대함만 가볍게 재조회한다(셸 전체 리로드 없이 스위처·벨 배지를 최신으로 유지).
   const shellReady = state.kind === "ready";
+  const shellContextReady = state.kind === "ready";
   const refreshShellLists = useCallback(async () => {
     if (!shellReady) return;
 
@@ -569,9 +564,33 @@ export function AppShell({ children }: AppShellProps) {
 
     if (state.kind === "auth") {
       if (isDesktopRuntime) {
-        void stopTauriAuthenticatedSurfaces().catch((error) => {
-          console.warn("Failed to stop Tauri authenticated surfaces after auth reset.", error);
-        });
+        let cancelled = false;
+
+        void restoreStoredAuthSessionFromTauri()
+          .then((restoredSession) => {
+            if (cancelled) return;
+            if (restoredSession) {
+              setState({ kind: "loading" });
+              setAuthRecoveryNonce((current) => current + 1);
+              return;
+            }
+
+            void stopTauriAuthenticatedSurfaces().catch((error) => {
+              console.warn("Failed to stop Tauri authenticated surfaces after auth reset.", error);
+            });
+            router.replace("/login");
+          })
+          .catch(() => {
+            if (cancelled) return;
+            void stopTauriAuthenticatedSurfaces().catch((error) => {
+              console.warn("Failed to stop Tauri authenticated surfaces after auth reset.", error);
+            });
+            router.replace("/login");
+          });
+
+        return () => {
+          cancelled = true;
+        };
       }
 
       router.replace("/login");
@@ -594,12 +613,18 @@ export function AppShell({ children }: AppShellProps) {
   }, [state]);
 
   useEffect(() => {
-    if (state.kind !== "ready" || !isTauriRuntime() || runtimeSmokeEnabled) return;
+    if (!shellContextReady || !isTauriRuntime() || runtimeSmokeEnabled) return;
 
-    void launchTauriAuthenticatedSurfaces({ sessionAlreadyValidated: true }).catch((error) => {
+    const launchSelectedRoomId = selectedRoomId ?? getActiveProjectRoomId();
+
+    void launchTauriAuthenticatedSurfaces({
+      retryPolicy: "cooldown",
+      selectedRoomId: launchSelectedRoomId,
+      sessionAlreadyValidated: true,
+    }).catch((error: unknown) => {
       console.warn("Failed to launch Tauri authenticated surfaces after shell ready.", error);
     });
-  }, [state.kind, readyUserId]);
+  }, [readyUserId, selectedRoomId, shellContextReady]);
 
   useEffect(() => {
     function syncActiveProjectRoom(event: Event) {
@@ -1188,9 +1213,6 @@ export function AppShell({ children }: AppShellProps) {
                 type="button"
               >
                 {voiceCallResponding ? t("layout.voiceCall.connecting") : t("layout.voiceCall.accept")}
-              </button>
-              <button className="voice-call-invite__later" disabled={voiceCallResponding} onClick={dismissIncomingVoiceCall} type="button">
-                {t("layout.voiceCall.later")}
               </button>
               <button className="voice-call-invite__decline" disabled={voiceCallResponding} onClick={dismissIncomingVoiceCall} type="button">
                 {t("layout.voiceCall.decline")}

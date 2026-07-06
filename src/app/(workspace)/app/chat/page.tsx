@@ -42,6 +42,7 @@ import {
   connectLiveKitRoom,
   disconnectLiveKitRoom,
   getActiveLiveKitVoiceRoomId,
+  onActiveSpeakersChanged,
   setLiveKitMicEnabled,
 } from "@/lib/livekit-client";
 import { voiceStore } from "@/lib/voice-store";
@@ -493,7 +494,7 @@ function ChatPageContent() {
   const [selectedGroupMemberIds, setSelectedGroupMemberIds] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
   const [agentCommandNotice, setAgentCommandNotice] = useState<string | null>(null);
-  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [speakingUserIds, setSpeakingUserIds] = useState<ReadonlySet<string>>(new Set());
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [messageMenuId, setMessageMenuId] = useState<string | null>(null);
   const [reportedMessageId, setReportedMessageId] = useState<string | null>(null);
@@ -504,10 +505,6 @@ function ChatPageContent() {
   const emojiPickerRef = useRef<HTMLDivElement | null>(null);
   const friendSearchInputRef = useRef<HTMLInputElement | null>(null);
   const messagesViewportRef = useRef<HTMLDivElement | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const micStreamRef = useRef<MediaStream | null>(null);
-  const speakingRafRef = useRef<number | null>(null);
   // 실시간 채팅/타이핑 인디케이터 상태 — 방 전환 시 초기화 대신 chatRoomId로 스코프해
   // 렌더에서 현재 방 것만 보여준다(다른 방의 잔여 표시는 만료 정리로 사라진다).
   // agentTyping: /bubli 명령 후 "Bubli가 입력 중…"을 보여줄 마감 시각(60초 타임아웃 폴백).
@@ -1041,44 +1038,11 @@ function ChatPageContent() {
     };
   }, []);
 
+  // "말하는 중" 표시 — LiveKit이 로컬/원격 참여자 전원의 오디오 레벨을 추적해 알려주므로
+  // 직접 마이크 스트림을 열어 분석할 필요가 없다(모든 참여자에 대해 동일하게 동작).
   useEffect(() => {
-    const stopAll = () => {
-      if (speakingRafRef.current) { cancelAnimationFrame(speakingRafRef.current); speakingRafRef.current = null; }
-      micStreamRef.current?.getTracks().forEach((t) => t.stop());
-      micStreamRef.current = null;
-      if (audioCtxRef.current) { void audioCtxRef.current.close(); audioCtxRef.current = null; }
-      analyserRef.current = null;
-      setIsSpeaking(false);
-    };
-
-    if (!isInVoice || voiceMicMuted) { stopAll(); return; }
-
-    let active = true;
-    void (async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        if (!active) { stream.getTracks().forEach((t) => t.stop()); return; }
-        micStreamRef.current = stream;
-        const ctx = new AudioContext();
-        audioCtxRef.current = ctx;
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 256;
-        analyserRef.current = analyser;
-        ctx.createMediaStreamSource(stream).connect(analyser);
-        const data = new Uint8Array(analyser.frequencyBinCount);
-        const tick = () => {
-          if (!active || !analyserRef.current) return;
-          analyserRef.current.getByteFrequencyData(data);
-          const avg = data.reduce((sum, v) => sum + v, 0) / data.length;
-          setIsSpeaking(avg > 12);
-          speakingRafRef.current = requestAnimationFrame(tick);
-        };
-        speakingRafRef.current = requestAnimationFrame(tick);
-      } catch { /* 마이크 권한 거부 시 무시 */ }
-    })();
-
-    return () => { active = false; stopAll(); };
-  }, [isInVoice, voiceMicMuted]);
+    return onActiveSpeakersChanged(setSpeakingUserIds);
+  }, []);
 
   useEffect(() => {
     activeChatRoomIdRef.current = activeChatRoomId;
@@ -1998,15 +1962,13 @@ function ChatPageContent() {
                       return (
                         <div className="workspace-route__voice-person" key={participant.userId}>
                           <span
-                            data-speaking={isMe ? String(isSpeaking) : undefined}
+                            data-speaking={String(speakingUserIds.has(participant.userId))}
                             data-status={participant.status.toLowerCase()}
                           >
                             {initialOf(participant.userName)}
                           </span>
                           <div>
                             <strong>{participant.userName}</strong>
-                            {/* 서버 응답에는 참가자별 micStatus가 없다 — 내 상태는 로컬 값으로,
-                                다른 참가자는 근거 없는 마이크 표기 대신 참여 상태를 보여준다. */}
                             <small>
                               {isMe
                                 ? voiceMicMuted

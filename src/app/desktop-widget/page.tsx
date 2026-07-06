@@ -2,6 +2,7 @@
 
 import { Room, RoomEvent, Track } from "livekit-client";
 import type { RemoteTrack } from "livekit-client";
+import { Phone } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -54,9 +55,12 @@ import { emitWidgetDataChanged, listenWidgetDataChanged, listenWidgetRoomContext
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { readCachedWidgetRoomNames, readWidgetSummary, writeCachedWidgetRoomNames, type WidgetRoomNameMap } from "@/lib/widget";
 import { syncActiveProjectRoomFromWidgetContext } from "@/lib/workspace-active-room";
+import { getChatRealtimeClient } from "@/lib/websocket/chat-realtime";
+import { websocketTopics } from "@/lib/websocket/topics";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import type { TimeLogResponse } from "@/types/api/timer";
+import type { NotificationResponse } from "@/types/api/notification";
 import type { WidgetSummaryResponse } from "@/types/api/widget";
 
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
@@ -1121,6 +1125,17 @@ function DesktopWidgetSurface() {
   const [voiceMicMuted, setVoiceMicMuted] = useState(false);
   const [notificationSignal, setNotificationSignal] = useState<WidgetNotificationSignal>(() => widgetDisplayLoadSignal("loading"));
   const [menuUsageSummary, setMenuUsageSummary] = useState<string | null>(null);
+  // 1:1/그룹 보이스 통화 실시간 "전화 옴" 알림 — 바 창(항상 떠 있는 표면)에서만 구독/표시한다.
+  const [incomingVoiceCall, setIncomingVoiceCall] = useState<{
+    callerName: string;
+    chatRoomId: string;
+    notificationId: string;
+  } | null>(null);
+  const [voiceCallResponding, setVoiceCallResponding] = useState(false);
+  // 카카오톡 스타일 새 메시지 미리보기 토스트.
+  const [messageToasts, setMessageToasts] = useState<
+    { chatRoomId: string; id: string; senderName: string; text: string }[]
+  >([]);
   const liveKitRoomRef = useRef<Room | null>(null);
   const surfaceReadySentRef = useRef(false);
   const appReadySentRef = useRef(false);
@@ -1715,6 +1730,10 @@ function DesktopWidgetSurface() {
 
   const setWindowMode = useCallback(
     async (nextMode: WidgetWindowMode) => {
+      const previousMode = mode;
+      const previousClickThrough = clickThrough;
+      const previousWindowVisible = windowVisible;
+
       setMode(nextMode);
       setClickThrough(false);
       setWindowVisible(nextMode !== "MINIMIZED");
@@ -1758,10 +1777,12 @@ function DesktopWidgetSurface() {
         setClickThrough(state.clickThrough);
         setWindowVisible(state.windowVisible);
       } catch {
-        // Browser preview fallback.
+        setMode(previousMode);
+        setClickThrough(previousClickThrough);
+        setWindowVisible(previousWindowVisible);
       }
     },
-    [activeBubble, isTauri, selectedWidgetRoomId, windowId],
+    [activeBubble, clickThrough, isTauri, mode, selectedWidgetRoomId, windowId, windowVisible],
   );
 
   const toggleAlwaysOnTop = useCallback(async () => {
@@ -1780,7 +1801,12 @@ function DesktopWidgetSurface() {
   }, [activeBubble, alwaysOnTop, isTauri, windowId]);
 
   const restoreCurrentWindow = useCallback(async () => {
+    const previousMode = mode;
+    const previousClickThrough = clickThrough;
+    const previousWindowVisible = windowVisible;
+
     setMode("DEFAULT");
+    setClickThrough(false);
     setWindowVisible(true);
 
     if (!isTauri) return;
@@ -1822,13 +1848,16 @@ function DesktopWidgetSurface() {
       setClickThrough(state.clickThrough);
       setWindowVisible(state.windowVisible);
     } catch {
-      // Browser preview fallback.
+      setMode(previousMode);
+      setClickThrough(previousClickThrough);
+      setWindowVisible(previousWindowVisible);
     }
-  }, [activeBubble, isTauri, selectedWidgetRoomId, windowId]);
+  }, [activeBubble, clickThrough, isTauri, mode, selectedWidgetRoomId, windowId, windowVisible]);
 
   // 닫기(X)는 최소화와 다르다 — 완전히 닫아 바에서도 사라지고, 다시 열기는 메뉴(런처)에서 한다.
   // (이전엔 setWidgetWindowMode(MINIMIZED)를 불러 최소화와 동작이 겹쳤다.)
   const closeWindow = useCallback(async () => {
+    const previousWindowVisible = windowVisible;
     setWindowVisible(false);
 
     if (!isTauri) return;
@@ -1850,9 +1879,9 @@ function DesktopWidgetSurface() {
       setClickThrough(state.clickThrough);
       setWindowVisible(state.windowVisible);
     } catch {
-      // Browser preview fallback.
+      setWindowVisible(previousWindowVisible);
     }
-  }, [activeBubble, isTauri, windowId]);
+  }, [activeBubble, isTauri, windowId, windowVisible]);
 
   const restoreBubbleFromBar = useCallback(
     async (bubbleType: WidgetBubbleType) => {
@@ -2511,6 +2540,127 @@ function DesktopWidgetSurface() {
     [applyTimerResult, handleWidgetTimerActionError, publishWidgetDataChanged, recordTimerUsage, widgetContext?.selectedRoomId],
   );
 
+  // 바 창(항상 떠 있는 표면)에서만 알림 실시간 채널을 구독한다 — 여러 위젯 창이 동시에
+  // 열려 있어도 팝업/토스트가 중복으로 뜨지 않도록 하나의 표면으로 한정한다.
+  useEffect(() => {
+    if (!isBubbleBar || !widgetSessionReady) return;
+
+    const client = getChatRealtimeClient();
+    return client.subscribe(websocketTopics.notifications, (data) => {
+      const notification = data as NotificationResponse | null;
+      if (!notification || typeof notification.id !== "string") return;
+
+      if (notification.sourceType === "VOICE_CALL" && notification.sourceId) {
+        setIncomingVoiceCall({
+          callerName: notification.title,
+          chatRoomId: notification.sourceId,
+          notificationId: notification.id,
+        });
+      }
+
+      if (notification.sourceType === "MESSAGE" && notification.sourceId) {
+        const toastId = notification.id;
+        const chatRoomId = notification.sourceId;
+        setMessageToasts((current) => [
+          ...current.filter((toast) => toast.id !== toastId),
+          { chatRoomId, id: toastId, senderName: notification.title, text: notification.body ?? "" },
+        ]);
+        window.setTimeout(() => {
+          setMessageToasts((current) => current.filter((toast) => toast.id !== toastId));
+        }, 6_000);
+      }
+    });
+  }, [isBubbleBar, widgetSessionReady]);
+
+  // 전화처럼 일정 시간 응답이 없으면 자동으로 닫는다.
+  useEffect(() => {
+    if (!incomingVoiceCall) return;
+    const timeoutId = window.setTimeout(() => setIncomingVoiceCall(null), 30_000);
+    return () => window.clearTimeout(timeoutId);
+  }, [incomingVoiceCall]);
+
+  const dismissIncomingVoiceCall = useCallback(() => {
+    if (!incomingVoiceCall) return;
+    void notificationApi.markRead(incomingVoiceCall.notificationId).catch(() => undefined);
+    setIncomingVoiceCall(null);
+  }, [incomingVoiceCall]);
+
+  const acceptIncomingVoiceCall = useCallback(async () => {
+    if (!incomingVoiceCall || voiceCallResponding) return;
+    const call = incomingVoiceCall;
+    setVoiceCallResponding(true);
+    try {
+      const voiceRoom = await widgetCommunicationApi.createVoiceRoom({ chatRoomId: call.chatRoomId });
+      setActiveVoiceRoomId(voiceRoom.id);
+      setVoiceConnectionLabel("Voice room opened");
+
+      try {
+        const token = await widgetCommunicationApi.getVoiceToken(voiceRoom.id);
+        if (token.serverUrl && token.token) {
+          const liveKitRoom = new Room();
+          liveKitRoom.on(RoomEvent.TrackSubscribed, (track) => attachWidgetRemoteAudioTrack(track));
+          liveKitRoom.on(RoomEvent.TrackUnsubscribed, (track) => {
+            track.detach().forEach((element) => element.remove());
+          });
+          if (liveKitRoomRef.current) {
+            detachWidgetRemoteAudio(liveKitRoomRef.current);
+            liveKitRoomRef.current.disconnect();
+          }
+          liveKitRoomRef.current = liveKitRoom;
+          await liveKitRoom.connect(token.serverUrl, token.token);
+          await liveKitRoom.localParticipant.setMicrophoneEnabled(true);
+          setVoiceMicMuted(false);
+          setVoiceConnectionLabel("LiveKit connected");
+        }
+      } catch {
+        setVoiceConnectionLabel("Voice room open; token failed");
+      }
+
+      setCommunicationRevision((current) => current + 1);
+      publishWidgetDataChanged("chat");
+
+      if (isTauri) {
+        await tauriCommands
+          .openWidgetWindow({
+            bubbleType: "chat",
+            mode: "DEFAULT",
+            selectedRoomId: call.chatRoomId,
+            windowId: "chat",
+          })
+          .catch(() => undefined);
+      }
+    } catch {
+      // 룸 생성/조회 자체가 실패한 경우 — 조용히 무시하고 알림만 닫는다
+    } finally {
+      setVoiceCallResponding(false);
+      void notificationApi.markRead(call.notificationId).catch(() => undefined);
+      setIncomingVoiceCall(null);
+    }
+  }, [incomingVoiceCall, isTauri, publishWidgetDataChanged, voiceCallResponding]);
+
+  const dismissMessageToast = useCallback((toastId: string) => {
+    setMessageToasts((current) => current.filter((toast) => toast.id !== toastId));
+  }, []);
+
+  const openMessageToast = useCallback(
+    async (toast: { chatRoomId: string; id: string }) => {
+      dismissMessageToast(toast.id);
+      if (isTauri) {
+        await tauriCommands
+          .openWidgetWindow({
+            bubbleType: "chat",
+            mode: "DEFAULT",
+            selectedRoomId: toast.chatRoomId,
+            windowId: "chat",
+          })
+          .catch(() => undefined);
+      } else {
+        setActiveBubble("chat");
+      }
+    },
+    [dismissMessageToast, isTauri],
+  );
+
   const startWidgetVoice = useCallback(
     async (bubble: WidgetPreviewBubble) => {
       if (!bubble.roomId) {
@@ -2520,7 +2670,7 @@ function DesktopWidgetSurface() {
 
       const voiceRoom = activeVoiceRoomId
         ? await widgetCommunicationApi.getVoiceRoom(activeVoiceRoomId)
-        : await widgetCommunicationApi.createVoiceRoom(bubble.roomId);
+        : await widgetCommunicationApi.createVoiceRoom({ roomId: bubble.roomId });
 
       setActiveVoiceRoomId(voiceRoom.id);
       setVoiceConnectionLabel("Voice room opened");
@@ -2745,20 +2895,67 @@ function DesktopWidgetSurface() {
 
   if (isBubbleBar) {
     // 바에는 접은 버블/알림/버튼만 두고 메뉴 오브는 별도 창에서 처리한다.
+    // 실시간 전화/메시지 알림 팝업은 바 창(항상 떠 있는 표면)에만 겹쳐 그린다.
     return (
-      <DesktopWidgetBubbleBar
-        bubbleDataByType={displayBubbles}
-        hasRoomContext={Boolean(selectedWidgetRoomId)}
-        minimizedItems={barItems}
-        notificationSignal={notificationSignal}
-        onArrangeBubbles={arrangeWidgetBubbles}
-        onOpenMainApp={openMainApp}
-        onOpenSettings={openMainAppSettings}
-        onQuit={quitDesktopApp}
-        onRestoreBubble={restoreBubbleFromBar}
-        onToggleRoomContext={toggleWidgetRoomContext}
-        usageSummary={menuUsageSummary}
-      />
+      <>
+        <DesktopWidgetBubbleBar
+          bubbleDataByType={displayBubbles}
+          hasRoomContext={Boolean(selectedWidgetRoomId)}
+          minimizedItems={barItems}
+          notificationSignal={notificationSignal}
+          onArrangeBubbles={arrangeWidgetBubbles}
+          onOpenMainApp={openMainApp}
+          onOpenSettings={openMainAppSettings}
+          onQuit={quitDesktopApp}
+          onRestoreBubble={restoreBubbleFromBar}
+          onToggleRoomContext={toggleWidgetRoomContext}
+          usageSummary={menuUsageSummary}
+        />
+        {incomingVoiceCall ? (
+          <div className="voice-call-invite" role="dialog" aria-modal="true" aria-label={t("layout.voiceCall.aria")}>
+            <div className="voice-call-invite__card">
+              <div className="voice-call-invite__avatar" aria-hidden="true">
+                <Phone size={26} strokeWidth={2} />
+              </div>
+              <strong className="voice-call-invite__caller">{incomingVoiceCall.callerName}</strong>
+              <span className="voice-call-invite__hint">{t("layout.voiceCall.hint")}</span>
+              <div className="voice-call-invite__actions">
+                <button
+                  className="voice-call-invite__accept"
+                  disabled={voiceCallResponding}
+                  onClick={() => void acceptIncomingVoiceCall()}
+                  type="button"
+                >
+                  {voiceCallResponding ? t("layout.voiceCall.connecting") : t("layout.voiceCall.accept")}
+                </button>
+                <button className="voice-call-invite__decline" disabled={voiceCallResponding} onClick={dismissIncomingVoiceCall} type="button">
+                  {t("layout.voiceCall.decline")}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+        {messageToasts.length > 0 ? (
+          <div className="message-toast-stack" aria-live="polite">
+            {messageToasts.map((toast) => (
+              <div className="message-toast" key={toast.id} role="status">
+                <button className="message-toast__body" onClick={() => void openMessageToast(toast)} type="button">
+                  <strong className="message-toast__sender">{toast.senderName}</strong>
+                  <span className="message-toast__text">{toast.text}</span>
+                </button>
+                <button
+                  aria-label={t("layout.messageToast.dismiss")}
+                  className="message-toast__close"
+                  onClick={() => dismissMessageToast(toast.id)}
+                  type="button"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </>
     );
   }
 
