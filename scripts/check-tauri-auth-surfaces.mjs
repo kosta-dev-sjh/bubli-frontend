@@ -1419,13 +1419,13 @@ assertContains(
 );
 assertContains(
   surfaces,
-  /authenticatedStartupWindowsReady[\s\S]*getWidgetWindowState\(widgetTargetFromInput\(input\)\)[\s\S]*state\.windowVisible/,
-  "launchTauriAuthenticatedSurfaces must verify already-launched widget windows are still visible.",
+  /startupWindowStateIsReady[\s\S]*state\.windowVisible \|\| state\.mode === "MINIMIZED"[\s\S]*authenticatedStartupWindowsReady[\s\S]*getWidgetWindowState\(widgetTargetFromInput\(input\)\)[\s\S]*startupWindowStateIsReady\(input, state\)/,
+  "launchTauriAuthenticatedSurfaces must treat visible or minimized already-launched widget windows as ready.",
 );
 assertContains(
   surfaces,
-  /if \(launchedAuthenticatedSurfaces\) \{[\s\S]*authenticatedStartupWindowsReady\(startupWindows\)[\s\S]*if \(ready\) \{[\s\S]*timeline\.completed = true[\s\S]*return;[\s\S]*\}[\s\S]*launchedAuthenticatedSurfaces = false;[\s\S]*closeAllWidgetWindows\(\)/,
-  "launchTauriAuthenticatedSurfaces must recover stale launched state when login widgets were closed or disappeared.",
+  /getAuthenticatedSurfacesEnabled\(\)[\s\S]*const shouldReuseExistingWindows = launchedAuthenticatedSurfaces \|\| nativeAuthenticatedSurfacesEnabled;[\s\S]*if \(shouldReuseExistingWindows\) \{[\s\S]*authenticatedStartupWindowsReady\(startupWindows\)[\s\S]*if \(startupWindowsReady\) \{[\s\S]*timeline\.completed = true[\s\S]*return;[\s\S]*\}[\s\S]*launchedAuthenticatedSurfaces = false;[\s\S]*closeAllWidgetWindows\(\)/,
+  "launchTauriAuthenticatedSurfaces must reuse ready visible/minimized windows and recover stale native launched state.",
 );
 assertContains(
   surfaces,
@@ -1531,13 +1531,13 @@ assertContains(
 );
 assertContains(
   appShell,
-  /const shellContextReady = state\.kind === "ready"[\s\S]*if \(!shellContextReady \|\| !isTauriRuntime\(\) \|\| runtimeSmokeEnabled\) return;/,
-  "AppShell must launch native surfaces after the authenticated shell is ready and must not block personal widgets when no project room exists.",
+  /const shellContextReady = state\.kind === "ready"[\s\S]*if \(!shellContextReady \|\| !readyUserId \|\| !isTauriRuntime\(\) \|\| runtimeSmokeEnabled\) return;/,
+  "AppShell must launch native surfaces after the authenticated shell and user are ready.",
 );
 assertContains(
   appShell,
-  /void launchTauriAuthenticatedSurfaces\(\{[\s\S]*retryPolicy: "cooldown"[\s\S]*selectedRoomId: launchSelectedRoomId[\s\S]*sessionAlreadyValidated: true[\s\S]*\}\)\.catch/,
-  "AppShell must trigger authenticated native surfaces after shell readiness with auto-launch cooldown and without repeating getMe or room-context lookup.",
+  /void launchTauriAuthenticatedSurfaces\(\{[\s\S]*retryPolicy: "cooldown"[\s\S]*sessionAlreadyValidated: true[\s\S]*\}\)\.catch/,
+  "AppShell must trigger authenticated native surfaces after shell readiness without coupling widget launches to room-tab changes or repeating getMe.",
 );
 assertContains(
   appShell,
@@ -1581,8 +1581,8 @@ assertContains(
 );
 assertContains(
   appShell,
-  /const launchSelectedRoomId = selectedRoomId \?\? getActiveProjectRoomId\(\);[\s\S]*launchTauriAuthenticatedSurfaces\(\{[\s\S]*retryPolicy: "cooldown"[\s\S]*selectedRoomId: launchSelectedRoomId[\s\S]*sessionAlreadyValidated: true/,
-  "AppShell must pass its resolved project-room context, including null personal mode, into Tauri widget launch to avoid duplicate startup context lookups and repeated auto-launch flicker.",
+  /launchTauriAuthenticatedSurfaces\(\{[\s\S]*retryPolicy: "cooldown"[\s\S]*sessionAlreadyValidated: true[\s\S]*\}\)\.catch[\s\S]*\}, \[readyUserId, shellContextReady\]\);/,
+  "AppShell must keep Tauri widget launch independent from room-tab changes to avoid repeated auto-launch flicker.",
 );
 assertContains(
   appShell,
