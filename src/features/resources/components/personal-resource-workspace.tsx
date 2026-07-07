@@ -531,7 +531,7 @@ export function PersonalResourceWorkspace() {
   }, []);
 
   return (
-    <section className={styles.page} aria-label={t("resources.workspace.aria")}>
+    <section className={cn("resource-workspace", styles.page)} aria-label={t("resources.workspace.aria")}>
       <GlassPanel className={styles.shell} padded={false}>
         <header className={styles.header}>
           <h1 className={styles.title}>{t("resources.workspace.title")}</h1>
