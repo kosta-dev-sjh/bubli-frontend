@@ -1293,7 +1293,14 @@ function resolveWidgetContextFromSummary(
   return current ?? { mode: "ROOM", selectedRoomId: requested };
 }
 
-async function readWidgetDisplaySummary(requestedRoomId?: string | null): Promise<WidgetSummaryResponse | null> {
+type WidgetDisplaySummaryReadOptions = {
+  refreshServerOnCacheHit?: boolean;
+};
+
+async function readWidgetDisplaySummary(
+  requestedRoomId?: string | null,
+  options: WidgetDisplaySummaryReadOptions = {},
+): Promise<WidgetSummaryResponse | null> {
   if (isTauriRuntime()) {
     const cacheResult = await readWidgetSummary({
       fetchServerSummary: () => Promise.reject(new Error("local widget summary cache empty")),
@@ -1301,26 +1308,28 @@ async function readWidgetDisplaySummary(requestedRoomId?: string | null): Promis
     }).catch(() => null);
 
     if (cacheResult?.status === "ready") {
-      void readWidgetSummary({ preferLocalCache: false, selectedRoomId: requestedRoomId })
-        .then((serverResult) => {
-          if (serverResult.status !== "failed") return;
-          void tauriCommands
-            .recordWidgetUsageEvent({
-              bubbleType: "bar",
-              eventType: `summary:server-refresh-failed:${serverResult.fallbackReason ?? "unknown"}`,
-              occurredAt: new Date().toISOString(),
-            })
-            .catch(() => undefined);
-        })
-        .catch(() => {
-          void tauriCommands
-            .recordWidgetUsageEvent({
-              bubbleType: "bar",
-              eventType: "summary:server-refresh-error",
-              occurredAt: new Date().toISOString(),
-            })
-            .catch(() => undefined);
-        });
+      if (options.refreshServerOnCacheHit) {
+        void readWidgetSummary({ preferLocalCache: false, selectedRoomId: requestedRoomId })
+          .then((serverResult) => {
+            if (serverResult.status !== "failed") return;
+            void tauriCommands
+              .recordWidgetUsageEvent({
+                bubbleType: "bar",
+                eventType: `summary:server-refresh-failed:${serverResult.fallbackReason ?? "unknown"}`,
+                occurredAt: new Date().toISOString(),
+              })
+              .catch(() => undefined);
+          })
+          .catch(() => {
+            void tauriCommands
+              .recordWidgetUsageEvent({
+                bubbleType: "bar",
+                eventType: "summary:server-refresh-error",
+                occurredAt: new Date().toISOString(),
+              })
+              .catch(() => undefined);
+          });
+      }
       if (widgetSummaryMatchesRequestedRoom(cacheResult.data, requestedRoomId)) {
         return cacheResult.data;
       }
@@ -1885,7 +1894,7 @@ function DesktopWidgetSurface() {
 
     async function loadDisplayApiState() {
       let selectedRoomId = selectedWidgetRoomId;
-      const summary = await readWidgetDisplaySummary(selectedRoomId);
+      const summary = await readWidgetDisplaySummary(selectedRoomId, { refreshServerOnCacheHit: isBubbleBar });
       if (summary?.context) {
         selectedRoomId = selectedRoomId ?? (!widgetContextInitialized ? normalizeWidgetRoomId(summary.context.selectedRoomId) : null);
         if (!cancelled) {
@@ -3009,7 +3018,7 @@ function DesktopWidgetSurface() {
     async (roomId?: string | null) => {
       const selectedRoomId = roomId?.trim() || null;
       const [summaryResult, dashboardResult] = await Promise.allSettled([
-        readWidgetDisplaySummary(selectedRoomId),
+        readWidgetDisplaySummary(selectedRoomId, { refreshServerOnCacheHit: true }),
         widgetDisplayApi.getDashboardWork(),
       ]);
       const summaryTimer =
