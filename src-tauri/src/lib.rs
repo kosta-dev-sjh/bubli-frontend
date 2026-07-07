@@ -10,6 +10,8 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::utils::config::Color;
 use tauri::{
     AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Monitor, PhysicalPosition, Position,
@@ -26,6 +28,9 @@ const WIDGET_WINDOW_LABEL_PREFIX: &str = "bubli-widget";
 const WIDGET_WINDOW_URL: &str = "desktop-widget/";
 const WIDGET_ROOM_CONTEXT_CHANGED_EVENT: &str = "bubli-widget-room-context-changed";
 const MAIN_WINDOW_LABEL: &str = "main";
+const APP_TRAY_ID: &str = "bubli-main-tray";
+const APP_TRAY_SHOW_ID: &str = "bubli-main-show";
+const APP_TRAY_QUIT_ID: &str = "bubli-main-quit";
 const MAIN_WINDOW_DEFAULT_WIDTH: i32 = 1280;
 const MAIN_WINDOW_DEFAULT_HEIGHT: i32 = 820;
 const TAURI_OAUTH_LOOPBACK_BIND: &str = "127.0.0.1:3791";
@@ -189,6 +194,7 @@ impl Default for WidgetWindowStore {
 
 type WidgetState = Mutex<WidgetWindowStore>;
 type AuthenticatedSurfacesState = Mutex<bool>;
+type AppTrayState = Mutex<Option<tauri::tray::TrayIcon>>;
 static WIDGET_READY_WINDOW_LABELS: LazyLock<Mutex<HashSet<String>>> =
     LazyLock::new(|| Mutex::new(HashSet::new()));
 static REGISTERED_WIDGET_SHORTCUT: LazyLock<Mutex<Option<String>>> =
@@ -3851,8 +3857,10 @@ fn normalize_widget_menu_route(route: Option<String>) -> Option<&'static str> {
     }
 }
 
-#[tauri::command]
-fn show_main_window(app: AppHandle, input: Option<MainWindowShowInput>) -> Result<(), String> {
+fn show_main_window_impl(
+    app: &AppHandle,
+    input: Option<MainWindowShowInput>,
+) -> Result<(), String> {
     let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) else {
         return Err("main window not found".to_string());
     };
@@ -3866,6 +3874,70 @@ fn show_main_window(app: AppHandle, input: Option<MainWindowShowInput>) -> Resul
     let _ = window.unminimize();
     window.show().map_err(|error| error.to_string())?;
     window.set_focus().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn show_main_window(app: AppHandle, input: Option<MainWindowShowInput>) -> Result<(), String> {
+    show_main_window_impl(&app, input)
+}
+
+fn hide_main_window_to_tray(app: &AppHandle) -> Result<(), String> {
+    let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) else {
+        return Ok(());
+    };
+
+    window.hide().map_err(|error| error.to_string())
+}
+
+fn setup_main_tray(app: &tauri::App) -> Result<(), String> {
+    let show_item = MenuItem::with_id(app, APP_TRAY_SHOW_ID, "열기", true, None::<&str>)
+        .map_err(|error| error.to_string())?;
+    let quit_item = MenuItem::with_id(app, APP_TRAY_QUIT_ID, "종료", true, None::<&str>)
+        .map_err(|error| error.to_string())?;
+    let menu =
+        Menu::with_items(app, &[&show_item, &quit_item]).map_err(|error| error.to_string())?;
+
+    let mut builder = TrayIconBuilder::with_id(APP_TRAY_ID)
+        .menu(&menu)
+        .tooltip("Bubli")
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app_handle, event| match event.id().as_ref() {
+            APP_TRAY_SHOW_ID => {
+                if let Err(error) = show_main_window_impl(app_handle, None) {
+                    eprintln!("failed to show main window from tray menu: {error}");
+                }
+            }
+            APP_TRAY_QUIT_ID => {
+                app_handle.exit(0);
+            }
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if matches!(
+                event,
+                TrayIconEvent::Click {
+                    button: MouseButton::Left,
+                    button_state: MouseButtonState::Up,
+                    ..
+                }
+            ) {
+                if let Err(error) = show_main_window_impl(tray.app_handle(), None) {
+                    eprintln!("failed to show main window from tray click: {error}");
+                }
+            }
+        });
+
+    if let Some(icon) = app.default_window_icon() {
+        builder = builder.icon(icon.clone());
+    }
+
+    let tray = builder.build(app).map_err(|error| error.to_string())?;
+    let tray_state = app.state::<AppTrayState>();
+    let mut guard = tray_state
+        .lock()
+        .map_err(|_| "app tray state lock failed".to_string())?;
+    *guard = Some(tray);
+    Ok(())
 }
 
 #[tauri::command]
@@ -4529,8 +4601,11 @@ pub fn run() {
         .manage(Mutex::new(AppMonitorPreferenceStore::default()))
         .manage(Mutex::new(WidgetWindowStore::default()))
         .manage(Mutex::new(false))
+        .manage(Mutex::new(None::<tauri::tray::TrayIcon>))
         .manage(local_files::ManagedFolderWatchers::default())
         .setup(|app| {
+            setup_main_tray(app)?;
+
             // Open the on-device SQLite store (folder index, widget usage,
             // activity focus, sync outbox) and expose it as managed state.
             let connection =
@@ -4691,13 +4766,20 @@ pub fn run() {
         }
         tauri::RunEvent::WindowEvent { label, event, .. }
             if label == MAIN_WINDOW_LABEL
-                && matches!(
-                    event,
-                    tauri::WindowEvent::CloseRequested { .. } | tauri::WindowEvent::Destroyed
-                ) =>
+                && matches!(event, tauri::WindowEvent::CloseRequested { .. }) =>
         {
-            destroy_all_widget_windows(app_handle);
-            app_handle.exit(0);
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                if let Err(error) = hide_main_window_to_tray(app_handle) {
+                    eprintln!("failed to hide main window to tray: {error}");
+                }
+            }
+        }
+        #[cfg(target_os = "macos")]
+        tauri::RunEvent::Reopen { .. } => {
+            if let Err(error) = show_main_window_impl(app_handle, None) {
+                eprintln!("failed to show main window on app reopen: {error}");
+            }
         }
         tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit => {
             let state = app_handle.state::<WidgetState>();
