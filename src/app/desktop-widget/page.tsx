@@ -3329,12 +3329,30 @@ function DesktopWidgetSurface() {
     });
   }, [isBubbleBar, widgetSessionReady]);
 
+  // 상대(발신자)에게 거절/타임아웃을 알려야 마이크가 켜진 채로 대기하는 발신자 화면을 자동으로 끊을 수 있다.
+  // createVoiceRoom("있으면 join, 없으면 create")으로 방 id를 구하면, 타이밍 등으로 기존 방을
+  // 못 찾을 때 새 방을 만들어버려(그리고 "통화를 시작했습니다" 알림까지 잘못 나가) 거절 신호
+  // 자체가 새어나갔다. 부작용 없는 조회 전용 엔드포인트로 방 id만 가져온다.
+  const notifyIncomingVoiceCallDeclined = useCallback((call: { chatRoomId: string }) => {
+    void widgetCommunicationApi
+      .getOpenVoiceRoomByChatRoomId(call.chatRoomId)
+      .then((room) => widgetCommunicationApi.declineVoiceRoom(room.id))
+      .catch(() => undefined);
+  }, []);
+
   // 전화처럼 일정 시간 응답이 없으면 자동으로 닫는다.
+  // 타임아웃도 명시적 거절과 동일하게 발신자에게 알려야 한다 — 그냥 로컬 상태만 지우면 수신자
+  // 화면에서는 팝업이 사라졌는데 발신자는 계속 "전화를 거는 중이에요"에 갇히는 버그가 생긴다.
   useEffect(() => {
     if (!incomingVoiceCall) return;
-    const timeoutId = window.setTimeout(() => setIncomingVoiceCall(null), 30_000);
+    const call = incomingVoiceCall;
+    const timeoutId = window.setTimeout(() => {
+      notifyIncomingVoiceCallDeclined(call);
+      void notificationApi.markRead(call.notificationId).catch(() => undefined);
+      setIncomingVoiceCall(null);
+    }, 30_000);
     return () => window.clearTimeout(timeoutId);
-  }, [incomingVoiceCall]);
+  }, [incomingVoiceCall, notifyIncomingVoiceCallDeclined]);
 
   // 수신 전화 UI가 떠 있는 동안 통화음을 반복 재생한다(응답/거절/타임아웃 시 정지).
   useEffect(() => {
@@ -3364,17 +3382,10 @@ function DesktopWidgetSurface() {
   const dismissIncomingVoiceCall = useCallback(() => {
     if (!incomingVoiceCall) return;
     const call = incomingVoiceCall;
-    // 상대(발신자)에게 거절했음을 알려야 마이크가 켜진 채로 대기하는 발신자 화면을 자동으로 끊을 수 있다.
-    // createVoiceRoom("있으면 join, 없으면 create")으로 방 id를 구하면, 타이밍 등으로 기존 방을
-    // 못 찾을 때 새 방을 만들어버려(그리고 "통화를 시작했습니다" 알림까지 잘못 나가) 거절 신호
-    // 자체가 새어나갔다. 부작용 없는 조회 전용 엔드포인트로 방 id만 가져온다.
-    void widgetCommunicationApi
-      .getOpenVoiceRoomByChatRoomId(call.chatRoomId)
-      .then((room) => widgetCommunicationApi.declineVoiceRoom(room.id))
-      .catch(() => undefined);
+    notifyIncomingVoiceCallDeclined(call);
     void notificationApi.markRead(call.notificationId).catch(() => undefined);
     setIncomingVoiceCall(null);
-  }, [incomingVoiceCall]);
+  }, [incomingVoiceCall, notifyIncomingVoiceCallDeclined]);
 
   const acceptIncomingVoiceCall = useCallback(async () => {
     if (!incomingVoiceCall || voiceCallResponding) return;
