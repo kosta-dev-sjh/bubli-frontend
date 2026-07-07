@@ -604,6 +604,8 @@
 .timelineRow,
 .memoRow,
 .chatHead,
+.chatScreenHead,
+.chatFriendRow,
 .handoffBubble,
 .chatPeople,
 .voiceStrip,
@@ -622,6 +624,8 @@
 .timelineRow,
 .memoRow,
 .chatHead,
+.chatScreenHead,
+.chatFriendRow,
 .handoffBubble,
 .agentCandidateRow {
   display: grid;
@@ -2178,7 +2182,138 @@
   background: color-mix(in srgb, var(--acc) 16%, transparent);
 }
 
+/* 소통 위젯 — 1:1/그룹 ↔ 프로젝트룸 모드 스위처 여백 */
+.chatModeSwitch {
+  margin-bottom: 2px;
+}
+
+/* 소통 위젯 — 목록 화면 상단 "새 대화"/"친구" 버튼 줄 */
+.chatListActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.chatListActionButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 0 11px;
+  border: 1px solid var(--widget-hairline);
+  border-radius: 999px;
+  color: var(--widget-muted);
+  background: color-mix(in srgb, var(--acc) 6%, transparent);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.chatListActionButton:hover {
+  color: var(--acc-ink);
+  border-color: color-mix(in srgb, var(--acc) 30%, transparent);
+  background: color-mix(in srgb, var(--acc) 12%, transparent);
+}
+
+.chatListActionButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* 소통 위젯 — 새 대화/친구 관리 화면 상단 헤더(뒤로가기 + 제목) */
+.chatScreenHead {
+  font-weight: 800;
+  color: var(--widget-text);
+}
+
+/* 소통 위젯 — 친구/방/요청 행(아바타 + 이름 + 액션) */
+.chatFriendRow {
+  padding: 6px 10px;
+}
+
+.chatFriendRow span:first-child {
+  min-width: 0;
+}
+
+.chatFriendRow > span:nth-child(2) {
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+/* 소통 위젯 — 그룹 이름 입력 / 친구 검색 입력 */
+.groupNameField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--widget-muted);
+}
+
+.groupNameField input {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--widget-hairline);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--widget-text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* 검색창처럼 입력+버튼이 한 줄에 오는 경우 */
+.groupNameField:has(button) {
+  flex-direction: row;
+  align-items: center;
+}
+
+.groupNameField:has(button) input {
+  flex: 1;
+  min-width: 0;
+}
+
+.groupNameField button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--widget-hairline);
+  border-radius: 10px;
+  color: var(--widget-muted);
+  background: color-mix(in srgb, var(--acc) 6%, transparent);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* 소통 위젯 — 친구 관리 화면 섹션 카드 */
+.socialCard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--widget-hairline);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.socialKicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--widget-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
 .chatHead button,
+.chatBackButton,
 .voiceStrip button,
 .reactionDock button,
 .itemActions button,
@@ -2195,6 +2330,7 @@
 }
 
 .chatHead button:hover,
+.chatBackButton:hover,
 .voiceStrip button:hover,
 .reactionDock button:hover,
 .itemActions button:hover,
@@ -2243,6 +2379,7 @@
 }
 
 .chatHead button,
+.chatBackButton,
 .voiceStrip button {
   width: 26px;
   height: 26px;
