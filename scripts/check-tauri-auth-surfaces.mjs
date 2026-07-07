@@ -763,13 +763,13 @@ assertContains(
 );
 assertContains(
   firstRunController,
-  /const triggerOnboardingOverlay = useCallback\(\(\) => \{[\s\S]*if \(!isMacTauriRuntime\(\)\) return false;[\s\S]*tauriCommands\.openOnboardingOverlay\(\)[\s\S]*return true;/,
-  "First-run onboarding must only open the native overlay through the macOS-only guard.",
+  /const openWidgetTutorial = useCallback\(\(\) => \{[\s\S]*if \(isMacTauriRuntime\(\)\) \{[\s\S]*tauriCommands\.openOnboardingOverlay\(\)[\s\S]*\}[\s\S]*setPhase\("widget"\);/,
+  "First-run onboarding must open the native full-monitor overlay only inside the macOS-only guard; non-macOS must fall back to the in-app widget tutorial.",
 );
 assertContains(
   firstRunController,
-  /const showTour = useCallback\(\(\) => \{[\s\S]*if \(triggerOnboardingOverlay\(\)\)[\s\S]*setPhase\("tour"\)/,
-  "Windows Tauri must fall back to the in-app tour instead of opening the macOS desktop onboarding overlay.",
+  /if \(phase === "widget"\) \{[\s\S]*<WidgetTutorial/,
+  "Windows Tauri and web must render the in-app WidgetTutorial modal instead of opening the macOS desktop onboarding overlay.",
 );
 assertContains(
   runtimeSmokeRunner,

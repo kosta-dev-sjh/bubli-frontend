@@ -20,8 +20,10 @@ export type StoredOnboarding = {
   completedAt: string;
   /** 선택한 직군. 건너뛰었으면 null. */
   role: OnboardingRole | null;
-  /** 튜토리얼(코치 마크)을 끝낸 시각. 아직이면 null. */
+  /** 회원사이트 튜토리얼(코치 마크)을 끝낸 시각. 아직이면 null. */
   tutorialCompletedAt: string | null;
+  /** 위젯 전용 튜토리얼(전체화면)을 끝낸 시각. 아직이면 null. 회원사이트 튜토리얼과 독립적으로 추적한다. */
+  widgetTutorialCompletedAt: string | null;
   userId: string;
 };
 
@@ -48,6 +50,8 @@ export function readStoredOnboarding(): StoredOnboarding | null {
       completedAt: parsed.completedAt,
       role: isOnboardingRole(parsed.role) ? parsed.role : null,
       tutorialCompletedAt: typeof parsed.tutorialCompletedAt === "string" ? parsed.tutorialCompletedAt : null,
+      widgetTutorialCompletedAt:
+        typeof parsed.widgetTutorialCompletedAt === "string" ? parsed.widgetTutorialCompletedAt : null,
       userId: parsed.userId,
     };
   } catch {
@@ -73,20 +77,38 @@ export function hasCompletedOnboarding(userId: string) {
 // 직군 온보딩 완료(적용/건너뛰기 공통). 같은 사용자의 튜토리얼 기록은 유지한다.
 export function completeOnboarding(userId: string, role: OnboardingRole | null) {
   const stored = readStoredOnboarding();
+  const same = stored?.userId === userId;
   writeStoredOnboarding({
     completedAt: new Date().toISOString(),
     role,
-    tutorialCompletedAt: stored?.userId === userId ? stored.tutorialCompletedAt : null,
+    tutorialCompletedAt: same ? stored.tutorialCompletedAt : null,
+    widgetTutorialCompletedAt: same ? stored.widgetTutorialCompletedAt : null,
     userId,
   });
 }
 
+// 회원사이트 튜토리얼(코치 마크) 완료. 위젯 튜토리얼 기록은 유지한다.
 export function completeTutorial(userId: string) {
   const stored = readStoredOnboarding();
+  const same = stored?.userId === userId;
   writeStoredOnboarding({
-    completedAt: stored?.userId === userId ? stored.completedAt : new Date().toISOString(),
-    role: stored?.userId === userId ? stored.role : null,
+    completedAt: same ? stored.completedAt : new Date().toISOString(),
+    role: same ? stored.role : null,
     tutorialCompletedAt: new Date().toISOString(),
+    widgetTutorialCompletedAt: same ? stored.widgetTutorialCompletedAt : null,
+    userId,
+  });
+}
+
+// 위젯 전용 튜토리얼 완료. 회원사이트 튜토리얼 기록은 유지한다.
+export function completeWidgetTutorial(userId: string) {
+  const stored = readStoredOnboarding();
+  const same = stored?.userId === userId;
+  writeStoredOnboarding({
+    completedAt: same ? stored.completedAt : new Date().toISOString(),
+    role: same ? stored.role : null,
+    tutorialCompletedAt: same ? stored.tutorialCompletedAt : null,
+    widgetTutorialCompletedAt: new Date().toISOString(),
     userId,
   });
 }

@@ -25,12 +25,12 @@ type TourStepDef = {
   titleKey: MessageKey;
 };
 
+// 회원사이트 전용 코치 마크 — 위젯 설명은 별도의 위젯 튜토리얼(전체화면)로 분리했다.
 const TOUR_STEPS: TourStepDef[] = [
   { bodyKey: "tour.sidebar.body", selector: '[data-tour="sidebar"]', titleKey: "tour.sidebar.title" },
   { bodyKey: "tour.roomSwitcher.body", selector: '[data-tour="room-switcher"]', titleKey: "tour.roomSwitcher.title" },
   { bodyKey: "tour.cardEdit.body", selector: '[data-tour="card-edit"]', titleKey: "tour.cardEdit.title" },
   { bodyKey: "tour.agent.body", selector: '[data-tour="agent-nav"]', titleKey: "tour.agent.title" },
-  { bodyKey: "tour.desktop.body", selector: null, titleKey: "tour.desktop.title" },
 ];
 
 // 홈 이동 직후(설정 > 다시 보기) 카드 편집 버튼처럼 늦게 나타나는 대상을 기다린다.
