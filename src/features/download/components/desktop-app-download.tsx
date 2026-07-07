@@ -11,7 +11,7 @@ import styles from "./desktop-app-download.module.css";
 
 type DetectedOs = "mac" | "windows" | "other";
 
-const MAC_FALLBACK_HREF = "/downloads/macos/Bubli-macOS-0.1.0-arm64.dmg";
+const MAC_FALLBACK_HREF = "/downloads/macos/Bubli-macOS-0.1.1-arm64.dmg";
 const WINDOWS_FALLBACK_HREF = "/downloads/windows/Bubli-Windows-latest.exe";
 
 function detectOs(): DetectedOs {

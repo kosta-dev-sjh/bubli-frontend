@@ -1,6 +1,6 @@
 [package]
 name = "bubli"
-version = "0.1.0"
+version = "0.1.1"
 description = "Bubli desktop app"
 authors = ["Project Hae Maeil"]
 edition = "2021"
