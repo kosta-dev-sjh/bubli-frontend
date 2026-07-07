@@ -1601,13 +1601,13 @@ assertContains(
 );
 assertContains(
   projectRoomChatRoute,
-  /isTauriRuntime\(\)[\s\S]*openTauriChatWidget\(\{[\s\S]*eventType: "handoff:room-chat-route"[\s\S]*roomId/,
-  "Project-room chat route must bridge to the chat widget in Tauri.",
+  /router\.replace\(`\/app\/chat\?mode=room&roomId=\$\{encodeURIComponent\(roomId\)\}`\)/,
+  "Project-room chat route must open the communication tab directly, matching the web app (no widget handoff).",
 );
-assertContains(
+assertNotContains(
   appChat,
-  /isTauriRuntime\(\)[\s\S]*openTauriChatWidget\(\{[\s\S]*eventType: "handoff:chat-route"[\s\S]*router\.replace\(fallbackRoute\)/,
-  "Direct /app/chat in Tauri must hand off to the chat widget and leave the chat page.",
+  /openTauriChatWidget\(\{[\s\S]*eventType: "handoff:chat-route"/,
+  "/app/chat must stay on the communication tab in the hybrid Tauri app instead of handing off to the widget, matching the web app.",
 );
 
 assertContains(
