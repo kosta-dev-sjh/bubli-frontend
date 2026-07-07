@@ -1588,6 +1588,28 @@ export async function startWidgetWindowDragging(): Promise<void> {
   await getCurrentWebviewWindow().startDragging();
 }
 
+// 고스트 창을 콘텐츠 크기에 맞춰 조절한다 — 타이머 이름/숫자가 줄바꿈으로 잘리지 않고
+// 한 줄로 다 보이도록 창이 콘텐츠만큼 커진다. 고스트 창은 min==max로 잠겨 있으므로
+// 잠깐 풀었다가 새 크기로 다시 잠근다(apply_widget_window_state와 같은 순서, macOS 조용한 실패 방지).
+// 폭주 방지를 위해 [180,520]px로 클램프한다. 브라우저 미리보기에서는 no-op.
+export async function autoSizeGhostWidgetWindow(width: number, height: number): Promise<void> {
+  if (!isTauriRuntime()) return;
+  const w = Math.min(Math.max(Math.round(width), 180), 520);
+  const h = Math.min(Math.max(Math.round(height), 120), 520);
+  try {
+    const { getCurrentWebviewWindow } = await import("@tauri-apps/api/webviewWindow");
+    const { LogicalSize } = await import("@tauri-apps/api/dpi");
+    const win = getCurrentWebviewWindow();
+    const size = new LogicalSize(w, h);
+    await win.setMinSize(null);
+    await win.setMaxSize(size);
+    await win.setMinSize(size);
+    await win.setSize(size);
+  } catch {
+    // 창 API 접근 실패는 무시한다(다음 렌더/리사이즈 관찰에서 다시 시도).
+  }
+}
+
 export async function readCurrentTauriWindowMonitorState(): Promise<CurrentTauriWindowMonitorState | null> {
   if (!isTauriRuntime()) return null;
 

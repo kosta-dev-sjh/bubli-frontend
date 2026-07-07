@@ -75,7 +75,7 @@ import {
   type WidgetTimerKind,
   type WidgetTimerMode,
 } from "@/lib/widget/widget-pref-client";
-import { isWidgetWindowDragLocked, readCurrentTauriWindowMonitorState, startWidgetWindowDragging, tauriCommands, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
+import { autoSizeGhostWidgetWindow, isWidgetWindowDragLocked, readCurrentTauriWindowMonitorState, startWidgetWindowDragging, tauriCommands, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import { isMacTauriRuntime } from "@/lib/tauri/platform";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
@@ -3034,6 +3034,7 @@ function GhostSignal({
   const { t } = useI18n();
   const isTimer = bubbleType === "timer";
   const [timerMode, setTimerMode] = useState<WidgetTimerMode | null>(null);
+  const [pomodoroRunning, setPomodoroRunning] = useState(false);
   const roomId = bubble.roomId?.trim() || null;
   const resolvedTimerMode = timerModeOverride ?? timerMode;
 
@@ -3049,12 +3050,35 @@ function GhostSignal({
     };
   }, [isTimer, roomId, timerModeOverride]);
 
-  // 선택한 탭을 그대로 반영: 시계→시계, 뽀모도로→뽀모도로, 그 외→지표.
+  // 뽀모도로가 실제로 돌고 있는지 저장 상태에서 확인한다. 돌고 있으면 탭 상태와 무관하게
+  // 고스트에서도 그 카운트다운 숫자를 보여준다("고스트에서 뽀모도로 숫자가 안 보인다" 방지).
+  useEffect(() => {
+    if (!isTimer) return;
+    let cancelled = false;
+    const check = () => {
+      void readPomodoroState(roomId).then((stored) => {
+        if (!cancelled) setPomodoroRunning(Boolean(stored?.running));
+      });
+    };
+    check();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") check();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [isTimer, roomId]);
+
+  // 선택한 탭을 그대로 반영하되, 뽀모도로가 돌고 있으면 우선 뽀모도로 카운트다운을 보여준다.
+  if (isTimer && (resolvedTimerMode === "pomodoro" || pomodoroRunning)) {
+    return <GhostPomodoro roomId={roomId} />;
+  }
   if (isTimer && resolvedTimerMode === "clock") {
     return <GhostClock />;
-  }
-  if (isTimer && resolvedTimerMode === "pomodoro") {
-    return <GhostPomodoro roomId={roomId} />;
   }
   // 작업/개인 카운트업 타이머: 고스트에서도 평소처럼 초 단위로 살아 움직여야 한다(정적 숫자 금지).
   if (isTimer) {
@@ -3159,6 +3183,24 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
   const activeRoomLabel = t(activeData.roomLabel as MessageKey);
   const showHeaderContextLabel = activeBubble !== "alert";
   const shellRef = useRef<HTMLElement | null>(null);
+  // 고스트 콘텐츠를 감싸 실제 렌더 크기를 재고, 그 크기에 맞춰 창을 조절한다(줄바꿈 없이 다 보이게).
+  const ghostContentRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (isPreview || mode !== "GHOST") return;
+    const el = ghostContentRef.current;
+    if (!el) return;
+    const measure = () => {
+      // nowrap 콘텐츠의 자연 크기(scrollWidth/Height). 숫자 외곽선·그림자 여백을 조금 더한다.
+      void autoSizeGhostWidgetWindow(el.scrollWidth + 44, el.scrollHeight + 36);
+    };
+    const raf = window.requestAnimationFrame(measure);
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      observer.disconnect();
+    };
+  }, [isPreview, mode, activeBubble]);
   const [timerModeForGhost, setTimerModeForGhost] = useState<WidgetTimerMode | null>(null);
   const { onResizePointerDown, onResizePointerEnd, onResizePointerMove, resizing } = useBubbleWindowResize(
     activeBubble,
@@ -3317,7 +3359,9 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
             ) : null}
 
             {mode === "GHOST" ? (
-              <GhostSignal bubble={activeData} bubbleType={activeBubble} timerModeOverride={timerModeForGhost} />
+              <div className={styles.ghostContent} ref={ghostContentRef}>
+                <GhostSignal bubble={activeData} bubbleType={activeBubble} timerModeOverride={timerModeForGhost} />
+              </div>
             ) : (
               <BubbleBody
                 bubble={activeData}
