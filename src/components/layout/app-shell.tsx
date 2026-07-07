@@ -610,7 +610,8 @@ export function AppShell({ children }: AppShellProps) {
       }
 
       // 탭이 숨겨졌거나 창이 포커스를 잃은 상태(다른 작업 중)면 OS 알림으로도 띄운다.
-      if (typeof window === "undefined" || !("Notification" in window)) {
+      // 데스크탑 앱에서는 위젯 바 창이 네이티브 팝업을 단독으로 담당하므로 여기서는 웹만 맡는다(중복 방지).
+      if (isTauriRuntime() || typeof window === "undefined" || !("Notification" in window)) {
         return;
       }
       const userIsElsewhere = document.visibilityState === "hidden" || !document.hasFocus();
@@ -928,6 +929,10 @@ export function AppShell({ children }: AppShellProps) {
     if (prev !== null && unreadNotificationCount > prev) {
       playNotificationSound();
     }
+    // 데스크탑 앱 아이콘 배지(맥 독 숫자 / 윈도우 오버레이 점)도 함께 갱신한다.
+    if (isTauriRuntime()) {
+      void tauriCommands.setAppBadgeCount(unreadNotificationCount).catch(() => undefined);
+    }
   }, [unreadNotificationCount, state.kind]);
 
   const topbarProject = useMemo(() => {
@@ -1039,6 +1044,24 @@ export function AppShell({ children }: AppShellProps) {
         : current,
     );
     void notificationApi.markAllRead().catch(() => undefined);
+  }
+
+  function handleArchiveAllNotifications() {
+    // 낙관적으로 목록을 비우고 서버에 일괄 보관을 요청한다. 실패는 다음 로드에서 복구된다.
+    setState((current) =>
+      current.kind === "ready"
+        ? {
+            ...current,
+            notifications: current.notifications.map((item) =>
+              item.status === "ARCHIVED" ? item : { ...item, status: "ARCHIVED" as const },
+            ),
+          }
+        : current,
+    );
+    void notificationApi
+      .archiveAll()
+      .then(() => notifyDataChanged("notification", { source: "app-shell" }))
+      .catch(() => undefined);
   }
 
   // MESSAGE 알림의 sourceId는 항상 chat_rooms.id(채팅방 ID)다 — 프로젝트룸 채팅이면
@@ -1313,6 +1336,7 @@ export function AppShell({ children }: AppShellProps) {
                 items={notifications}
                 onAcceptInvitation={(invitation) => void handleAcceptInvitation(invitation)}
                 onArchive={handleArchiveNotification}
+                onArchiveAll={handleArchiveAllNotifications}
                 onMarkAllRead={handleMarkAllNotificationsRead}
                 onMarkRead={handleMarkNotificationRead}
                 onOpen={(notification) => void handleOpenNotification(notification)}

@@ -3,7 +3,7 @@
 import { Check, Copy } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 
 import { ThemeToggle } from "@/components/theme";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,7 @@ import {
   restoreLocalSqliteBackup,
 } from "@/lib/local/local-cache-client";
 import {
+  deletePersonalFolderResourcesOnServer,
   getPersonalLocalFileAnalysisStatus,
   getPersonalManagedFolderIndexProgress,
   listPersonalManagedFolders,
@@ -307,6 +308,12 @@ export default function SettingsPage() {
   );
   // dev 이식: 관리 폴더별 인덱싱 진행률 캐시(로컬 폴더 감시 진행률).
   const [folderProgress, setFolderProgress] = useState<Record<string, ManagedFolderIndexProgressResult>>({});
+  // 폴더 해제는 2단계 확인으로 진행한다(계정 탈퇴와 같은 패턴) —
+  // 남는 것(자료보드의 업로드 자료)과 멈추는 것(로컬 감시·색인)을 먼저 알려주고 확인받는다.
+  const [confirmingRemoveFolderId, setConfirmingRemoveFolderId] = useState<string | null>(null);
+  // "서버에 올라간 이 폴더의 자료도 함께 삭제" 체크 — 기본은 꺼짐(자료 보존이 기본 정책).
+  const [removeServerResourcesToo, setRemoveServerResourcesToo] = useState(false);
+  const [removingFolderId, setRemovingFolderId] = useState<string | null>(null);
   const [copiedBubliId, setCopiedBubliId] = useState(false);
   const [withdrawConfirming, setWithdrawConfirming] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
@@ -889,28 +896,70 @@ export default function SettingsPage() {
     [refreshManagedFolderProgress, restoreManagedFolderWatchers, state, t, updateReadyState],
   );
 
+  // 폴더 연결 해제 정책:
+  // - 기본: 서버에 이미 올라간 자료는 자료보드에 그대로 남기고, 로컬 감시와 색인만 중단한다.
+  // - "함께 삭제" 선택 시: 이 폴더 출처로 업로드된 개인 자료를 서버에서 일괄 삭제한다(항목별 최선 노력).
   const removeManagedFolder = useCallback(
-    async (folder: ManagedFolderResponse) => {
+    async (folder: ManagedFolderResponse, options?: { deleteServerResources?: boolean }) => {
       const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.localFolderEnabled) : false;
-      const result = await removePersonalManagedFolder({ consentGranted, localFolderId: folder.id });
-      if (result.status !== "ready") {
-        setMessage({ text: localResultMessage(t, result), tone: "warning" });
-        return;
-      }
+      setRemovingFolderId(folder.id);
+      try {
+        const result = await removePersonalManagedFolder({ consentGranted, localFolderId: folder.id });
+        if (result.status !== "ready") {
+          setMessage({ text: localResultMessage(t, result), tone: "warning" });
+          return;
+        }
 
-      updateReadyState((ready) => ({
-        ...ready,
-        settings: {
-          ...ready.settings,
-          folders: ready.settings.folders.filter((item) => item.id !== folder.id),
-        },
-      }));
-      setFolderProgress((current) => {
-        const next = { ...current };
-        delete next[folder.id];
-        return next;
-      });
-      setMessage({ text: t("settings.msg.folderRemoved"), tone: "approved" });
+        updateReadyState((ready) => ({
+          ...ready,
+          settings: {
+            ...ready.settings,
+            folders: ready.settings.folders.filter((item) => item.id !== folder.id),
+          },
+        }));
+        setFolderProgress((current) => {
+          const next = { ...current };
+          delete next[folder.id];
+          return next;
+        });
+        setConfirmingRemoveFolderId(null);
+        setRemoveServerResourcesToo(false);
+
+        // 기본 동작 — 업로드된 자료는 자료보드에 남는다는 사실을 완료 메시지로 명시한다.
+        if (!options?.deleteServerResources) {
+          setMessage({ text: t("settings.msg.folderRemovedKeepUploads"), tone: "approved" });
+          return;
+        }
+
+        // 함께 삭제 — 폴더 경로 접두어로 이 폴더 출처의 개인 자료를 골라 서버에서 지운다.
+        if (!folder.localPath) {
+          setMessage({ text: t("settings.msg.folderRemovedDeleteUnavailable"), tone: "warning" });
+          return;
+        }
+
+        const cleanup = await deletePersonalFolderResourcesOnServer({ folderPath: folder.localPath });
+        if (cleanup.status !== "ready") {
+          setMessage({ text: localResultMessage(t, cleanup), tone: "warning" });
+          return;
+        }
+
+        setMessage(
+          cleanup.data.failedCount > 0
+            ? {
+                text: t("settings.msg.folderRemovedDeletePartial", {
+                  deleted: cleanup.data.deletedCount,
+                  failed: cleanup.data.failedCount,
+                }),
+                tone: "warning",
+              }
+            : {
+                text: t("settings.msg.folderRemovedDeleted", { deleted: cleanup.data.deletedCount }),
+                tone: "approved",
+              },
+        );
+      } finally {
+        setRemovingFolderId(null);
+      }
     },
     [state, t, updateReadyState],
   );
@@ -1756,10 +1805,17 @@ export default function SettingsPage() {
                 )}
 
                 <h3 className={styles.subhead}>{t("settings.desktop.folders")}</h3>
+                {/* 재연동 정책 안내 — 폴더는 각각 따로 색인되고, 다른 폴더로 바꿔도 올라간 자료는 남는다. */}
+                <p className={styles.sectionDesc}>{t("settings.folders.reconnectPolicy")}</p>
                 <div className={styles.rows}>
                   {managedFolders.length > 0 ? (
-                    managedFolders.map((folder) => (
-                      <div className={styles.row} key={folder.id}>
+                    managedFolders.map((folder) => {
+                      const confirmingRemove = confirmingRemoveFolderId === folder.id;
+                      const removing = removingFolderId === folder.id;
+
+                      return (
+                      <Fragment key={folder.id}>
+                      <div className={styles.row}>
                         <div className={styles.rowText}>
                           <strong>{folder.name}</strong>
                           <p>
@@ -1791,12 +1847,68 @@ export default function SettingsPage() {
                           <Button onClick={() => void scanManagedFolder(folder.id)} size="sm" type="button" variant="quiet">
                             {t("settings.folders.scan")}
                           </Button>
-                          <Button onClick={() => void removeManagedFolder(folder)} size="sm" type="button" variant="quiet">
+                          {/* 해제는 바로 실행하지 않고 아래 확인 상자를 먼저 연다(2단계 확인). */}
+                          <Button
+                            aria-expanded={confirmingRemove}
+                            disabled={removing}
+                            onClick={() => {
+                              setConfirmingRemoveFolderId(confirmingRemove ? null : folder.id);
+                              setRemoveServerResourcesToo(false);
+                            }}
+                            size="sm"
+                            type="button"
+                            variant="quiet"
+                          >
                             {t("settings.folders.disconnect")}
                           </Button>
                         </div>
                       </div>
-                    ))
+                      {confirmingRemove ? (
+                        <div
+                          aria-label={`${folder.name} ${t("settings.folders.disconnect")}`}
+                          className={styles.folderConfirm}
+                          role="group"
+                        >
+                          <p>{t("settings.folders.disconnectConfirmBody")}</p>
+                          <label className={styles.folderConfirmCheck}>
+                            <input
+                              checked={removeServerResourcesToo}
+                              disabled={removing}
+                              onChange={(event) => setRemoveServerResourcesToo(event.target.checked)}
+                              type="checkbox"
+                            />
+                            <span>{t("settings.folders.disconnectDeleteServer")}</span>
+                          </label>
+                          <div className={styles.folderConfirmActions}>
+                            <Button
+                              loading={removing}
+                              onClick={() =>
+                                void removeManagedFolder(folder, { deleteServerResources: removeServerResourcesToo })
+                              }
+                              size="sm"
+                              type="button"
+                              variant="primary"
+                            >
+                              {t("settings.folders.disconnectConfirm")}
+                            </Button>
+                            <Button
+                              disabled={removing}
+                              onClick={() => {
+                                setConfirmingRemoveFolderId(null);
+                                setRemoveServerResourcesToo(false);
+                              }}
+                              size="sm"
+                              type="button"
+                              variant="quiet"
+                            >
+                              {t("common.cancel")}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : null}
+                      </Fragment>
+                      );
+                    })
                   ) : (
                     <p className={styles.emptyRow}>{t("settings.folders.noFolder")}</p>
                   )}

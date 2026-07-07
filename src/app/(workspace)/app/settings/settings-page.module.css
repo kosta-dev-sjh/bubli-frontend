@@ -91,6 +91,7 @@
 }
 
 .navLink {
+  overflow-wrap: anywhere;
   border: 0;
   border-radius: 12px;
   padding: 10px 13px;
@@ -135,15 +136,13 @@
 }
 
 /* 섹션 전환 — 새 패널이 마운트될 때 짧게 떠오른다. 레이아웃 점프 없이 opacity/transform만 사용. */
+/* 이동(transform) 애니메이션은 유리 패널의 overflow hidden과 겹쳐 글자를 잘라 보이게 해서 opacity만 쓴다. */
 @keyframes settings-panel-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
   }
-
   to {
     opacity: 1;
-    transform: none;
   }
 }
 
@@ -247,6 +246,52 @@
   font-weight: 700;
   overflow-wrap: anywhere;
   text-align: right;
+}
+
+/* 폴더 해제 2단계 확인 상자 — 해제 행 바로 아래에서
+   "남는 것(자료보드 자료)"과 "지울 수 있는 것(서버 자료)"을 확인받는다. */
+.folderConfirm {
+  display: grid;
+  gap: 10px;
+  margin: 4px 0 12px;
+  padding: 13px 15px;
+  border: 1px solid var(--settings-hairline);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.folderConfirm p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 640;
+  line-height: 1.55;
+  word-break: keep-all;
+}
+
+.folderConfirmCheck {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-muted);
+  font-size: 13.5px;
+  font-weight: 620;
+  line-height: 1.5;
+  cursor: pointer;
+  word-break: keep-all;
+}
+
+.folderConfirmCheck input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: #6fb8f2;
+}
+
+.folderConfirmActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .sectionFoot {
@@ -413,6 +458,16 @@
   color: var(--ink);
 }
 
+[data-theme="dark"] .consentBadge {
+  background: rgba(142, 205, 246, 0.2);
+  color: #cfe6f8;
+}
+
+[data-theme="dark"] .consentBadge[data-on="false"] {
+  background: rgba(232, 196, 160, 0.22);
+  color: #f0dcc4;
+}
+
 .guard,
 .emptyRow {
   margin: 0;
@@ -475,6 +530,19 @@
 
 :global([data-theme="dark"]) .row {
   border-bottom-color: rgba(150, 170, 215, 0.16);
+}
+
+:global([data-theme="dark"]) .folderConfirm {
+  border-color: rgba(150, 170, 215, 0.24);
+  background: rgba(28, 39, 61, 0.42);
+}
+
+:global([data-theme="dark"]) .folderConfirm p {
+  color: rgba(232, 240, 250, 0.94);
+}
+
+:global([data-theme="dark"]) .folderConfirmCheck {
+  color: rgba(176, 190, 208, 0.78);
 }
 
 :global([data-theme="dark"]) .emptyRow {

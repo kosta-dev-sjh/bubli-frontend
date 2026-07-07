@@ -147,6 +147,9 @@ const ko = {
   "resources.workspace.syncDescWeb": "개인 파일은 데스크탑 앱에서 폴더를 연결해 불러옵니다.",
   "resources.workspace.localFolderCount": "연결된 로컬 폴더 {count}개",
   "resources.workspace.localFolderNone": "연결된 로컬 폴더가 없습니다.",
+  // 재연동 정책 안내 — 폴더마다 따로 색인되고, 폴더를 바꿔도 올라간 자료는 남는다.
+  "resources.workspace.localFolderReconnectHint":
+    "폴더마다 따로 색인됩니다. 다른 폴더로 바꿔 연결해도 이미 올라간 자료는 자료보드에 남고, 새 폴더는 새로 색인됩니다.",
   "resources.workspace.emptyPersonalTitleTauri": "색인된 개인 자료가 없습니다",
   "resources.workspace.emptyPersonalTitleWeb": "연결된 개인 자료가 없습니다",
   "resources.workspace.emptyPersonalDescTauri": "폴더를 연결하거나 스캔하면 여기에 표시됩니다.",
@@ -340,6 +343,8 @@ const en: Record<Key, string> = {
   "resources.workspace.syncDescWeb": "Personal files are loaded by connecting a folder in the desktop app.",
   "resources.workspace.localFolderCount": "{count} local folders connected",
   "resources.workspace.localFolderNone": "No local folders connected.",
+  "resources.workspace.localFolderReconnectHint":
+    "Each folder is indexed separately. Switching to another folder keeps uploaded files on the board, and the new folder is indexed from scratch.",
   "resources.workspace.emptyPersonalTitleTauri": "No indexed personal resources",
   "resources.workspace.emptyPersonalTitleWeb": "No connected personal resources",
   "resources.workspace.emptyPersonalDescTauri": "Connect or scan a folder to show files here.",
@@ -529,6 +534,8 @@ const ja: Record<Key, string> = {
   "resources.workspace.syncDescWeb": "個人ファイルはデスクトップアプリでフォルダを接続して読み込みます。",
   "resources.workspace.localFolderCount": "接続済みローカルフォルダ{count}件",
   "resources.workspace.localFolderNone": "接続済みローカルフォルダはありません。",
+  "resources.workspace.localFolderReconnectHint":
+    "フォルダごとに別々に索引されます。別のフォルダに切り替えても、アップロード済みの資料は資料ボードに残り、新しいフォルダは新しく索引されます。",
   "resources.workspace.emptyPersonalTitleTauri": "インデックスされた個人資料がありません",
   "resources.workspace.emptyPersonalTitleWeb": "接続された個人資料がありません",
   "resources.workspace.emptyPersonalDescTauri": "フォルダを接続またはスキャンすると、ここに表示されます。",

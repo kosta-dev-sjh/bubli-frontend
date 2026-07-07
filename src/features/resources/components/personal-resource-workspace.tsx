@@ -639,6 +639,10 @@ export function PersonalResourceWorkspace() {
                           : t("resources.workspace.localFolderNone"))}
                     </small>
                   ) : null}
+                  {/* 재연동 정책 안내 — 폴더마다 따로 색인되고, 폴더를 바꿔도 이미 올라간 자료는 자료보드에 남는다. */}
+                  {isTauri && localFolders.length > 0 ? (
+                    <small>{t("resources.workspace.localFolderReconnectHint")}</small>
+                  ) : null}
                 </span>
                 {isTauri ? (
                   <div className={styles.syncActions}>

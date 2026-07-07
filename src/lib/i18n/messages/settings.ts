@@ -95,6 +95,14 @@ const ko = {
   "settings.folders.disconnect": "해제",
   "settings.folders.reindex": "재색인",
   "settings.folders.inlineProgress": "색인 {percent}%, 대기 {pending}건",
+  // 폴더 해제 2단계 확인 — 기본은 자료 보존, 서버 자료 삭제는 선택.
+  "settings.folders.disconnectConfirmBody":
+    "연결을 끊어도 이미 올라간 자료는 자료보드에 남아요. 로컬 감시와 색인만 중단해요.",
+  "settings.folders.disconnectDeleteServer": "서버에 올라간 이 폴더의 자료도 함께 삭제",
+  "settings.folders.disconnectConfirm": "해제 확인",
+  // 재연동 정책 — 폴더는 각각 따로 색인된다(같은 파일명이라도 별개 자료).
+  "settings.folders.reconnectPolicy":
+    "폴더는 각각 따로 색인됩니다. 다른 폴더로 다시 연결하려면 기존 폴더만 해제하면 되고, 이미 올라간 자료는 자료보드에 남습니다. 파일명이 같아도 새 폴더의 파일은 새 자료로 올라갑니다.",
 
   // 버블과 복구
   "settings.bubbleType.AGENT": "에이전트",
@@ -147,6 +155,14 @@ const ko = {
   "settings.msg.syncOn": "서버 반영 후보를 켰습니다, 대기 {pending}건",
   "settings.msg.syncOff": "서버 반영 후보를 껐습니다. 로컬 색인은 유지됩니다.",
   "settings.msg.folderRemoved": "개인 폴더 추적을 해제했습니다. 기존 로컬 기록은 기기 안에 보존됩니다.",
+  // 해제 완료 메시지 — 남는 것과 지운 것을 그대로 알려준다.
+  "settings.msg.folderRemovedKeepUploads":
+    "폴더 연결을 해제했습니다. 이미 올라간 자료는 자료보드에 그대로 남고, 로컬 감시와 색인만 중단했습니다.",
+  "settings.msg.folderRemovedDeleted": "폴더 연결을 해제하고, 이 폴더에서 올라간 서버 자료 {deleted}건을 삭제했습니다.",
+  "settings.msg.folderRemovedDeletePartial":
+    "폴더 연결을 해제하고 서버 자료 {deleted}건을 삭제했습니다. {failed}건은 삭제하지 못했습니다.",
+  "settings.msg.folderRemovedDeleteUnavailable":
+    "폴더 연결은 해제했지만, 폴더 경로를 알 수 없어 서버 자료는 삭제하지 못했습니다.",
   "settings.msg.selectFolderFirst": "먼저 개인 폴더를 선택하세요",
   "settings.msg.folderChanges": "폴더 변경 {count}건 감지",
   "settings.msg.watchOn": "폴더 감시를 켰습니다",
@@ -945,6 +961,12 @@ const en: Record<Key, string> = {
   "settings.folders.disconnect": "Disconnect",
   "settings.folders.reindex": "Reindex",
   "settings.folders.inlineProgress": "Indexed {percent}%, {pending} pending",
+  "settings.folders.disconnectConfirmBody":
+    "Disconnecting keeps already-uploaded files on your resource board. Only local watching and indexing stop.",
+  "settings.folders.disconnectDeleteServer": "Also delete this folder's uploaded files from the server",
+  "settings.folders.disconnectConfirm": "Confirm disconnect",
+  "settings.folders.reconnectPolicy":
+    "Each folder is indexed separately. To switch folders, just disconnect the old one — uploaded files stay on the resource board, and files from the new folder are uploaded as new items even if the names match.",
 
   "settings.bubbleType.AGENT": "Agent",
   "settings.bubbleType.ALERT": "Alert",
@@ -994,6 +1016,13 @@ const en: Record<Key, string> = {
   "settings.msg.syncOn": "Turned on server sync candidates, {pending} pending",
   "settings.msg.syncOff": "Turned off server sync candidates. Local index is kept.",
   "settings.msg.folderRemoved": "Stopped tracking the personal folder. Existing local records stay on the device.",
+  "settings.msg.folderRemovedKeepUploads":
+    "Folder disconnected. Uploaded files remain on the resource board; only local watching and indexing stopped.",
+  "settings.msg.folderRemovedDeleted": "Folder disconnected and {deleted} uploaded files from this folder were deleted from the server.",
+  "settings.msg.folderRemovedDeletePartial":
+    "Folder disconnected. Deleted {deleted} uploaded files, but {failed} could not be deleted.",
+  "settings.msg.folderRemovedDeleteUnavailable":
+    "Folder disconnected, but the folder path is unknown so server files were not deleted.",
   "settings.msg.selectFolderFirst": "Select a personal folder first",
   "settings.msg.folderChanges": "Detected {count} folder changes",
   "settings.msg.watchOn": "Folder watching is on",
@@ -1775,6 +1804,12 @@ const ja: Record<Key, string> = {
   "settings.folders.disconnect": "解除",
   "settings.folders.reindex": "再索引",
   "settings.folders.inlineProgress": "索引 {percent}%, 待機 {pending}件",
+  "settings.folders.disconnectConfirmBody":
+    "接続を解除しても、アップロード済みの資料は資料ボードに残ります。ローカルの監視と索引だけを停止します。",
+  "settings.folders.disconnectDeleteServer": "このフォルダからアップロードされたサーバー資料も一緒に削除",
+  "settings.folders.disconnectConfirm": "解除を確認",
+  "settings.folders.reconnectPolicy":
+    "フォルダはそれぞれ別々に索引されます。別のフォルダにつなぎ直す場合は既存フォルダを解除するだけでよく、アップロード済みの資料は資料ボードに残ります。ファイル名が同じでも新しいフォルダのファイルは新しい資料として扱われます。",
 
   "settings.bubbleType.AGENT": "エージェント",
   "settings.bubbleType.ALERT": "通知",
@@ -1824,6 +1859,13 @@ const ja: Record<Key, string> = {
   "settings.msg.syncOn": "サーバー反映候補をオンにしました, 待機 {pending}件",
   "settings.msg.syncOff": "サーバー反映候補をオフにしました。ローカル索引は保持されます。",
   "settings.msg.folderRemoved": "個人フォルダの追跡を解除しました。既存のローカル記録は端末内に保存されます。",
+  "settings.msg.folderRemovedKeepUploads":
+    "フォルダ接続を解除しました。アップロード済みの資料は資料ボードに残り、ローカルの監視と索引だけを停止しました。",
+  "settings.msg.folderRemovedDeleted": "フォルダ接続を解除し、このフォルダからアップロードされたサーバー資料{deleted}件を削除しました。",
+  "settings.msg.folderRemovedDeletePartial":
+    "フォルダ接続を解除し、サーバー資料{deleted}件を削除しました。{failed}件は削除できませんでした。",
+  "settings.msg.folderRemovedDeleteUnavailable":
+    "フォルダ接続は解除しましたが、フォルダのパスが不明なためサーバー資料は削除できませんでした。",
   "settings.msg.selectFolderFirst": "先に個人フォルダを選択してください",
   "settings.msg.folderChanges": "フォルダ変更{count}件を検知",
   "settings.msg.watchOn": "フォルダ監視をオンにしました",

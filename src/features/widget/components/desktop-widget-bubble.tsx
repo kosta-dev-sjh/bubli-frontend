@@ -20,6 +20,7 @@ import {
   MessageSquare,
   Mic,
   Minus,
+  Monitor,
   Pause,
   Pencil,
   PhoneOff,
@@ -75,9 +76,10 @@ import {
   type WidgetTimerKind,
   type WidgetTimerMode,
 } from "@/lib/widget/widget-pref-client";
-import { autoSizeGhostWidgetWindow, isWidgetWindowDragLocked, readCurrentTauriWindowMonitorState, startWidgetWindowDragging, tauriCommands, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
+import { autoSizeGhostWidgetWindow, isWidgetWindowDragLocked, readCurrentTauriWindowMonitorState, startWidgetWindowDragging, tauriCommands, type AppMonitorInfo, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
+import { maybePlayPomodoroEndingSound } from "@/lib/sound/pomodoro-sound";
 import styles from "./desktop-widget-bubble.module.css";
 
 // 버블별 셸 아이덴티티(헤더 밴드/아이콘 타일/CTA/칩이 같은 accent를 공유한다).
@@ -1534,6 +1536,8 @@ function PomodoroView() {
       const left = Math.round((current.phaseEndsAt - Date.now()) / 1000);
       if (left > 0) {
         setRemaining(left);
+        // 집중 마무리 임박(남은 60초) 알림음 — 페이즈당 1회.
+        if (current.phase === "focus") maybePlayPomodoroEndingSound(left, current.phaseEndsAt);
         return;
       }
       // 페이즈 종료 → 자동 전환.
@@ -2883,6 +2887,8 @@ function GhostPomodoro() {
       const left = Math.round((current.phaseEndsAt - Date.now()) / 1000);
       if (left > 0) {
         setRemaining(left);
+        // 고스트 모드에서도 집중 마무리 임박 알림음을 동일하게 준다(페이즈당 1회 중복 방지 공유).
+        if (current.phase === "focus") maybePlayPomodoroEndingSound(left, current.phaseEndsAt);
         return;
       }
       const nextPhase: PomodoroPhase = current.phase === "focus" ? "break" : "focus";
@@ -3356,7 +3362,11 @@ function barChipBadge(metric: string) {
 // 버블 바로가기 그리드 + 자동 정렬/룸 전환/메인 앱/설정/종료 + 오늘 사용 요약 한 줄.
 export type WidgetMenuContentProps = {
   hasRoomContext?: boolean;
+  // 연결된 모니터 목록(2대 이상일 때만 "모니터로 이동" 섹션을 그린다).
+  monitors?: AppMonitorInfo[];
   onArrangeBubbles?: (layout?: WidgetArrangeLayout) => void;
+  // 선택한 모니터로 바 + 열린 버블 창을 통째로 옮긴다(Rust move_widget_windows_to_monitor).
+  onMoveToMonitor?: (monitorId: string) => void;
   onOpenBubble?: (bubbleType: WidgetBubbleType) => void;
   onOpenMainApp?: () => void;
   onOpenSettings?: () => void;
@@ -3376,7 +3386,9 @@ const arrangePresets: { labelKey: MessageKey; layout: WidgetArrangeLayout }[] = 
 
 export function WidgetMenuPanelContent({
   hasRoomContext = false,
+  monitors,
   onArrangeBubbles,
+  onMoveToMonitor,
   onOpenBubble,
   onOpenMainApp,
   onOpenSettings,
@@ -3470,6 +3482,29 @@ export function WidgetMenuPanelContent({
           ))}
         </div>
       </div>
+      {/* 모니터로 이동 — 멀티 모니터에서만 노출. 바 + 열린 버블 창을 상대 배치 그대로
+          선택한 모니터로 옮긴다(자동 정렬과 별개 — 위치를 다시 짜지 않는다). */}
+      {monitors && monitors.length > 1 && onMoveToMonitor ? (
+        <div className={styles.menuArrange} role="group" aria-label={t("widget.menu.moveMonitor")}>
+          <span className={styles.menuArrangeLabel}>
+            <Monitor size={13} strokeWidth={2.1} aria-hidden="true" />
+            {t("widget.menu.moveMonitor")}
+          </span>
+          <div className={styles.menuArrangeRow}>
+            {monitors.map((monitor, index) => (
+              <button
+                className={styles.menuArrangeChip}
+                key={monitor.id}
+                onClick={() => onMoveToMonitor(monitor.id)}
+                type="button"
+              >
+                {t("widget.menu.monitorItem", { index: index + 1 })}
+                {monitor.isPrimary ? ` (${t("widget.menu.monitorPrimary")})` : ""}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <div className={styles.menuActions}>
         {actionItems.map(({ Icon, label, onSelect }) => (
           <button
@@ -3593,8 +3628,10 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   bubbleDataByType,
   hasRoomContext = false,
   minimizedItems,
+  monitors,
   notificationSignal = widgetNotificationSignal,
   onArrangeBubbles,
+  onMoveToMonitor,
   onOpenMainApp,
   onOpenSettings,
   onQuit,
@@ -3605,8 +3642,11 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   bubbleDataByType?: Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>;
   hasRoomContext?: boolean;
   minimizedItems: WidgetWindowState[];
+  // Bubli 메뉴의 "모니터로 이동" 섹션용 — page.tsx가 list_app_monitors로 채워 내려준다.
+  monitors?: AppMonitorInfo[];
   notificationSignal?: WidgetNotificationSignal;
   onArrangeBubbles?: (layout?: WidgetArrangeLayout) => void;
+  onMoveToMonitor?: (monitorId: string) => void;
   onOpenMainApp?: () => void;
   onOpenSettings?: () => void;
   onQuit?: () => void;
@@ -3976,7 +4016,9 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
               <div className={styles.barMenuInner}>
                 <WidgetMenuPanelContent
                   hasRoomContext={hasRoomContext}
+                  monitors={monitors}
                   onArrangeBubbles={onArrangeBubbles}
+                  onMoveToMonitor={onMoveToMonitor}
                   onOpenBubble={openBubbleFromMenu}
                   onOpenMainApp={onOpenMainApp}
                   onOpenSettings={onOpenSettings}

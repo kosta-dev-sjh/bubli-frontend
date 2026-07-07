@@ -54,7 +54,7 @@ import { playNotificationSound } from "@/lib/sound/notification-sound";
 import { startCallRingtone, stopCallRingtone } from "@/lib/sound/call-sound";
 import { projectRoomRoute } from "@/lib/project-room-routes";
 import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
-import { setWidgetWindowDragLocked, tauriCommands, waitForPendingWidgetUsageEventRecords, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetInteractiveRect, type WidgetWindowBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
+import { setWidgetWindowDragLocked, tauriCommands, waitForPendingWidgetUsageEventRecords, type AppMonitorInfo, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetInteractiveRect, type WidgetWindowBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import { emitWidgetDataChanged, listenWidgetDataChanged, listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { defaultTauriStartupOptimizationConfig, readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
@@ -247,7 +247,7 @@ function getWidgetWindowSize(bubbleType: WidgetBubbleType, mode: WidgetWindowMod
   }
   if (bubbleType === "chat") return { height: 420 + WIDGET_WINDOW_GUTTER, width: 336 + WIDGET_WINDOW_GUTTER };
   if (bubbleType === "agent") return { height: 420 + WIDGET_WINDOW_GUTTER, width: 332 + WIDGET_WINDOW_GUTTER };
-  if (bubbleType === "timer") return { height: 400 + WIDGET_WINDOW_GUTTER, width: 324 + WIDGET_WINDOW_GUTTER };
+  if (bubbleType === "timer") return { height: 400 + WIDGET_WINDOW_GUTTER, width: 356 + WIDGET_WINDOW_GUTTER };
   if (bubbleType === "resource") return { height: 330 + WIDGET_WINDOW_GUTTER, width: 324 + WIDGET_WINDOW_GUTTER };
   if (bubbleType === "memo") return { height: 348 + WIDGET_WINDOW_GUTTER, width: 308 + WIDGET_WINDOW_GUTTER };
   if (bubbleType === "schedule") return { height: 340 + WIDGET_WINDOW_GUTTER, width: 324 + WIDGET_WINDOW_GUTTER };
@@ -1420,6 +1420,8 @@ function DesktopWidgetSurface() {
   const [voiceMicMuted, setVoiceMicMuted] = useState(false);
   const [notificationSignal, setNotificationSignal] = useState<WidgetNotificationSignal>(() => widgetDisplayLoadSignal("loading"));
   const [menuUsageSummary, setMenuUsageSummary] = useState<string | null>(null);
+  // Bubli 메뉴 "모니터로 이동" 섹션용 모니터 목록 — 바 창에서만 주기적으로 갱신한다.
+  const [appMonitors, setAppMonitors] = useState<AppMonitorInfo[]>([]);
   // 1:1/그룹 보이스 통화 실시간 "전화 옴" 알림 — 바 창(항상 떠 있는 표면)에서만 구독/표시한다.
   const [incomingVoiceCall, setIncomingVoiceCall] = useState<{
     callerName: string;
@@ -2102,6 +2104,11 @@ function DesktopWidgetSurface() {
           ? current
           : keepIfDeepEqual(current, nextNotificationSignal),
       );
+      // 앱 아이콘 배지(맥 독 숫자 / 윈도우 오버레이 점) — 항상 떠 있는 바 창이 단독으로 갱신한다.
+      if (isTauri && isBubbleBar && loadNotifications && notificationsResult.status !== "rejected") {
+        const unreadBadgeCount = notifications.filter((item) => item.status === "UNREAD").length;
+        void tauriCommands.setAppBadgeCount(unreadBadgeCount).catch(() => undefined);
+      }
       setActiveTimerHeartbeatId(activeTimer?.status === "RUNNING" ? activeTimer.id : null);
 
       const nextDisplayBubbles = buildDisplayBubbles({
@@ -3196,6 +3203,26 @@ function DesktopWidgetSurface() {
       // 데스크탑 위젯에서도 새 알림 도착 시 소리로 알린다(웹앱과 동일).
       playNotificationSound();
 
+      // 바가 직접 알림 목록 재조회를 트리거한다 — 메인 창이 닫혀 있어도
+      // 알림 버블 숫자와 바 표시가 즉시 갱신된다(기존에는 메인 창 신호에만 의존).
+      setNotificationRevision((current) => current + 1);
+      void emitWidgetDataChanged("notification").catch(() => undefined);
+
+      // 데스크탑 OS 알림 팝업 — 다른 앱을 보고 있어도 내용이 화면에 뜬다(맥/윈도우 공통).
+      // 웹뷰에는 브라우저 Notification API가 없어서 네이티브 플러그인 경로를 쓴다.
+      // 바 창 하나만 구독하므로 중복 팝업은 없다. 실패는 조용히 무시(팝업은 보조 신호).
+      void import("@tauri-apps/plugin-notification")
+        .then(async ({ isPermissionGranted, requestPermission, sendNotification }) => {
+          let granted = await isPermissionGranted();
+          if (!granted) {
+            granted = (await requestPermission()) === "granted";
+          }
+          if (granted) {
+            sendNotification({ body: notification.body ?? undefined, title: notification.title });
+          }
+        })
+        .catch(() => undefined);
+
       if (notification.sourceType === "VOICE_CALL" && notification.sourceId) {
         setIncomingVoiceCall({
           callerName: notification.title,
@@ -3646,6 +3673,55 @@ function DesktopWidgetSurface() {
     [isTauri],
   );
 
+  // 바 창에서만: Bubli 메뉴의 "모니터로 이동" 목록을 채운다. 모니터 연결/해제는 드물어
+  // 30초 폴링이면 충분하고, 목록이 같으면 참조를 유지해 memo된 바가 리렌더되지 않게 한다.
+  useEffect(() => {
+    if (!isTauri || !isBubbleBar) return;
+
+    let cancelled = false;
+
+    const refreshMonitors = () => {
+      void tauriCommands
+        .listAppMonitors()
+        .then((preference) => {
+          if (cancelled) return;
+          setAppMonitors((current) => {
+            const next = preference.monitors;
+            const unchanged =
+              current.length === next.length &&
+              current.every((monitor, index) => monitor.id === next[index]?.id && monitor.isPrimary === next[index]?.isPrimary);
+            return unchanged ? current : next;
+          });
+        })
+        .catch(() => {
+          // Browser preview fallback — 목록이 비면 메뉴 섹션 자체가 숨는다.
+        });
+    };
+
+    refreshMonitors();
+    const intervalId = window.setInterval(refreshMonitors, 30_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [isBubbleBar, isTauri]);
+
+  // Bubli 메뉴에서 모니터를 고르면 바 + 열린 버블 창을 통째로 그 모니터로 옮긴다.
+  // 자동 정렬과 달리 상대 배치를 유지하고, 화면 밖으로 나가는 창만 Rust가 안으로 넣는다.
+  const moveWidgetsToMonitor = useCallback(
+    async (monitorId: string) => {
+      if (!isTauri) return;
+
+      try {
+        await tauriCommands.moveWidgetWindowsToMonitor({ monitorId });
+      } catch {
+        // Browser preview fallback.
+      }
+    },
+    [isTauri],
+  );
+
   const toggleWidgetRoomContext = useCallback(async () => {
     if (!isTauri) return;
 
@@ -3689,8 +3765,10 @@ function DesktopWidgetSurface() {
           bubbleDataByType={displayBubbles}
           hasRoomContext={Boolean(selectedWidgetRoomId)}
           minimizedItems={barItems}
+          monitors={appMonitors}
           notificationSignal={notificationSignal}
           onArrangeBubbles={arrangeWidgetBubbles}
+          onMoveToMonitor={moveWidgetsToMonitor}
           onOpenMainApp={openMainApp}
           onOpenSettings={openMainAppSettings}
           onQuit={quitDesktopApp}

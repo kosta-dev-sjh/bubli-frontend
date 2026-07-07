@@ -6,7 +6,11 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(0, 0, 0, 0.72);
+  /* 튜토리얼 창은 Tauri transparent 창이라 이 스크림의 알파가 곧 "뒤 화면 투과율"이다.
+     단계별로 실제 위젯 창을 데려와 보여주는 흐름이므로, 위젯과 데스크탑이 또렷이 비치도록
+     짙은 차광(0.72) 대신 옅은 반투명(0.34)으로 낮춘다.
+     backdrop-filter는 쓰지 않는다 — 투명 창 뒤 데스크탑에는 OS별로 블러가 일관되게 걸리지 않는다. */
+  background: rgba(10, 18, 28, 0.34);
 }
 
 .card {
@@ -14,6 +18,7 @@
   padding: 26px 24px 24px;
   border-radius: 24px;
   border: 1px solid rgba(255, 255, 255, 0.18);
+  /* 스크림이 옅어진 만큼 카드는 거의 불투명하게 유지해 설명 글의 가독성을 지킨다. */
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 20px 52px -32px rgba(3, 9, 20, 0.55);
   outline: none;

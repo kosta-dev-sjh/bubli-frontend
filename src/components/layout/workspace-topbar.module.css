@@ -406,9 +406,14 @@ button.profileButton {
 }
 
 .notificationsHeadMeta {
+  /* "안읽음 N개" 문구와 일괄 버튼 2개가 한 줄에 못 들어가면 줄바꿈한다 — 글자 잘림 방지. */
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  justify-content: flex-end;
+  gap: 4px 8px;
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .notificationsList {

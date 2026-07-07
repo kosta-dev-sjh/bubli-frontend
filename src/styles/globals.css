@@ -1176,6 +1176,11 @@ select {
   justify-content: center;
   gap: 3px;
   min-height: 68px;
+  /* 긴 언어(EN/JA) 라벨이 필 자체를 레일 밖 오른쪽으로 밀어내지 않게 폭을 잠근다. */
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
   border: 1px solid transparent;
   border-radius: 18px;
   /* 활성 그라데이션 바와 라벨 사이 최소 5px 여백 확보 */
@@ -1195,21 +1200,18 @@ select {
 
 /* 아이콘 밑에 항상 보이는 내비 라벨 — 호버 툴팁을 대체한다. */
 .bubli-nav__label {
-  display: block;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   max-width: 100%;
-  height: 16px;
   overflow: hidden;
-  padding: 0 2px;
-  color: currentColor;
-  font-size: 14px;
-  font-weight: 650;
-  letter-spacing: 0.01em;
-  line-height: 1.1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  opacity: 0;
-  transform: translateY(2px);
-  transition: opacity 160ms var(--ease-out), transform 160ms var(--ease-out);
+  min-height: 15px;
+  font-size: 12.5px;
+  font-weight: 740;
+  line-height: 1.15;
+  text-align: center;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 /* 메뉴는 아이콘 중심, 텍스트는 호버/포커스/활성일 때 아래에 나타난다. */
@@ -22504,10 +22506,12 @@ body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main {
   to   { opacity: 1; transform: translateY(0)   scale(1);    }
 }
 
+/* 이동/축소 transform은 유리 패널의 overflow hidden과 겹쳐 입장 순간 글자가 잘려 보인다.
+   하이브리드 앱과 동일하게 웹도 opacity 전용으로 통일한다. */
 .workspace-route > *,
 .workspace-dashboard > *,
 .resource-workspace > * {
-  animation: elem-bubble-in 440ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation: elem-fade-in 440ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
 .workspace-route > *:nth-child(1),

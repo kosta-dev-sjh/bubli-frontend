@@ -451,7 +451,22 @@
 [data-theme="dark"] .focusDateInput {
   border-color: rgba(158, 216, 255, 0.24);
   background: rgba(20, 30, 42, 0.72);
-  color: var(--color-text);
+  /* --color-text는 다크에서도 어두운 잉크라 그대로 쓰면 어두운 배경에 묻힌다. */
+  color: rgba(232, 240, 250, 0.92);
+}
+
+/* 다크에서 어두운 잉크(--color-text)를 명시한 숫자/값 텍스트가 묻히지 않게 밝힌다. */
+[data-theme="dark"] .heroMeta b,
+[data-theme="dark"] .statHeadline,
+[data-theme="dark"] .progressValue,
+[data-theme="dark"] .appBarValue {
+  color: #eaf0f8;
+}
+
+[data-theme="dark"] .heroMeta,
+[data-theme="dark"] .statHeadline em,
+[data-theme="dark"] .appBarName {
+  color: rgba(194, 207, 230, 0.78);
 }
 
 [data-theme="dark"] .heatmapCell[data-level="0"],

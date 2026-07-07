@@ -29,6 +29,8 @@ type TourStepDef = {
 // 사이드바를 한 번에 가리키지 않고, 주요 탭을 위에서 아래로 하나씩 짚어가며 설명한다.
 // (대상이 없는 단계는 자동으로 건너뛴다 — 예: 홈 밖에서는 카드 편집 버튼 단계를 넘긴다.)
 const TOUR_STEPS: TourStepDef[] = [
+  // 첫 단계는 대상 없이 중앙 카드로 "우리 사이트는 이런 서비스예요"를 먼저 소개한다(팀 아이디어).
+  { bodyKey: "tour.welcome.body", selector: null, titleKey: "tour.welcome.title" },
   { bodyKey: "tour.sidebar.body", selector: '[data-tour="sidebar"]', titleKey: "tour.sidebar.title" },
   { bodyKey: "tour.calendar.body", selector: '[data-tour="nav-calendar"]', titleKey: "tour.calendar.title" },
   { bodyKey: "tour.projectRooms.body", selector: '[data-tour="nav-project-rooms"]', titleKey: "tour.projectRooms.title" },

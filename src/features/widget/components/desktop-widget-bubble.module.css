@@ -1683,6 +1683,8 @@
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
+  /* 말줄임 금지 정책 — 라벨이 언어별로 길어지는 만큼 창 기본 폭을 넓혀 전부 보이게 한다. */
+  white-space: nowrap;
 }
 
 /* 선택 배경은 layoutId 썸(motion)이 스프링 translate로 그린다 — bg 스왑 금지. */
@@ -1726,6 +1728,14 @@
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+  /* 말줄임 금지 정책 — 긴 라벨은 줄바꿈해서 전부 보여준다(높이는 내용에 따라 늘어난다). */
+  min-width: 0;
+  height: auto;
+  min-height: 40px;
+  padding: 6px 8px;
+  line-height: 1.2;
+  white-space: normal;
+  word-break: keep-all;
 }
 
 .timerPrimary {

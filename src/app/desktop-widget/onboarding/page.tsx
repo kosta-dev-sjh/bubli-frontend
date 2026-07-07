@@ -2,7 +2,7 @@
 
 import { CircleDashed } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +17,7 @@ import {
   type DesktopWidgetStartupMode,
 } from "@/features/onboarding/lib/onboarding-storage";
 import { tauriCommands, type WidgetWindowOpenInput } from "@/lib/tauri/commands";
+import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { type MessageKey, useI18n } from "@/lib/i18n";
 
 import styles from "./page.module.css";
@@ -67,6 +68,14 @@ const ONBOARDING_STEPS: OverlayStep[] = [
   },
 ];
 
+// 단계별 라이브 쇼케이스 — 스크림이 반투명이므로 실제 위젯 창을 열어 오버레이 뒤로 비쳐 보이게 한다.
+// SVG 그림만으로 설명하지 않고 "진짜 위젯"을 한 개씩 데려와 소개하는 게 목적이다.
+// bar 단계는 위젯 바가 이미 떠 있으므로 따로 열지 않는다(no-op).
+const DEMO_WINDOWS_BY_SCENE: Partial<Record<WidgetTutorialSceneKind, WidgetWindowOpenInput>> = {
+  bubble: { bubbleType: "menu", windowId: "menu" },
+  modes: { bubbleType: "timer", windowId: "timer" },
+};
+
 const STARTUP_WINDOWS_BY_MODE: Record<Exclude<DesktopWidgetStartupMode, "bar">, WidgetWindowOpenInput[]> = {
   board: [
     { bubbleType: "todo", windowId: "todo" },
@@ -108,6 +117,51 @@ export default function DesktopWidgetOnboardingPage() {
   const reduceMotion = useReducedMotion();
   const [stepIndex, setStepIndex] = useState(0);
   const [startupMode, setStartupMode] = useState<DesktopWidgetStartupMode>("bar");
+  // 튜토리얼이 "직접 연" 데모 창만 기억한다. 원래 떠 있던 사용자 창은 건드리지 않기 위해서다.
+  const openedDemoWindowIdsRef = useRef<Set<string>>(new Set());
+
+  // 튜토리얼이 연 데모 창 정리 — 시작 환경 적용 전에 닫아야 데모 잔상이 남지 않는다.
+  // (board/cascade가 다시 여는 창은 applyStartupMode에서 새로 열리므로 먼저 닫아도 안전하다.)
+  const closeDemoWindows = useCallback(async () => {
+    if (!isTauriRuntime()) return;
+    const windowIds = Array.from(openedDemoWindowIdsRef.current);
+    openedDemoWindowIdsRef.current.clear();
+    await Promise.all(
+      windowIds.map((windowId) => tauriCommands.closeWidgetWindow({ windowId }).catch(() => undefined)),
+    );
+  }, []);
+
+  // 단계 진입 시 해당 단계의 실제 위젯 창을 연다. 모든 Tauri 호출은 실패해도
+  // 튜토리얼 진행을 막지 않도록 조용히 삼킨다(웹/스토리북 등 비-Tauri 환경 방어 포함).
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    const scene = ONBOARDING_STEPS[stepIndex]?.scene;
+    const demo = scene ? DEMO_WINDOWS_BY_SCENE[scene] : undefined;
+    if (!demo?.windowId) return;
+    const demoWindowId = demo.windowId;
+    let cancelled = false;
+
+    void (async () => {
+      // 이미 우리가 연 창이면 다시 열지 않는다(뒤로 갔다가 다시 온 경우).
+      if (openedDemoWindowIdsRef.current.has(demoWindowId)) return;
+      // 사용자가 원래 열어둔 창이면 열지도, 나중에 닫지도 않는다(최선 노력 판별).
+      const existing = await tauriCommands.getWidgetWindowState({ windowId: demoWindowId }).catch(() => null);
+      if (cancelled || existing?.windowVisible) return;
+
+      const activeRoom = await tauriCommands.readActiveProjectRoom().catch(() => null);
+      if (cancelled) return;
+      await tauriCommands
+        .openWidgetWindows({
+          windows: [{ ...demo, mode: "DEFAULT", selectedRoomId: activeRoom?.roomId ?? null }],
+        })
+        .catch(() => undefined);
+      openedDemoWindowIdsRef.current.add(demoWindowId);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [stepIndex]);
 
   const applyStartupMode = useCallback(async (mode: DesktopWidgetStartupMode) => {
     const activeRoom = await tauriCommands.readActiveProjectRoom().catch(() => null);
@@ -133,9 +187,11 @@ export default function DesktopWidgetOnboardingPage() {
       completeWidgetTutorial(stored.userId);
     }
 
-    void applyStartupMode(mode);
+    // 데모 창을 먼저 닫고 나서 사용자가 고른 시작 환경을 적용한다.
+    // 순서가 반대면 board/cascade로 연 창을 데모 정리가 도로 닫아버릴 수 있다.
+    void closeDemoWindows().then(() => applyStartupMode(mode));
     void tauriCommands.closeOnboardingOverlay();
-  }, [applyStartupMode, startupMode]);
+  }, [applyStartupMode, closeDemoWindows, startupMode]);
 
   const nextStep = useCallback(() => {
     setStepIndex((current) => {

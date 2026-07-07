@@ -41,9 +41,11 @@ export const TAURI_COMMANDS = {
   listAppMonitors: "list_app_monitors",
   listLocalSqliteBackups: "list_local_sqlite_backups",
   closeOnboardingOverlay: "close_onboarding_overlay",
+  setAppBadgeCount: "set_app_badge_count",
   openOnboardingOverlay: "open_onboarding_overlay",
   markActivityContextSynced: "mark_activity_context_synced",
   listManagedFolders: "list_managed_folders",
+  moveWidgetWindowsToMonitor: "move_widget_windows_to_monitor",
   notifyWidgetDragStarted: "notify_widget_drag_started",
   notifyWidgetPointerSeen: "notify_widget_pointer_seen",
   openExternalUrl: "open_external_url",
@@ -623,6 +625,11 @@ export type AppMonitorPreferenceInput = {
   monitorId: string;
 };
 
+// Bubli 메뉴 "모니터로 이동" 입력 — 바 + 열린 버블 창을 이 모니터로 옮긴다.
+export type MoveWidgetWindowsToMonitorInput = {
+  monitorId: string;
+};
+
 export type WidgetUsageEventInput = {
   bubbleType: string;
   eventType: string;
@@ -911,6 +918,10 @@ export type TauriCommandContract = {
     args: undefined;
     result: null;
   };
+  set_app_badge_count: {
+    args: { count: number };
+    result: null;
+  };
   close_widget_window: {
     args: WidgetWindowTargetInput | undefined;
     result: WidgetWindowState;
@@ -986,6 +997,10 @@ export type TauriCommandContract = {
   list_managed_folders: {
     args: undefined;
     result: ManagedFolderListResult;
+  };
+  move_widget_windows_to_monitor: {
+    args: MoveWidgetWindowsToMonitorInput;
+    result: WidgetWindowState[];
   };
   notify_widget_drag_started: {
     args: undefined;
@@ -1286,6 +1301,10 @@ export const tauriCommands = {
   closeOnboardingOverlay() {
     return invokeTauri<null>(TAURI_COMMANDS.closeOnboardingOverlay);
   },
+  // 앱 아이콘의 읽지 않은 알림 배지(맥 독 숫자 / 윈도우 작업표시줄 점)를 갱신한다.
+  setAppBadgeCount(count: number) {
+    return invokeTauri<null>(TAURI_COMMANDS.setAppBadgeCount, { count });
+  },
   dragWidgetBarWindow(input: WidgetBarDragInput) {
     return invokeTauri<WidgetBarDragResult>(TAURI_COMMANDS.dragWidgetBarWindow, { input });
   },
@@ -1336,6 +1355,10 @@ export const tauriCommands = {
   },
   listManagedFolders() {
     return invokeTauri<ManagedFolderListResult>(TAURI_COMMANDS.listManagedFolders);
+  },
+  // Bubli 메뉴 "모니터로 이동": 바 + 열린 버블 창을 지정 모니터로 옮기고 선호 모니터도 같이 갱신한다.
+  moveWidgetWindowsToMonitor(input: MoveWidgetWindowsToMonitorInput) {
+    return invokeTauri<WidgetWindowState[]>(TAURI_COMMANDS.moveWidgetWindowsToMonitor, { input });
   },
   notifyWidgetDragStarted() {
     return invokeTauri<null>(TAURI_COMMANDS.notifyWidgetDragStarted);

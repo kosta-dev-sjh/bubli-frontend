@@ -20,6 +20,12 @@ export const resourcesApi = {
     return apiRequest<ResourcePageResponse>("/api/resources?scope=personal");
   },
 
+  // 로컬 폴더 해제 정리처럼 개인 자료 전체를 훑어야 할 때 쓰는 페이지 조회.
+  // 기본 목록(listPersonal)은 서버 기본 페이지 크기(20건)만 내려와서 전체 순회에 못 쓴다.
+  listPersonalPage(page = 0, size = 100) {
+    return apiRequest<ResourcePageResponse>(`/api/resources?scope=personal&page=${page}&size=${size}`);
+  },
+
   listRoomResources(roomId: string) {
     return apiRequest<ResourcePageResponse>(`/api/project-rooms/${roomId}/resources`);
   },
