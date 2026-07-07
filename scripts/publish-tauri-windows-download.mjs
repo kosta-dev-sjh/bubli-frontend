@@ -1,9 +1,10 @@
-import { copyFileSync, existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const source = resolve(root, "src-tauri/target/release/bundle/nsis/Bubli_0.1.0_x64-setup.exe");
+const sourceRelative = windowsInstallerSourceRelative();
+const source = resolve(root, sourceRelative);
 const target = resolve(root, "public/downloads/windows/Bubli-Windows-latest.exe");
 const manifestTarget = resolve(root, "public/downloads/windows/manifest.json");
 
@@ -22,7 +23,7 @@ writeFileSync(
     {
       file: "/downloads/windows/Bubli-Windows-latest.exe",
       sizeBytes: stat.size,
-      source: "src-tauri/target/release/bundle/nsis/Bubli_0.1.0_x64-setup.exe",
+      source: sourceRelative,
       updatedAt: new Date(stat.mtimeMs).toISOString(),
     },
     null,
@@ -31,3 +32,14 @@ writeFileSync(
 );
 
 console.log(`Published Windows installer for public download: ${target}`);
+
+function windowsInstallerSourceRelative() {
+  const config = JSON.parse(readFileSync(resolve(root, "src-tauri/tauri.conf.json"), "utf8"));
+  const productName = String(config.productName ?? "Bubli").trim() || "Bubli";
+  const version = String(config.version ?? "").trim();
+  if (!version) {
+    throw new Error("src-tauri/tauri.conf.json must include a version for Windows installer publishing.");
+  }
+
+  return `src-tauri/target/release/bundle/nsis/${productName}_${version}_x64-setup.exe`;
+}

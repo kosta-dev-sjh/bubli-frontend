@@ -4,11 +4,11 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const source = resolve(root, "src-tauri/target/release/bundle/nsis/Bubli_0.1.0_x64-setup.exe");
+const manifestSource = windowsInstallerSourceRelative();
+const source = resolve(root, manifestSource);
 const target = resolve(root, "public/downloads/windows/Bubli-Windows-latest.exe");
 const manifestTarget = resolve(root, "public/downloads/windows/manifest.json");
 
-const manifestSource = "src-tauri/target/release/bundle/nsis/Bubli_0.1.0_x64-setup.exe";
 const manifestFile = "/downloads/windows/Bubli-Windows-latest.exe";
 
 assertNoPublicBuildQaEnv();
@@ -88,4 +88,15 @@ function assert(condition, message) {
 
 function sha256(path) {
   return createHash("sha256").update(readFileSync(path)).digest("hex").toUpperCase();
+}
+
+function windowsInstallerSourceRelative() {
+  const config = JSON.parse(readFileSync(resolve(root, "src-tauri/tauri.conf.json"), "utf8"));
+  const productName = String(config.productName ?? "Bubli").trim() || "Bubli";
+  const version = String(config.version ?? "").trim();
+  if (!version) {
+    throw new Error("src-tauri/tauri.conf.json must include a version for Windows installer checks.");
+  }
+
+  return `src-tauri/target/release/bundle/nsis/${productName}_${version}_x64-setup.exe`;
 }

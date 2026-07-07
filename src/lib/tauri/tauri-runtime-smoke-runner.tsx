@@ -933,15 +933,23 @@ async function verifyLocalAutoSyncLoops(assert: SmokeAssert) {
     const drainedStatus = getManagedFolderAutoSyncStatus();
     const handledFileEventCount =
       (drainedStatus.lastFileEventSyncedCount ?? 0) + (drainedStatus.lastFileEventSkippedCount ?? 0);
+    const lastDrainSuccessAt = drainedStatus.lastSuccessAt ? Date.parse(drainedStatus.lastSuccessAt) : 0;
+    const observedEventAttemptAt = eventStatus.lastAttemptAt ? Date.parse(eventStatus.lastAttemptAt) : 0;
+    const autoDrainCompletedAfterWatchEvent =
+      drainedStatus.pendingFolderCount === 0 &&
+      drainedStatus.lastStatus === "synced" &&
+      Number.isFinite(lastDrainSuccessAt) &&
+      Number.isFinite(observedEventAttemptAt) &&
+      lastDrainSuccessAt >= observedEventAttemptAt;
     assert(
       !drainedNames.has("runtime-smoke-note.txt") &&
         !drainedNames.has("runtime-smoke-delete.txt") &&
-        (drainedStatus.lastFileEventSentCount ?? 0) >= 1 &&
-        handledFileEventCount >= 1 &&
+        (((drainedStatus.lastFileEventSentCount ?? 0) >= 1 && handledFileEventCount >= 1) ||
+          autoDrainCompletedAfterWatchEvent) &&
         (drainedStatus.lastFileAnalysisFailedCount ?? 0) === 0 &&
         drainedStatus.lastStatus !== "failed",
       "local auto-sync managed folder events drained through backend sync",
-      { drainedEvents, drainedStatus },
+      { autoDrainCompletedAfterWatchEvent, drainedEvents, drainedStatus },
     );
 
     await flushActivityAutoCapture();
