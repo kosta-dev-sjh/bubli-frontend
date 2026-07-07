@@ -1061,6 +1061,120 @@
   gap: 6px;
 }
 
+.draftActionGroup {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding-top: 2px;
+}
+
+.draftTypeMenu {
+  position: relative;
+  flex: 1 1 220px;
+  min-width: 0;
+  max-width: 292px;
+}
+
+.draftMenuButton {
+  display: inline-flex;
+  width: 100%;
+  min-height: 30px;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--rb-hairline-strong);
+  border-radius: 9px;
+  padding: 0 10px;
+  color: var(--rb-ink);
+  background: rgba(205, 216, 223, 0.12);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    background var(--motion-hover) var(--ease-out),
+    border-color var(--motion-hover) var(--ease-out),
+    box-shadow var(--motion-hover) var(--ease-out);
+}
+
+.draftMenuButton:hover,
+.draftMenuButton[aria-expanded="true"] {
+  border-color: rgba(142, 205, 246, 0.6);
+  background: var(--rb-hover);
+}
+
+.draftMenuButton:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(215, 234, 244, 0.56);
+}
+
+.draftMenuButton:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.draftMenuButton span {
+  flex: 0 0 auto;
+  color: var(--rb-ink-muted);
+}
+
+.draftMenuButton strong {
+  overflow: hidden;
+  min-width: 0;
+  flex: 1 1 auto;
+  font-weight: 750;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.draftMenuButton svg {
+  flex: 0 0 auto;
+  color: var(--rb-ink-muted);
+}
+
+.draftMenuList {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  display: grid;
+  width: min(292px, calc(100vw - 32px));
+  overflow: hidden;
+  border: 1px solid var(--rb-hairline-strong);
+  border-radius: 10px;
+  padding: 4px;
+  background: rgba(248, 252, 255, 0.96);
+  box-shadow: 0 14px 32px rgba(72, 101, 128, 0.18);
+  backdrop-filter: blur(14px);
+}
+
+.draftMenuOption {
+  min-height: 34px;
+  border: 0;
+  border-radius: 7px;
+  padding: 0 10px;
+  color: var(--rb-ink);
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+}
+
+.draftMenuOption:hover {
+  background: var(--rb-hover);
+}
+
+.draftMenuOptionActive,
+.draftMenuOptionActive:hover {
+  color: var(--rb-ink-accent);
+  background: var(--rb-tint);
+}
+
 .aiDocList {
   display: grid;
   gap: 6px;
@@ -1338,6 +1452,19 @@
     min-height: 34px;
   }
 
+  .draftActionGroup {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .draftTypeMenu {
+    max-width: none;
+  }
+
+  .draftMenuButton {
+    min-height: 34px;
+  }
+
   .scopeItem {
     min-height: 30px;
   }
@@ -1440,6 +1567,25 @@
 
 [data-theme="dark"] .actionPrimary {
   border-color: rgba(158, 216, 255, 0.42);
+}
+
+[data-theme="dark"] .draftMenuButton {
+  background: rgba(34, 46, 72, 0.5);
+}
+
+[data-theme="dark"] .draftMenuButton:hover,
+[data-theme="dark"] .draftMenuButton[aria-expanded="true"] {
+  border-color: rgba(158, 216, 255, 0.4);
+  background: rgba(60, 80, 125, 0.4);
+}
+
+[data-theme="dark"] .draftMenuButton:focus-visible {
+  box-shadow: 0 0 0 3px rgba(158, 216, 255, 0.16);
+}
+
+[data-theme="dark"] .draftMenuList {
+  background: rgba(29, 41, 64, 0.96);
+  box-shadow: 0 18px 34px rgba(7, 12, 24, 0.34);
 }
 
 [data-theme="dark"] .actionDanger:hover,
