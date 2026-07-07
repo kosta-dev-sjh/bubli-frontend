@@ -4171,19 +4171,28 @@ export function WidgetMenuPanelContent({
             <Monitor size={13} strokeWidth={2.1} aria-hidden="true" />
             {t("widget.menu.moveMonitor")}
           </span>
-          <div className={styles.menuArrangeRow}>
+          {/* 사용자 요청: 칩 나열 대신 셀렉트박스로 모니터를 골라 이동한다.
+              고르는 즉시 이동하고 다시 안내 문구로 되돌린다(이동 "동작" 선택이라 상태 유지 없음). */}
+          <select
+            aria-label={t("widget.menu.moveMonitor")}
+            className={styles.menuMonitorSelect}
+            onChange={(event) => {
+              const monitorId = event.target.value;
+              if (monitorId) onMoveToMonitor(monitorId);
+              event.target.value = "";
+            }}
+            value=""
+          >
+            <option disabled value="">
+              {t("widget.menu.moveMonitorPlaceholder")}
+            </option>
             {monitors.map((monitor, index) => (
-              <button
-                className={styles.menuArrangeChip}
-                key={monitor.id}
-                onClick={() => onMoveToMonitor(monitor.id)}
-                type="button"
-              >
+              <option key={monitor.id} value={monitor.id}>
                 {t("widget.menu.monitorItem", { index: index + 1 })}
                 {monitor.isPrimary ? ` (${t("widget.menu.monitorPrimary")})` : ""}
-              </button>
+              </option>
             ))}
-          </div>
+          </select>
         </div>
       ) : null}
       <div className={styles.menuActions}>

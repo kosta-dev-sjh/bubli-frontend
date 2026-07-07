@@ -3545,6 +3545,21 @@
   gap: 4px;
 }
 
+/* 모니터 이동 셀렉트 — 최소 폰트 14px 정책. 고르는 즉시 이동한다. */
+.menuMonitorSelect {
+  width: 100%;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--widget-hairline);
+  border-radius: 10px;
+  color: var(--widget-ink, inherit);
+  background: rgba(255, 255, 255, 0.72);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .menuArrangeChip {
   padding: 5px 4px;
   border: 1px solid var(--widget-hairline);

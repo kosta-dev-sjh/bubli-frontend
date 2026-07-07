@@ -401,22 +401,53 @@ fn widget_pointer_should_ignore(window: &WebviewWindow, label: &str) -> bool {
     let Ok(origin) = window.outer_position() else {
         return false;
     };
-    let scale = widget_pointer_scale(window);
     let Ok(size) = window.outer_size() else {
         return false;
     };
-    let (local_x, local_y) = widget_pointer_local_position(&cursor, &origin, scale);
-    let width = size.width as f64 / scale;
-    let height = size.height as f64 / scale;
 
-    // 멀티 모니터/배율 전환 직후에는 OS가 커서·창 원점·scale을 한 틱 동안 서로 다른
-    // 좌표계로 줄 수 있다. 이때 투명 영역으로 오판해 ignore=true를 걸면 창 조작이 죽으므로
-    // 창 범위 밖으로 크게 튄 좌표는 안전하게 "클릭 가능"으로 실패시킨다.
-    if !widget_pointer_position_is_plausible(local_x, local_y, width, height) {
+    // 멀티 모니터(배율 상이)에서는 창 backing scale과 current_monitor()와 커서 쪽 모니터가
+    // 이동 직후 서로 다른 값을 줄 수 있다. 한 배율만 믿고 판정하면 좌표가 절반/두 배로
+    // 왜곡돼 "투명 영역" 오판 → 클릭 통과 고정(조작 불능)이 된다. 그래서 그럴듯한 배율
+    // 후보를 전부 시도하고 하나라도 상호작용 영역 위라고 판정되면 클릭 가능을 유지한다.
+    let mut scales: Vec<f64> = Vec::with_capacity(3);
+    let mut push_scale = |value: f64| {
+        let value = value.max(0.5);
+        if !scales.iter().any(|existing| (existing - value).abs() < 0.01) {
+            scales.push(value);
+        }
+    };
+    if let Ok(window_scale) = window.scale_factor() {
+        push_scale(window_scale);
+    }
+    if let Ok(Some(monitor)) = window.current_monitor() {
+        push_scale(monitor.scale_factor());
+    }
+    if let Ok(Some((cursor_monitor, _))) =
+        monitor_nearest_physical_point(&window.app_handle().clone(), cursor.x, cursor.y)
+    {
+        push_scale(cursor_monitor.scale_factor());
+    }
+    if scales.is_empty() {
         return false;
     }
 
-    !widget_pointer_inside_rects(&rects, local_x, local_y)
+    let mut any_plausible_outside = false;
+    for scale in scales {
+        let (local_x, local_y) = widget_pointer_local_position(&cursor, &origin, scale);
+        let width = size.width as f64 / scale;
+        let height = size.height as f64 / scale;
+        if !widget_pointer_position_is_plausible(local_x, local_y, width, height) {
+            continue;
+        }
+        if widget_pointer_inside_rects(&rects, local_x, local_y) {
+            // 어느 배율 해석으로든 버튼/헤더 위면 클릭을 살린다(안전 우선).
+            return false;
+        }
+        any_plausible_outside = true;
+    }
+
+    // 그럴듯한 해석이 하나도 없으면(좌표계 붕괴) 클릭 가능 유지.
+    any_plausible_outside
 }
 
 /// 위젯 창마다 커서 폴러 스레드 하나를 유지한다. 창이 사라지면 스스로 종료·정리한다.
@@ -2860,7 +2891,7 @@ fn drag_widget_bar_window(
         );
     }
 
-    let scale = window
+    let window_scale = window
         .scale_factor()
         .map_err(|error| error.to_string())?
         .max(0.5);
@@ -2868,6 +2899,12 @@ fn drag_widget_bar_window(
         .cursor_position()
         .map_err(|error| error.to_string())?;
     let monitor = monitor_nearest_physical_point(&app, cursor.x, cursor.y)?;
+    // 배율이 다른 모니터로 끌고 가는 중에는 창 배율이 아직 이전 모니터 값일 수 있다.
+    // 물리 환산은 커서가 있는(도착지) 모니터 배율로 해야 경계에서 좌표가 튀지 않는다.
+    let scale = monitor
+        .as_ref()
+        .map(|(monitor, _)| monitor.scale_factor().max(0.5))
+        .unwrap_or(window_scale);
     let (origin_x, origin_y, work_x, work_y, work_width, work_height) = if let Some((monitor, _)) =
         monitor.as_ref()
     {
