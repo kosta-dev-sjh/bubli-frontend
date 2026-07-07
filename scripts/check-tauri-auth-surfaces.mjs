@@ -1053,7 +1053,7 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /launchTauriAuthenticatedSurfaces\(\)[\s\S]*post-login launcher opened all bubble widgets with project room context[\s\S]*isActivityAutoCaptureRunning\(\)[\s\S]*isManagedFolderAutoSyncRunning\(\)[\s\S]*isWidgetUsageAutoSyncRunning\(\)[\s\S]*post-login launcher started activity folder and widget sync loops[\s\S]*stopTauriAuthenticatedSurfaces\(\)[\s\S]*post-login stop cleared active project room context[\s\S]*post-login stop closed all bubble widget windows[\s\S]*post-login stop stopped activity folder and widget sync loops/,
+  /launchTauriAuthenticatedSurfaces\(\)[\s\S]*post-login launcher opened all auto-login bubble widgets with project room context[\s\S]*post-login launcher kept standalone resource widget hidden[\s\S]*isActivityAutoCaptureRunning\(\)[\s\S]*isManagedFolderAutoSyncRunning\(\)[\s\S]*isWidgetUsageAutoSyncRunning\(\)[\s\S]*post-login launcher started activity folder and widget sync loops[\s\S]*stopTauriAuthenticatedSurfaces\(\)[\s\S]*post-login stop cleared active project room context[\s\S]*post-login stop closed all bubble widget windows[\s\S]*post-login stop stopped activity folder and widget sync loops/,
   "TauriRuntimeSmokeRunner must prove the real post-login authenticated launcher opens widgets, starts sync loops, and stops both widgets and loops.",
 );
 assertContains(
@@ -1093,7 +1093,7 @@ assertContains(
 );
 assertContains(
   windowsRuntimeSmoke,
-  /const CONTRACT_ONLY = process\.argv\.includes\("--contract"\)[\s\S]*if \(CONTRACT_ONLY\) \{[\s\S]*const contractChecks = runContractCheck\(\);[\s\S]*checks: contractChecks[\s\S]*mode: "contract"[\s\S]*process\.exit\(0\);[\s\S]*function runContractCheck\(\)[\s\S]*runner verifies post-login bar and all bubble widgets with room context[\s\S]*runner verifies real backend widget context and settings persistence[\s\S]*runner verifies SQLite backup creation and restore queueing[\s\S]*runner verifies local file scan reindex watch sync and analysis backfill/,
+  /const CONTRACT_ONLY = process\.argv\.includes\("--contract"\)[\s\S]*if \(CONTRACT_ONLY\) \{[\s\S]*const contractChecks = runContractCheck\(\);[\s\S]*checks: contractChecks[\s\S]*mode: "contract"[\s\S]*process\.exit\(0\);[\s\S]*function runContractCheck\(\)[\s\S]*runner verifies post-login bar and auto-login bubble widgets with room context[\s\S]*runner verifies real backend widget context and settings persistence[\s\S]*runner verifies SQLite backup creation and restore queueing[\s\S]*runner verifies local file scan reindex watch sync and analysis backfill/,
   "Windows runtime smoke --contract mode must statically verify key runtime smoke functional assertions before reporting pass.",
 );
 assertContains(
@@ -1404,7 +1404,7 @@ assertContains(
 );
 assertContains(
   surfaces,
-  /launchTauriAuthenticatedSurfaces\(options: LaunchTauriAuthenticatedSurfacesOptions = \{\}\)[\s\S]*if \(!options\.sessionAlreadyValidated\) \{[\s\S]*await authApi\.getMe\(\);[\s\S]*\}[\s\S]*timeline\.backendAuthValidationSource = options\.sessionAlreadyValidated \? "caller" : "launcher"[\s\S]*timeline\.backendAuthValidatedAt = nowIso\(\);[\s\S]*const startupWindows = await resolveLoginStartupWindows\(\);/,
+  /launchTauriAuthenticatedSurfaces\(options: LaunchTauriAuthenticatedSurfacesOptions = \{\}\)[\s\S]*if \(!options\.sessionAlreadyValidated\) \{[\s\S]*await authApi\.getMe\(\);[\s\S]*\}[\s\S]*timeline\.backendAuthValidationSource = options\.sessionAlreadyValidated \? "caller" : "launcher"[\s\S]*timeline\.backendAuthValidatedAt = nowIso\(\);[\s\S]*const startupWindowsPromise = resolveLoginStartupWindows\(\)/,
   "launchTauriAuthenticatedSurfaces must verify the live backend auth session unless the caller already validated it before opening widgets.",
 );
 assertContains(
@@ -1429,22 +1429,22 @@ assertContains(
 );
 assertContains(
   surfaces,
-  /type LaunchTauriAuthenticatedSurfacesOptions = \{[\s\S]*retryPolicy\?: "cooldown" \| "force";[\s\S]*sessionAlreadyValidated\?: boolean;[\s\S]*selectedRoomId\?: string \| null;[\s\S]*Object\.prototype\.hasOwnProperty\.call\(options, "selectedRoomId"\)[\s\S]*options\.selectedRoomId \?\? null[\s\S]*await resolveLaunchSelectedRoomId\(\)/,
+  /type LaunchTauriAuthenticatedSurfacesOptions = \{[\s\S]*retryPolicy\?: "cooldown" \| "force";[\s\S]*sessionAlreadyValidated\?: boolean;[\s\S]*selectedRoomId\?: string \| null;[\s\S]*Object\.prototype\.hasOwnProperty\.call\(options, "selectedRoomId"\)[\s\S]*Promise\.resolve\(options\.selectedRoomId \?\? null\)[\s\S]*resolveLaunchSelectedRoomId\(\)/,
   "launchTauriAuthenticatedSurfaces must reuse caller-resolved project-room context, preserve explicit null personal mode, and keep cooldown opt-in before falling back to extra API lookups.",
 );
 assertContains(
   surfaces,
-  /const selectedRoomId = Object\.prototype\.hasOwnProperty\.call\(options, "selectedRoomId"\)[\s\S]*const launchFailureKey = autoLaunchFailureKey\(verifiedSession\?\.user\.id \?\? initialSession\.user\.id, selectedRoomId\)[\s\S]*const applyAutoLaunchCooldown = shouldApplyAutoLaunchCooldown\(options\)[\s\S]*if \(applyAutoLaunchCooldown && shouldSuppressAutoLaunchRetry\(launchFailureKey\)\)[\s\S]*retrySuppressedAt[\s\S]*await tauriCommands\.setAuthenticatedSurfacesEnabled\(\{ enabled: true \}\);/,
+  /const \[startupWindows, selectedRoomId\] = await Promise\.all\(\[startupWindowsPromise, selectedRoomPromise\]\);[\s\S]*const launchFailureKey = autoLaunchFailureKey\(verifiedSession\?\.user\.id \?\? initialSession\.user\.id, selectedRoomId\)[\s\S]*const applyAutoLaunchCooldown = shouldApplyAutoLaunchCooldown\(options\)[\s\S]*if \(applyAutoLaunchCooldown && shouldSuppressAutoLaunchRetry\(launchFailureKey\)\)[\s\S]*retrySuppressedAt[\s\S]*await tauriCommands\.setAuthenticatedSurfacesEnabled\(\{ enabled: true \}\);/,
   "launchTauriAuthenticatedSurfaces must allow personal-mode widgets when no project-room context exists and suppress only opt-in auto retries.",
 );
 assertContains(
   surfaces,
-  /const startupWindows = await resolveLoginStartupWindows\(\);[\s\S]*const selectedRoomId = Object\.prototype\.hasOwnProperty\.call\(options, "selectedRoomId"\)[\s\S]*if \(generation !== launchGeneration\) \{[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*return;/,
+  /const \[startupWindows, selectedRoomId\] = await Promise\.all\(\[startupWindowsPromise, selectedRoomPromise\]\);[\s\S]*if \(generation !== launchGeneration\) \{[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*return;/,
   "launchTauriAuthenticatedSurfaces must cancel cleanly if auth/session state changes after resolving the project-room context.",
 );
 assertContains(
   surfaces,
-  /const startupWindows = await resolveLoginStartupWindows\(\);[\s\S]*if \(barWindow\) \{[\s\S]*if \(generation !== launchGeneration\) \{[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*return;[\s\S]*openWidgetWindowWithRetry\(barWindow, selectedRoomId, shouldContinueLaunch\)/,
+  /const \[startupWindows, selectedRoomId\] = await Promise\.all\(\[startupWindowsPromise, selectedRoomPromise\]\);[\s\S]*if \(barWindow\) \{[\s\S]*if \(generation !== launchGeneration\) \{[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*return;[\s\S]*openWidgetWindowWithRetry\(barWindow, selectedRoomId, shouldContinueLaunch\)/,
   "launchTauriAuthenticatedSurfaces must cancel cleanly before opening the bar window.",
 );
 assertContains(

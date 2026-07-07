@@ -118,15 +118,16 @@ const backendBubbleToLocal: Record<ApiWidgetBubbleType, Exclude<WidgetBubbleType
 const widgetOpenCommandTimeoutMs = 8_000;
 const widgetOpenRetryAttempts = 2;
 const widgetOpenRetryDelayMs = 650;
+const widgetStartupSettingsTimeoutMs = 1_500;
 
 type WidgetOpenResult =
   | { input: WidgetWindowOpenInput; status: "fulfilled" }
   | { input: WidgetWindowOpenInput; reason: unknown; status: "rejected" };
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message = "Tauri async operation timed out") {
   return Promise.race([
     promise,
-    new Promise<T>((_, reject) => window.setTimeout(() => reject(new Error("Tauri widget open timed out")), timeoutMs)),
+    new Promise<T>((_, reject) => window.setTimeout(() => reject(new Error(message)), timeoutMs)),
   ]);
 }
 
@@ -181,7 +182,11 @@ async function openWidgetWindowWithRetry(
     }
 
     try {
-      await withTimeout(tauriCommands.openWidgetWindow({ ...input, selectedRoomId }), widgetOpenCommandTimeoutMs);
+      await withTimeout(
+        tauriCommands.openWidgetWindow({ ...input, selectedRoomId }),
+        widgetOpenCommandTimeoutMs,
+        "Tauri widget open timed out",
+      );
       return { input, status: "fulfilled" };
     } catch (reason) {
       lastReason = reason;
@@ -213,7 +218,7 @@ async function openWidgetWindowsWithRetry(
     }
 
     try {
-      await withTimeout(tauriCommands.openWidgetWindows({ windows }), widgetOpenCommandTimeoutMs);
+      await withTimeout(tauriCommands.openWidgetWindows({ windows }), widgetOpenCommandTimeoutMs, "Tauri widget open timed out");
       return inputs.map((input) => ({ input, status: "fulfilled" as const }));
     } catch (reason) {
       lastReason = reason;
@@ -274,7 +279,11 @@ function getLoginStartupBubbles(settings: WidgetBubbleSettingResponse[]): Widget
 }
 
 export async function resolveLoginStartupWindows(): Promise<WidgetWindowOpenInput[]> {
-  const settings = await widgetApi.getSettings().catch(() => null);
+  const settings = await withTimeout(
+    widgetApi.getSettings(),
+    widgetStartupSettingsTimeoutMs,
+    "Tauri widget startup settings timed out",
+  ).catch(() => null);
   if (!settings) {
     return loginStartupWindows;
   }
@@ -374,13 +383,20 @@ export function launchTauriAuthenticatedSurfaces(options: LaunchTauriAuthenticat
     }
     timeline.sessionMirrorStoredAt = nowIso();
 
-    const startupWindows = await resolveLoginStartupWindows();
-    timeline.startupWindowsResolvedAt = nowIso();
-    const selectedRoomId = Object.prototype.hasOwnProperty.call(options, "selectedRoomId")
-      ? options.selectedRoomId ?? null
-      : await resolveLaunchSelectedRoomId();
+    const startupWindowsPromise = resolveLoginStartupWindows().then((windows) => {
+      timeline.startupWindowsResolvedAt = nowIso();
+      return windows;
+    });
+    const selectedRoomPromise = (
+      Object.prototype.hasOwnProperty.call(options, "selectedRoomId")
+        ? Promise.resolve(options.selectedRoomId ?? null)
+        : resolveLaunchSelectedRoomId()
+    ).then((roomId) => {
+      timeline.selectedRoomResolvedAt = nowIso();
+      return roomId;
+    });
+    const [startupWindows, selectedRoomId] = await Promise.all([startupWindowsPromise, selectedRoomPromise]);
     launchInFlightRoomId = selectedRoomId?.trim() || launchInFlightRoomId;
-    timeline.selectedRoomResolvedAt = nowIso();
     const launchFailureKey = autoLaunchFailureKey(verifiedSession?.user.id ?? initialSession.user.id, selectedRoomId);
     const applyAutoLaunchCooldown = shouldApplyAutoLaunchCooldown(options);
     if (applyAutoLaunchCooldown && shouldSuppressAutoLaunchRetry(launchFailureKey)) {

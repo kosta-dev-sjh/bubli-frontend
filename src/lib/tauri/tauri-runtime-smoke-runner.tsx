@@ -86,6 +86,7 @@ const smokeWidgetBubbles: SmokeWidgetBubble[] = [
   "resource",
   "alert",
 ];
+const smokeAutoLoginWidgetBubbles = smokeWidgetBubbles.filter((bubbleType) => bubbleType !== "resource");
 
 function runtimeSmokeWidgetPosition(bubbleType: SmokeWidgetBubble) {
   const index = smokeWidgetBubbles.indexOf(bubbleType);
@@ -1705,14 +1706,23 @@ async function runSmoke() {
     await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false });
     await launchTauriAuthenticatedSurfaces();
     const launcherWidgetStates = await Promise.all(
-      smokeWidgetBubbles.map((bubbleType) =>
+      smokeAutoLoginWidgetBubbles.map((bubbleType) =>
         tauriCommands.getWidgetWindowState({ bubbleType, windowId: bubbleType }),
       ),
     );
     assert(
       launcherWidgetStates.every((widget) => widget.windowVisible && widget.selectedRoomId === smokeRoomId),
-      "post-login launcher opened all bubble widgets with project room context",
+      "post-login launcher opened all auto-login bubble widgets with project room context",
       launcherWidgetStates,
+    );
+    const launcherResourceWidgetState = await tauriCommands.getWidgetWindowState({
+      bubbleType: "resource",
+      windowId: "resource",
+    });
+    assert(
+      !launcherResourceWidgetState.windowVisible,
+      "post-login launcher kept standalone resource widget hidden",
+      launcherResourceWidgetState,
     );
     await tauriCommands.closeWidgetWindow({ bubbleType: "chat", windowId: "chat" });
     const closedChatWidgetState = await tauriCommands.getWidgetWindowState({ bubbleType: "chat", windowId: "chat" });
