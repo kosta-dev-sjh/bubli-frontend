@@ -1515,9 +1515,9 @@
   margin: 0 0 2px;
   padding: 7px 10px;
   border-radius: 12px;
-  background: color-mix(in srgb, #e89898 20%, transparent);
-  border: 1px solid color-mix(in srgb, #e89898 40%, transparent);
-  color: color-mix(in srgb, #e89898 55%, #2c3540);
+  background: color-mix(in srgb, var(--signal-alert) 20%, transparent);
+  border: 1px solid color-mix(in srgb, var(--signal-alert) 40%, transparent);
+  color: color-mix(in srgb, var(--signal-alert) 55%, #2c3540);
   font-size: 13px;
   font-weight: 600;
   line-height: 1.35;
