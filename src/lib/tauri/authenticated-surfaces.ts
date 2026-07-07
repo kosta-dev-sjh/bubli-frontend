@@ -9,6 +9,7 @@ import { getStoredAuthSession, setStoredAuthSessionAndWaitForTauriMirror } from 
 import { tauriCommands, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowOpenInput } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
+import { readWidgetSummary } from "@/lib/widget";
 import { startWidgetUsageAutoSync, stopWidgetUsageAutoSync } from "@/lib/widget/widget-usage-auto-sync";
 import {
   clearActiveProjectRoomId,
@@ -46,6 +47,8 @@ export type TauriAuthenticatedSurfaceLaunchTimeline = {
   reusedExistingWindowsAt?: string;
   selectedRoomResolvedAt?: string;
   sessionMirrorStoredAt?: string;
+  summaryPrewarmCompletedAt?: string;
+  summaryPrewarmFailedAt?: string;
   startupWindowsResolvedAt?: string;
   stoppedAt?: string;
   syncLoopsStartedAt?: string;
@@ -136,6 +139,19 @@ function widgetTargetFromInput(input: WidgetWindowOpenInput) {
     bubbleType: input.bubbleType,
     windowId: input.windowId ?? input.bubbleType,
   };
+}
+
+async function prewarmWidgetSummaryCache(selectedRoomId: string | null): Promise<boolean> {
+  const startupConfig = await readTauriStartupOptimizationConfig();
+  if (startupConfig.summaryPrewarmTimeoutMs <= 0) return false;
+
+  const result = await withTimeout(
+    readWidgetSummary({ preferLocalCache: false, selectedRoomId }),
+    startupConfig.summaryPrewarmTimeoutMs,
+    "Tauri widget summary prewarm timed out",
+  ).catch(() => null);
+
+  return result?.status === "ready";
 }
 
 function startupWindowRequiresVisibleWindow(input: WidgetWindowOpenInput) {
@@ -471,6 +487,7 @@ export function launchTauriAuthenticatedSurfaces(options: LaunchTauriAuthenticat
     const openedWindows: WidgetWindowOpenInput[] = [];
     const rejectedReasons: unknown[] = [];
     const shouldContinueLaunch = () => generation === launchGeneration;
+    let summaryPrewarmPromise: Promise<boolean> | null = null;
 
     if (barWindow) {
       if (generation !== launchGeneration) {
@@ -492,10 +509,23 @@ export function launchTauriAuthenticatedSurfaces(options: LaunchTauriAuthenticat
       }
     }
 
+    if (selectedRoomId || bubbleWindows.length > 0) {
+      summaryPrewarmPromise = prewarmWidgetSummaryCache(selectedRoomId);
+    }
+
     if (generation !== launchGeneration) {
       await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
       await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false }).catch(() => undefined);
       return;
+    }
+
+    if (summaryPrewarmPromise) {
+      const warmed = await summaryPrewarmPromise;
+      if (warmed) {
+        timeline.summaryPrewarmCompletedAt = nowIso();
+      } else {
+        timeline.summaryPrewarmFailedAt = nowIso();
+      }
     }
 
     const bubbleResults = await openWidgetWindowsWithRetry(bubbleWindows, selectedRoomId, shouldContinueLaunch);

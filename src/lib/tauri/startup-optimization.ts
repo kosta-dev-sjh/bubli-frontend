@@ -1,7 +1,7 @@
 import { tauriCommands } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
-export type TauriStartupOptimizationProfile = "aggressive" | "balanced" | "fast";
+export type TauriStartupOptimizationProfile = "aggressive" | "balanced" | "fast" | "windows";
 
 export type TauriStartupOptimizationConfig = {
   bubbleOpenStaggerMs: number;
@@ -12,11 +12,12 @@ export type TauriStartupOptimizationConfig = {
   retryAttempts: number;
   retryDelayMs: number;
   settingsTimeoutMs: number;
+  summaryPrewarmTimeoutMs: number;
 };
 
 const STARTUP_OPTIMIZATION_CACHE_KEY = "tauri-runtime";
 const STARTUP_OPTIMIZATION_KIND = "startup_optimization_profile";
-const defaultProfile: TauriStartupOptimizationProfile = "fast";
+const defaultProfile = normalizeProfile(process.env.NEXT_PUBLIC_BUBLI_TAURI_STARTUP_PROFILE);
 
 const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimizationConfig> = {
   aggressive: {
@@ -28,6 +29,7 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
     retryAttempts: 1,
     retryDelayMs: 450,
     settingsTimeoutMs: 650,
+    summaryPrewarmTimeoutMs: 900,
   },
   balanced: {
     bubbleOpenStaggerMs: 0,
@@ -38,6 +40,7 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
     retryAttempts: 2,
     retryDelayMs: 650,
     settingsTimeoutMs: 2_500,
+    summaryPrewarmTimeoutMs: 0,
   },
   fast: {
     bubbleOpenStaggerMs: 90,
@@ -48,12 +51,24 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
     retryAttempts: 2,
     retryDelayMs: 550,
     settingsTimeoutMs: 1_200,
+    summaryPrewarmTimeoutMs: 1_400,
+  },
+  windows: {
+    bubbleOpenStaggerMs: 45,
+    deferredBarFullDisplayDelayMs: 350,
+    deferBarFullDisplayUntilAfterFirstPaint: true,
+    openCommandTimeoutMs: 8_000,
+    profile: "windows",
+    retryAttempts: 2,
+    retryDelayMs: 500,
+    settingsTimeoutMs: 1_000,
+    summaryPrewarmTimeoutMs: 1_800,
   },
 };
 
 function normalizeProfile(value: unknown): TauriStartupOptimizationProfile {
-  if (value === "aggressive" || value === "balanced" || value === "fast") return value;
-  return defaultProfile;
+  if (value === "aggressive" || value === "balanced" || value === "fast" || value === "windows") return value;
+  return "fast";
 }
 
 export function defaultTauriStartupOptimizationConfig(): TauriStartupOptimizationConfig {

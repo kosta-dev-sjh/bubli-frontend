@@ -721,8 +721,11 @@ function renderEvidenceSummary(report, reportPath) {
     `- Real TAURI local session: ${Boolean(snapshot.localSession?.hasSession && snapshot.localSession?.clientType === "TAURI" && snapshot.localSession?.isDevAccessTokenSession === false)}`,
     `- Real TAURI mirror session: ${Boolean(snapshot.tauriMirrorSession?.hasSession && snapshot.tauriMirrorSession?.clientType === "TAURI" && snapshot.tauriMirrorSession?.isDevAccessTokenSession === false)}`,
     `- Backend /api/me: ${Boolean(snapshot.backend?.me?.ok)}`,
+    `- Backend /api/me latency ms: ${snapshot.backend?.me?.durationMs ?? "not reported"}`,
     `- Backend widget context: ${Boolean(snapshot.backend?.widgetContext?.ok)}`,
+    `- Backend widget context latency ms: ${snapshot.backend?.widgetContext?.durationMs ?? "not reported"}`,
     `- Backend widget summary: ${Boolean(snapshot.backend?.widgetSummary?.ok)}`,
+    `- Backend widget summary latency ms: ${snapshot.backend?.widgetSummary?.durationMs ?? "not reported"}`,
     `- Selected room propagated: ${Boolean(snapshot.activeProjectRoom?.hasSelectedRoom && snapshot.activeProjectRoom?.tauriMatchesMemory && snapshot.activeProjectRoom?.tauriMatchesServerContext)}`,
     `- All widget windows visible: ${Boolean(snapshot.widgetRuntime?.allExpectedWindowsVisible)}`,
     `- Widget room context matches active/server: ${Boolean(snapshot.widgetRuntime?.allWindowRoomContextMatchesActive && snapshot.widgetRuntime?.allWindowRoomContextMatchesServer)}`,
@@ -948,6 +951,10 @@ function validateRealOAuthQaReport(report) {
   );
   assert(snapshot.tauriMirrorSession.refreshTokenExpired === false, "Passed QA Tauri mirror refresh token must be live.");
   assert(snapshot.backend?.me?.ok, "Passed QA report must prove /api/me.");
+  assert(
+    Number.isFinite(snapshot.backend.me.durationMs) && snapshot.backend.me.durationMs >= 0,
+    "Passed QA report must include /api/me probe durationMs.",
+  );
   assert(snapshot.launchTimeline?.completed, "Passed QA report must prove authenticated surface launch completed.");
   assert(!snapshot.launchTimeline.lastError, "Passed QA launch timeline must not include an error.");
   assert(
@@ -980,7 +987,15 @@ function validateRealOAuthQaReport(report) {
     "Passed QA launch timeline must prove sync loops started after widget windows.",
   );
   assert(snapshot.backend?.widgetContext?.ok, "Passed QA report must prove /api/widget/context.");
+  assert(
+    Number.isFinite(snapshot.backend.widgetContext.durationMs) && snapshot.backend.widgetContext.durationMs >= 0,
+    "Passed QA report must include /api/widget/context probe durationMs.",
+  );
   assert(snapshot.backend?.widgetSummary?.ok, "Passed QA report must prove /api/widget/summary.");
+  assert(
+    Number.isFinite(snapshot.backend.widgetSummary.durationMs) && snapshot.backend.widgetSummary.durationMs >= 0,
+    "Passed QA report must include /api/widget/summary probe durationMs.",
+  );
   assert(snapshot.activeProjectRoom?.hasSelectedRoom, "Passed QA report must have a selected project room.");
   assert(snapshot.activeProjectRoom.tauriMatchesMemory, "Passed QA report must match Tauri and memory room context.");
   assert(

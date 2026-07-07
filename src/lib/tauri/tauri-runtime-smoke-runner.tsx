@@ -56,6 +56,7 @@ type SmokeReport = {
   finishedAt: string;
   platform: string;
   status: "passed" | "failed" | "skipped";
+  timings?: Record<string, number>;
 };
 
 type SmokeAssert = (condition: unknown, name: string, detail?: unknown) => asserts condition;
@@ -103,6 +104,19 @@ function isMacRuntime() {
 
 function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function measureSmokeTiming<T>(
+  timings: Record<string, number>,
+  name: string,
+  read: () => Promise<T>,
+): Promise<T> {
+  const startedAt = Date.now();
+  try {
+    return await read();
+  } finally {
+    timings[name] = Date.now() - startedAt;
+  }
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -995,6 +1009,7 @@ async function postReport(report: SmokeReport) {
 async function runSmoke() {
   const startedAt = Date.now();
   const checks: SmokeCheck[] = [];
+  const timings: Record<string, number> = {};
   let runtimeSmokeManagedFolderId: string | null = null;
   const addCheck = (name: string, detail?: unknown) => checks.push({ detail, name });
   const assert: SmokeAssert = (condition, name, detail) => {
@@ -1012,6 +1027,7 @@ async function runSmoke() {
         finishedAt: new Date().toISOString(),
         platform: "browser",
         status: "skipped",
+        timings,
       });
       return;
     }
@@ -1023,6 +1039,7 @@ async function runSmoke() {
         finishedAt: new Date().toISOString(),
         platform: navigator.userAgent,
         status: "skipped",
+        timings,
       });
       return;
     }
@@ -1073,6 +1090,7 @@ async function runSmoke() {
         finishedAt: new Date().toISOString(),
         platform: navigator.userAgent,
         status: "passed",
+        timings,
       });
       return;
     }
@@ -1092,24 +1110,31 @@ async function runSmoke() {
         finishedAt: new Date().toISOString(),
         platform: navigator.userAgent,
         status: "passed",
+        timings,
       });
       return;
     }
 
-    const serverWidgetContext = await widgetApi.updateContext({ selectedRoomId: smokeRoomId });
+    const serverWidgetContext = await measureSmokeTiming(timings, "widgetApi.updateContext", () =>
+      widgetApi.updateContext({ selectedRoomId: smokeRoomId }),
+    );
     assert(
       serverWidgetContext.selectedRoomId === smokeRoomId && serverWidgetContext.mode === "ROOM",
       "real backend widget context saved from Tauri runtime",
       serverWidgetContext,
     );
-    const serverWidgetContextReadback = await widgetApi.getContext();
+    const serverWidgetContextReadback = await measureSmokeTiming(timings, "widgetApi.getContext", () =>
+      widgetApi.getContext(),
+    );
     assert(
       serverWidgetContextReadback.selectedRoomId === smokeRoomId &&
         serverWidgetContextReadback.mode === "ROOM",
       "real backend widget context read back in Tauri runtime",
       serverWidgetContextReadback,
     );
-    const serverWidgetSummary = await widgetApi.getSummary(smokeRoomId);
+    const serverWidgetSummary = await measureSmokeTiming(timings, "widgetApi.getSummary", () =>
+      widgetApi.getSummary(smokeRoomId),
+    );
     assert(
       serverWidgetSummary.context.selectedRoomId === smokeRoomId &&
         serverWidgetSummary.context.mode === "ROOM",
@@ -1121,17 +1146,19 @@ async function runSmoke() {
     await verifyRealBackendRoomCommunication(smokeRoomId, assert);
 
     await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: true });
-    const windows = await tauriCommands.openWidgetWindows({
-      windows: [
-        { bubbleType: "bar", mode: "DEFAULT", selectedRoomId: smokeRoomId, windowId: "bar" },
-        ...smokeWidgetBubbles.map((bubbleType) => ({
-          bubbleType,
-          mode: "DEFAULT" as const,
-          selectedRoomId: smokeRoomId,
-          windowId: bubbleType,
-        })),
-      ],
-    });
+    const windows = await measureSmokeTiming(timings, "tauriCommands.openWidgetWindows.initial", () =>
+      tauriCommands.openWidgetWindows({
+        windows: [
+          { bubbleType: "bar", mode: "DEFAULT", selectedRoomId: smokeRoomId, windowId: "bar" },
+          ...smokeWidgetBubbles.map((bubbleType) => ({
+            bubbleType,
+            mode: "DEFAULT" as const,
+            selectedRoomId: smokeRoomId,
+            windowId: bubbleType,
+          })),
+        ],
+      }),
+    );
     const openedWidgetIds = new Set(windows.map((window) => window.windowId ?? window.activeBubble));
     assert(
       windows.length >= smokeWidgetBubbles.length + 1 &&
@@ -1147,9 +1174,11 @@ async function runSmoke() {
     );
 
     await tauriCommands.setWidgetRoomContext({ selectedRoomId: smokeRoomId });
-    const widgetStates = await Promise.all(
-      smokeWidgetBubbles.map((bubbleType) =>
-        tauriCommands.getWidgetWindowState({ bubbleType, windowId: bubbleType }),
+    const widgetStates = await measureSmokeTiming(timings, "tauriCommands.readWidgetStates.initial", () =>
+      Promise.all(
+        smokeWidgetBubbles.map((bubbleType) =>
+          tauriCommands.getWidgetWindowState({ bubbleType, windowId: bubbleType }),
+        ),
       ),
     );
     assert(
@@ -1222,17 +1251,21 @@ async function runSmoke() {
       "all minimized bubble widgets appear as bar restore items",
       minimizedBarItems,
     );
-    await tauriCommands.openWidgetWindows({
-      windows: smokeWidgetBubbles.map((bubbleType) => ({
-        bubbleType,
-        mode: "DEFAULT" as const,
-        selectedRoomId: smokeRoomId,
-        windowId: bubbleType,
-      })),
-    });
-    const restoredWidgetStates = await Promise.all(
-      smokeWidgetBubbles.map((bubbleType) =>
-        tauriCommands.getWidgetWindowState({ bubbleType, windowId: bubbleType }),
+    await measureSmokeTiming(timings, "tauriCommands.openWidgetWindows.restore", () =>
+      tauriCommands.openWidgetWindows({
+        windows: smokeWidgetBubbles.map((bubbleType) => ({
+          bubbleType,
+          mode: "DEFAULT" as const,
+          selectedRoomId: smokeRoomId,
+          windowId: bubbleType,
+        })),
+      }),
+    );
+    const restoredWidgetStates = await measureSmokeTiming(timings, "tauriCommands.readWidgetStates.restored", () =>
+      Promise.all(
+        smokeWidgetBubbles.map((bubbleType) =>
+          tauriCommands.getWidgetWindowState({ bubbleType, windowId: bubbleType }),
+        ),
       ),
     );
     assert(
@@ -1704,10 +1737,14 @@ async function runSmoke() {
 
     await tauriCommands.closeAllWidgetWindows();
     await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false });
-    await launchTauriAuthenticatedSurfaces();
-    const launcherWidgetStates = await Promise.all(
-      smokeAutoLoginWidgetBubbles.map((bubbleType) =>
-        tauriCommands.getWidgetWindowState({ bubbleType, windowId: bubbleType }),
+    await measureSmokeTiming(timings, "launchTauriAuthenticatedSurfaces", () =>
+      launchTauriAuthenticatedSurfaces(),
+    );
+    const launcherWidgetStates = await measureSmokeTiming(timings, "tauriCommands.readWidgetStates.launcher", () =>
+      Promise.all(
+        smokeAutoLoginWidgetBubbles.map((bubbleType) =>
+          tauriCommands.getWidgetWindowState({ bubbleType, windowId: bubbleType }),
+        ),
       ),
     );
     assert(
@@ -1838,6 +1875,7 @@ async function runSmoke() {
       finishedAt: new Date().toISOString(),
       platform: navigator.userAgent,
       status: "passed",
+      timings,
     });
   } catch (error) {
     await stopTauriAuthenticatedSurfaces().catch(() => undefined);
@@ -1853,6 +1891,7 @@ async function runSmoke() {
       finishedAt: new Date().toISOString(),
       platform: typeof navigator === "undefined" ? "unknown" : navigator.userAgent,
       status: "failed",
+      timings,
     });
   } finally {
     if (smokeShouldQuit) {
