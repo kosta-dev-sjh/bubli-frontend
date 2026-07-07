@@ -867,6 +867,10 @@ function buildDisplayBubbles(input: {
     kind: "schedule",
     label: item.title,
     status: scheduleTimeLabel(item),
+    // 위젯 캘린더(월/주/WBS)가 날짜별 배치를 계산하도록 원본 시각을 함께 내려준다.
+    startsAt: item.startsAt,
+    endsAt: item.endsAt,
+    allDay: item.allDay,
   });
   const scheduleItems = scheduleSource.map((item) => scheduleToRow(item, scheduleRoute));
   const personalScheduleItems = personalScheduleSource.map((item) => scheduleToRow(item, personalScheduleRoute));
