@@ -1192,11 +1192,7 @@ export function AppShell({ children }: AppShellProps) {
       current.kind === "ready"
         ? {
             ...current,
-            notifications: current.notifications.map((item) =>
-              item.id === notificationId && item.status !== "ARCHIVED"
-                ? { ...item, status: "ARCHIVED" as const }
-                : item,
-            ),
+            notifications: current.notifications.filter((item) => item.id !== notificationId),
           }
         : current,
     );
