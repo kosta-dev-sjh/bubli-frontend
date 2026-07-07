@@ -1172,24 +1172,37 @@ fn remember_widget_window_absolute_position(
         return Ok(());
     }
 
-    let monitor = app
-        .get_webview_window(label)
-        .and_then(|window| window.current_monitor().ok().flatten())
-        .map(|monitor| {
-            let (monitors, _primary) = list_monitors(app)?;
-            let id = monitors
-                .iter()
-                .enumerate()
-                .find(|(_, candidate)| monitors_match(candidate, &monitor))
-                .map(|(index, candidate)| monitor_id(candidate, index))
-                .unwrap_or_else(|| PRIMARY_MONITOR_ID.to_string());
-            Ok::<(Monitor, String), String>((monitor, id))
+    // 창 중심의 실제 물리 좌표가 놓인 모니터를 1순위로 쓴다. current_monitor()는 프로그램
+    // 이동/경계 드래그 직후 이전 모니터를 물고 있어서 좌표가 엉뚱한 모니터-로컬로 저장됐고
+    // 다음 위치 재적용 때 작업영역 우하단으로 클램프돼 "창이 우하단에 박히는" 버그를 만들었다.
+    let window = app.get_webview_window(label);
+    let center = window
+        .as_ref()
+        .and_then(|window| window.outer_size().ok())
+        .map(|size| {
+            (
+                absolute_x as f64 + size.width as f64 / 2.0,
+                absolute_y as f64 + size.height as f64 / 2.0,
+            )
         })
-        .transpose()?
+        .unwrap_or((absolute_x as f64, absolute_y as f64));
+    let monitor = monitor_nearest_physical_point(app, center.0, center.1)
+        .ok()
+        .flatten()
         .or_else(|| {
-            monitor_nearest_physical_point(app, absolute_x as f64, absolute_y as f64)
-                .ok()
-                .flatten()
+            window
+                .as_ref()
+                .and_then(|window| window.current_monitor().ok().flatten())
+                .and_then(|monitor| {
+                    let (monitors, _primary) = list_monitors(app).ok()?;
+                    let id = monitors
+                        .iter()
+                        .enumerate()
+                        .find(|(_, candidate)| monitors_match(candidate, &monitor))
+                        .map(|(index, candidate)| monitor_id(candidate, index))
+                        .unwrap_or_else(|| PRIMARY_MONITOR_ID.to_string());
+                    Some((monitor, id))
+                })
         });
     let scale = monitor
         .as_ref()

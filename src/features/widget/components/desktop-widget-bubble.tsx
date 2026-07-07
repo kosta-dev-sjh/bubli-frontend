@@ -3902,7 +3902,14 @@ function countTodaySchedules(rows: WidgetPreviewItem[]): number {
 // 투두/일정/메모 칩의 아이콘 옆 인라인 카운트(14px 텍스트). 데이터가 없으면 null — 라벨 생략.
 // 타이머는 라이브 라벨(useBarTimerLive)이 따로 담당하고, 소통/에이전트/초안은 코너 배지를 유지한다.
 function barChipInlineCount(bubbleType: WidgetBubbleType, bubble: WidgetPreviewBubble): string | null {
-  if (bubbleType === "todo" || bubbleType === "memo") return barChipBadge(bubble.metric);
+  if (bubbleType === "todo") {
+    // 남은 할 일 수는 행 데이터에서 직접 센다 — metric 문자열 포맷 변화에 흔들리지 않게.
+    const remaining = bubble.rows.filter((row) => !row.checked).length;
+    return formatChipCount(remaining) ?? barChipBadge(bubble.metric);
+  }
+  if (bubbleType === "memo") {
+    return formatChipCount(bubble.rows.length) ?? barChipBadge(bubble.metric);
+  }
   if (bubbleType === "schedule") return formatChipCount(countTodaySchedules(bubble.rows));
   return null;
 }
@@ -3969,10 +3976,9 @@ function useBarTimerLive(enabled: boolean, timerBubble: WidgetPreviewBubble | un
   }, [enabled]);
 
   const timerRow = timerBubble?.rows.find((row) => row.kind === "time");
-  const serverTimerRunning = timerRow?.status === "RUNNING";
-  const pomodoroRunning = Boolean(pomodoro?.running && pomodoro.phaseEndsAt);
-  // 시간이 흐르는 표시(뽀모도로 러닝·서버 타이머 러닝·시계)일 때만 1초 틱 — 정지 칩은 리렌더 없음.
-  const needsTick = enabled && (pomodoroRunning || serverTimerRunning || timerMode === "clock");
+  // 타이머 칩에는 어떤 상태든 항상 시간이 떠야 한다(사용자 요구: 아이콘만 금지) —
+  // 뽀모도로/서버 타이머가 없으면 현재 시각 폴백을 그리므로 enabled면 무조건 1초 틱.
+  const needsTick = enabled;
 
   useEffect(() => {
     if (!needsTick) return;
@@ -4033,7 +4039,9 @@ function useBarTimerLive(enabled: boolean, timerBubble: WidgetPreviewBubble | un
   } else if (timerRow && timerRow.status === "PAUSED") {
     // 일시정지된 서버 타이머는 누적 경과를 고정 표시한다(실데이터 — 0을 지어내지 않음).
     live = { kind: "work", label: formatMinutesSeconds(timerRow.timerDurationSeconds ?? 0) };
-  } else if (timerMode === "clock" && liveNow !== null) {
+  } else if (liveNow !== null) {
+    // 저장된 탭 모드가 없어도(첫 사용/키 미복원) 현재 시각을 폴백으로 항상 보여준다 —
+    // "아이콘만 있는 칩" 금지. 시계는 실데이터(벽시계)라 가짜 숫자 규칙에 어긋나지 않는다.
     live = { kind: "clock", label: formatHoursMinutes(new Date(liveNow)) };
   }
   return { live, now: liveNow, pomodoro, timerMode, timerRow };

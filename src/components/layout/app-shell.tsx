@@ -619,7 +619,11 @@ export function AppShell({ children }: AppShellProps) {
         return;
       }
       if (Notification.permission === "granted") {
-        new Notification(notification.title, { body: notification.body ?? undefined });
+        // OS 알림에도 버블리 마크가 뜨게 아이콘을 지정한다(데스크탑 앱은 앱 아이콘이 자동으로 붙는다).
+        new Notification(notification.title, {
+          body: notification.body ?? undefined,
+          icon: "/brand/icon-public-180.png",
+        });
       } else if (Notification.permission === "default") {
         void Notification.requestPermission();
       }
