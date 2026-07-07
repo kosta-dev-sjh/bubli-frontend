@@ -1351,10 +1351,12 @@ function DesktopWidgetSurface() {
   const [activeBubble, setActiveBubble] = useState<WidgetBubbleType>(requestedBubble);
   const [mode, setMode] = useState<WidgetWindowMode>(requestedMode);
   const [alwaysOnTop, setAlwaysOnTop] = useState(true);
-  // 핀 고정(상단 고정)을 켜면 이 창의 위치도 잠근다 — 드래그 헬퍼가 이 값을 읽어 이동을 막는다.
+  // 핀 고정(상단 고정)을 켜면 콘텐츠 버블의 위치를 잠근다 — 드래그 헬퍼가 이 값을 읽어 이동을 막는다.
+  // 단, 원형 메뉴(오브)와 바는 사용자가 자유롭게 옮겨야 하는 크롬이라 항상 잠금에서 제외한다
+  // (오브는 alwaysOnTop이 기본 true라, 잠그면 이동이 아예 막혀버린다).
   useEffect(() => {
-    setWidgetWindowDragLocked(alwaysOnTop);
-  }, [alwaysOnTop]);
+    setWidgetWindowDragLocked(!isWidgetChrome && alwaysOnTop);
+  }, [alwaysOnTop, isWidgetChrome]);
   const [clickThrough, setClickThrough] = useState(false);
   const [windowVisible, setWindowVisible] = useState(true);
   const [widgetContext, setWidgetContext] = useState<WidgetContextResponse | null>(
