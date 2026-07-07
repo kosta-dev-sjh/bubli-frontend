@@ -4344,3 +4344,262 @@
   opacity: 0.68;
   text-decoration: line-through;
 }
+
+/* ---------- 일정: 실제 캘린더(목록/주간/월간/WBS) ---------- */
+/* 세그먼트로 뷰를 실제 전환한다. 좁은 위젯 폭에 맞춘 컴팩트 달력. */
+.schedCal {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.schedCal::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.schedNav {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.schedNavBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--widget-hairline);
+  border-radius: 9px;
+  color: var(--widget-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.schedNavBtn:hover {
+  border-color: color-mix(in srgb, var(--acc) 26%, transparent);
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 8%, transparent);
+}
+
+.schedPeriod {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--widget-text);
+  font-size: 14px;
+  font-weight: 800;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.schedToday {
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 9px;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 12%, transparent);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.schedToday:hover {
+  background: color-mix(in srgb, var(--acc) 18%, transparent);
+}
+
+.schedWeekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  padding: 0 2px;
+}
+
+.schedWeekdays span {
+  color: var(--widget-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.schedGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+
+.schedCell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 2px;
+  min-height: 30px;
+  padding: 3px 0 4px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--widget-text);
+  background: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+}
+
+.schedCell:hover {
+  border-color: color-mix(in srgb, var(--acc) 24%, transparent);
+  background: color-mix(in srgb, var(--acc) 8%, rgba(255, 255, 255, 0.5));
+}
+
+/* 달력 날짜 숫자는 초소형 달력 예외로 12px(상태 배지 예외와 동일 취지). */
+.schedCellNum {
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.schedCellOutside {
+  opacity: 0.4;
+}
+
+.schedCellToday .schedCellNum {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 20%, transparent);
+}
+
+.schedCellSelected {
+  border-color: color-mix(in srgb, var(--acc) 55%, transparent);
+  background: color-mix(in srgb, var(--acc) 12%, transparent);
+}
+
+.schedDots {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 5px;
+}
+
+.schedDot {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--acc);
+}
+
+.schedAgenda {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.schedAgendaHead {
+  padding: 2px 2px 0;
+  color: var(--widget-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.schedDayGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.schedDayHead {
+  padding: 2px 2px 0;
+  color: var(--widget-text);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.schedDayHeadToday {
+  color: var(--acc-ink);
+}
+
+.schedEmpty {
+  margin: 0;
+  padding: 4px 2px 6px;
+  color: var(--widget-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* WBS: 주간 간트형 타임라인(멀티데이 일정이 날짜를 가로질러 막대로 보인다). */
+.schedWbsAxis {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+  padding: 0 2px;
+}
+
+.schedWbsAxisCell {
+  color: var(--widget-muted);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.schedWbsAxisToday {
+  color: var(--acc-ink);
+}
+
+.schedWbsRows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.schedWbsTrack {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+
+.schedWbsBar {
+  overflow: hidden;
+  min-width: 0;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 7px;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 20%, transparent);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 22px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 다크 테마 파리티 */
+:global([data-theme="dark"]) .schedNavBtn {
+  border-color: rgba(150, 170, 215, 0.16);
+  background: rgba(18, 26, 40, 0.5);
+}
+
+:global([data-theme="dark"]) .schedCell {
+  border-color: transparent;
+  background: rgba(18, 26, 40, 0.5);
+}
+
+:global([data-theme="dark"]) .schedCell:hover {
+  border-color: color-mix(in srgb, var(--acc) 30%, transparent);
+  background: color-mix(in srgb, var(--acc) 12%, rgba(18, 26, 40, 0.5));
+}
+
+:global([data-theme="dark"]) .schedCellSelected {
+  border-color: color-mix(in srgb, var(--acc) 60%, transparent);
+  background: color-mix(in srgb, var(--acc) 16%, transparent);
+}

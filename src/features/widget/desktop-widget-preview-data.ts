@@ -21,6 +21,12 @@ export type WidgetPreviewItem = {
   roomName?: string;
   /** TODO 그룹핑: 내 개인 TODO(personal) vs 나에게 할당된 룸 태스크(room). */
   sourceKind?: "personal" | "room";
+  /** 일정 원본 시각(ISO) — 위젯 캘린더(월/주/WBS 뷰)가 날짜 배치를 계산하는 단일 출처. */
+  startsAt?: string;
+  /** 일정 종료 시각(ISO). 없으면 시작과 동일(하루 이벤트)로 간주한다. */
+  endsAt?: string | null;
+  /** 종일 일정 여부 — 캘린더 셀/바에서 시간 대신 "종일"로 표기한다. */
+  allDay?: boolean;
   /** 프로젝트룸 탭 칸반 상태칩(할 일/진행 중/검토/완료/보류). 내 할 일 탭에서는 미사용. */
   kanbanTone?: "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE" | "BLOCKED";
   kanbanLabel?: string;

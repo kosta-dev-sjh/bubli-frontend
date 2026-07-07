@@ -6,6 +6,8 @@ import {
   Bell,
   Check,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   CircleDashed,
   CirclePause,
   Clock3,
@@ -2198,6 +2200,73 @@ function MemoBody({
   );
 }
 
+// ---------- 일정: 실제 캘린더(목록/주간/월간/WBS) ----------
+// 위젯이 오래 "다음 일정 + 평평한 목록 + 아무 동작 없는 세그먼트"였다.
+// 이제 startsAt/endsAt를 받아 실제 달력(월 그리드/주 아젠다/WBS 타임라인)과
+// 목록을 실제로 전환한다. 좁은 위젯 폭(≈430px)에 맞춰 컴팩트하게 그린다.
+
+type ScheduleView = "list" | "week" | "month" | "wbs";
+
+// 세그먼트 순서 = 좌→우 탭. 기본값은 "월간"(달력 형태)이다.
+const SCHEDULE_VIEW_ORDER: ScheduleView[] = ["list", "week", "month", "wbs"];
+
+type ScheduleEvent = {
+  allDay: boolean;
+  end: Date;
+  item: WidgetPreviewItem;
+  start: Date;
+};
+
+const SCHEDULE_DAY_MS = 24 * 60 * 60 * 1000;
+
+function schedStartOfDay(date: Date): Date {
+  const copy = new Date(date);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+}
+
+function schedAddDays(date: Date, amount: number): Date {
+  const copy = schedStartOfDay(date);
+  copy.setDate(copy.getDate() + amount);
+  return copy;
+}
+
+function schedSameDay(left: Date, right: Date): boolean {
+  return left.getFullYear() === right.getFullYear() && left.getMonth() === right.getMonth() && left.getDate() === right.getDate();
+}
+
+function schedStartOfWeek(date: Date): Date {
+  const copy = schedStartOfDay(date);
+  copy.setDate(copy.getDate() - copy.getDay()); // 일요일 시작
+  return copy;
+}
+
+function schedStartOfMonth(date: Date): Date {
+  const copy = schedStartOfDay(date);
+  copy.setDate(1);
+  return copy;
+}
+
+function schedDayIndex(base: Date, target: Date): number {
+  return Math.round((schedStartOfDay(target).getTime() - schedStartOfDay(base).getTime()) / SCHEDULE_DAY_MS);
+}
+
+// 이벤트(멀티데이 포함)가 특정 날짜(하루)에 걸치는지.
+function schedEventCoversDay(event: ScheduleEvent, day: Date): boolean {
+  const dayStart = schedStartOfDay(day).getTime();
+  const dayEnd = dayStart + SCHEDULE_DAY_MS;
+  return event.start.getTime() < dayEnd && event.end.getTime() >= dayStart;
+}
+
+function schedToEvent(item: WidgetPreviewItem): ScheduleEvent | null {
+  if (!item.startsAt) return null;
+  const start = new Date(item.startsAt);
+  if (Number.isNaN(start.getTime())) return null;
+  let end = item.endsAt ? new Date(item.endsAt) : new Date(start);
+  if (Number.isNaN(end.getTime()) || end.getTime() < start.getTime()) end = new Date(start);
+  return { allDay: Boolean(item.allDay), end, item, start };
+}
+
 function ScheduleBody({
   bubble,
   onCreateSchedule,
@@ -2209,9 +2278,21 @@ function ScheduleBody({
   onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
   onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
 }) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
+  const localeTag = String(locale);
   const [draft, setDraft] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [view, setView] = useState<ScheduleView>("month");
+  const today = useMemo(() => schedStartOfDay(new Date()), []);
+  const [anchor, setAnchor] = useState<Date>(() => schedStartOfDay(new Date()));
+  const [selectedDay, setSelectedDay] = useState<Date>(() => schedStartOfDay(new Date()));
+
+  const events = useMemo(() => {
+    return bubble.rows
+      .map(schedToEvent)
+      .filter((event): event is ScheduleEvent => event !== null)
+      .sort((left, right) => left.start.getTime() - right.start.getTime());
+  }, [bubble.rows]);
 
   const saveDraftSchedule = async () => {
     const title = draft.trim();
@@ -2233,13 +2314,198 @@ function ScheduleBody({
     void onOpenHandoff(item);
   };
 
-  const nextItem = bubble.rows[0];
-  const restItems = bubble.rows.slice(1);
+  const stepPeriod = (direction: 1 | -1) => {
+    setAnchor((prev) => {
+      const next = new Date(prev);
+      if (view === "month") next.setMonth(next.getMonth() + direction);
+      else next.setDate(next.getDate() + direction * 7);
+      return schedStartOfDay(next);
+    });
+  };
 
-  return (
-    <div className={styles.body}>
-      {/* 부유하는 링 대신 "다음 일정" 컴팩트 카드가 첫 콘텐츠다. */}
-      {nextItem ? (
+  const jumpToToday = () => {
+    const now = schedStartOfDay(new Date());
+    setAnchor(now);
+    setSelectedDay(now);
+  };
+
+  // 한 줄 아젠다 행(제목 + 시간칩 + 액션) — 목록/주간/월간 아젠다가 공유한다.
+  const renderEventRow = (item: WidgetPreviewItem) => (
+    <div className={styles.timelineRow} key={item.id}>
+      {item.handoffUrl ? (
+        <a href={item.handoffUrl} onClick={(event) => openHandoff(event, item)} rel="noreferrer" target="_blank">
+          {item.label}
+        </a>
+      ) : (
+        <span>{item.label}</span>
+      )}
+      <b>{item.status}</b>
+      <ItemActions item={item} onItemStateChange={onItemStateChange} />
+    </div>
+  );
+
+  const periodLabel = useMemo(() => {
+    if (view === "month") {
+      return new Intl.DateTimeFormat(localeTag, { month: "long", year: "numeric" }).format(anchor);
+    }
+    if (view === "week" || view === "wbs") {
+      const weekStart = schedStartOfWeek(anchor);
+      const weekEnd = schedAddDays(weekStart, 6);
+      const startFmt = new Intl.DateTimeFormat(localeTag, { day: "numeric", month: "short" }).format(weekStart);
+      const endFmt = new Intl.DateTimeFormat(localeTag, { day: "numeric", month: "short" }).format(weekEnd);
+      return `${startFmt} – ${endFmt}`;
+    }
+    return t("widget.data.schedule.label");
+  }, [anchor, localeTag, t, view]);
+
+  const weekdayLabels = useMemo(() => {
+    const base = schedStartOfWeek(today);
+    const formatter = new Intl.DateTimeFormat(localeTag, { weekday: "narrow" });
+    return Array.from({ length: 7 }, (_, index) => formatter.format(schedAddDays(base, index)));
+  }, [localeTag, today]);
+
+  const renderNav = () => (
+    <div className={styles.schedNav}>
+      <button aria-label={t("widget.schedule.prevPeriod")} className={styles.schedNavBtn} onClick={() => stepPeriod(-1)} type="button">
+        <ChevronLeft size={15} strokeWidth={2.2} />
+      </button>
+      <strong className={styles.schedPeriod}>{periodLabel}</strong>
+      <button aria-label={t("widget.schedule.nextPeriod")} className={styles.schedNavBtn} onClick={() => stepPeriod(1)} type="button">
+        <ChevronRight size={15} strokeWidth={2.2} />
+      </button>
+      <button className={styles.schedToday} onClick={jumpToToday} type="button">
+        {t("widget.schedule.today")}
+      </button>
+    </div>
+  );
+
+  const renderMonth = () => {
+    const monthStart = schedStartOfMonth(anchor);
+    const gridStart = schedStartOfWeek(monthStart);
+    const daysInMonth = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0).getDate();
+    const weeks = Math.ceil((monthStart.getDay() + daysInMonth) / 7);
+    const cells = Array.from({ length: weeks * 7 }, (_, index) => schedAddDays(gridStart, index));
+    const selectedEvents = events.filter((event) => schedEventCoversDay(event, selectedDay));
+    const selectedLabel = new Intl.DateTimeFormat(localeTag, { day: "numeric", month: "long", weekday: "long" }).format(selectedDay);
+
+    return (
+      <>
+        {renderNav()}
+        <div aria-hidden="true" className={styles.schedWeekdays}>
+          {weekdayLabels.map((label, index) => (
+            <span key={`${label}-${index}`}>{label}</span>
+          ))}
+        </div>
+        <div className={styles.schedGrid} style={{ gridTemplateRows: `repeat(${weeks}, 1fr)` }}>
+          {cells.map((day) => {
+            const outside = day.getMonth() !== anchor.getMonth();
+            const dayEvents = events.filter((event) => schedEventCoversDay(event, day));
+            const className = [
+              styles.schedCell,
+              outside ? styles.schedCellOutside : "",
+              schedSameDay(day, today) ? styles.schedCellToday : "",
+              schedSameDay(day, selectedDay) ? styles.schedCellSelected : "",
+            ]
+              .filter(Boolean)
+              .join(" ");
+            return (
+              <button className={className} key={day.toISOString()} onClick={() => setSelectedDay(day)} type="button">
+                <span className={styles.schedCellNum}>{day.getDate()}</span>
+                {dayEvents.length > 0 ? (
+                  <span aria-hidden="true" className={styles.schedDots}>
+                    {dayEvents.slice(0, 3).map((event) => (
+                      <i className={styles.schedDot} key={event.item.id} />
+                    ))}
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+        <div className={styles.schedAgenda}>
+          <span className={styles.schedAgendaHead}>{selectedLabel}</span>
+          {selectedEvents.length > 0 ? (
+            <div className={styles.rowList}>{selectedEvents.map((event) => renderEventRow(event.item))}</div>
+          ) : (
+            <p className={styles.schedEmpty}>{t("widget.schedule.emptyDay")}</p>
+          )}
+        </div>
+      </>
+    );
+  };
+
+  const renderWeek = () => {
+    const weekStart = schedStartOfWeek(anchor);
+    const days = Array.from({ length: 7 }, (_, index) => schedAddDays(weekStart, index));
+    return (
+      <>
+        {renderNav()}
+        <div className={styles.schedAgenda}>
+          {days.map((day) => {
+            const dayEvents = events.filter((event) => schedEventCoversDay(event, day));
+            const dayLabel = new Intl.DateTimeFormat(localeTag, { day: "numeric", weekday: "short" }).format(day);
+            const headClassName = [styles.schedDayHead, schedSameDay(day, today) ? styles.schedDayHeadToday : ""].filter(Boolean).join(" ");
+            return (
+              <div className={styles.schedDayGroup} key={day.toISOString()}>
+                <span className={headClassName}>{dayLabel}</span>
+                {dayEvents.length > 0 ? (
+                  <div className={styles.rowList}>{dayEvents.map((event) => renderEventRow(event.item))}</div>
+                ) : (
+                  <p className={styles.schedEmpty}>{t("widget.schedule.emptyDay")}</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </>
+    );
+  };
+
+  const renderWbs = () => {
+    const weekStart = schedStartOfWeek(anchor);
+    const weekEnd = schedAddDays(weekStart, 7);
+    const days = Array.from({ length: 7 }, (_, index) => schedAddDays(weekStart, index));
+    const barEvents = events.filter((event) => event.start.getTime() < weekEnd.getTime() && event.end.getTime() >= weekStart.getTime());
+    return (
+      <>
+        {renderNav()}
+        <div className={styles.schedWbsAxis}>
+          {days.map((day) => (
+            <span className={schedSameDay(day, today) ? `${styles.schedWbsAxisCell} ${styles.schedWbsAxisToday}` : styles.schedWbsAxisCell} key={day.toISOString()}>
+              {day.getDate()}
+            </span>
+          ))}
+        </div>
+        {barEvents.length > 0 ? (
+          <div className={styles.schedWbsRows}>
+            {barEvents.map((event) => {
+              const startOffset = Math.max(0, Math.min(6, schedDayIndex(weekStart, event.start)));
+              const endOffset = Math.max(0, Math.min(6, schedDayIndex(weekStart, event.end)));
+              const span = Math.max(1, endOffset - startOffset + 1);
+              return (
+                <div className={styles.schedWbsTrack} key={event.item.id}>
+                  <span className={styles.schedWbsBar} style={{ gridColumn: `${startOffset + 1} / span ${span}` }} title={event.item.label}>
+                    {event.item.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className={styles.schedEmpty}>{t("widget.schedule.emptyUpcoming")}</p>
+        )}
+      </>
+    );
+  };
+
+  const renderList = () => {
+    const nextItem = bubble.rows[0];
+    const restItems = bubble.rows.slice(1);
+    if (!nextItem) {
+      return <BubbleEmptyState bubble={bubble} />;
+    }
+    return (
+      <>
         <div className={styles.nextCard}>
           <span className={styles.nextTime}>{nextItem.status}</span>
           <div className={styles.nextCopy}>
@@ -2254,27 +2520,25 @@ function ScheduleBody({
           </div>
           <ItemActions item={nextItem} onItemStateChange={onItemStateChange} />
         </div>
-      ) : (
-        <BubbleEmptyState bubble={bubble} />
-      )}
-      <SegmentedControl labels={[t("widget.schedule.tabWeek"), t("widget.schedule.tabMonth"), t("widget.schedule.tabWbs")]} />
-      {restItems.length > 0 ? (
-        <div className={styles.rowList}>
-          {restItems.map((item) => (
-            <div className={styles.timelineRow} key={item.id}>
-              {item.handoffUrl ? (
-                <a href={item.handoffUrl} onClick={(event) => openHandoff(event, item)} rel="noreferrer" target="_blank">
-                  {item.label}
-                </a>
-              ) : (
-                <span>{item.label}</span>
-              )}
-              <b>{item.status}</b>
-              <ItemActions item={item} onItemStateChange={onItemStateChange} />
-            </div>
-          ))}
-        </div>
-      ) : null}
+        {restItems.length > 0 ? <div className={styles.rowList}>{restItems.map((item) => renderEventRow(item))}</div> : null}
+      </>
+    );
+  };
+
+  return (
+    <div className={styles.body}>
+      <SegmentedControl
+        ariaLabel={t("widget.schedule.viewAria")}
+        labels={[t("widget.schedule.tabList"), t("widget.schedule.tabWeek"), t("widget.schedule.tabMonth"), t("widget.schedule.tabWbs")]}
+        onChange={(index) => setView(SCHEDULE_VIEW_ORDER[index] ?? "month")}
+        value={SCHEDULE_VIEW_ORDER.indexOf(view)}
+      />
+      <div className={styles.schedCal}>
+        {view === "month" ? renderMonth() : null}
+        {view === "week" ? renderWeek() : null}
+        {view === "wbs" ? renderWbs() : null}
+        {view === "list" ? renderList() : null}
+      </div>
       <form
         className={styles.input}
         onSubmit={(event) => {
