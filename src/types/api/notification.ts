@@ -13,6 +13,7 @@ export type NotificationResponse = {
     | "AGENT"
     | "VOICE_CALL"
     | "VOICE_CALL_DECLINED"
+    | "VOICE_CALL_CANCELED"
     | "FRIEND_REQUEST"
     | "FRIEND_ACCEPTED"
     | "ROOM_INVITE"
