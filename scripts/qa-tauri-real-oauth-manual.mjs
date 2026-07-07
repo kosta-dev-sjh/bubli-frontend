@@ -13,7 +13,7 @@ const RELEASE_MODE = RAW_RELEASE_MODE || INSTALLED_RELEASE_MODE;
 const RUNTIME_MODE = INSTALLED_RELEASE_MODE ? "installed-release" : RAW_RELEASE_MODE ? "release" : "dev";
 const RELEASE_EXE_PATH = join("src-tauri", "target", "release", "bubli.exe");
 const RELEASE_EXE_ABSOLUTE_PATH = resolve(RELEASE_EXE_PATH);
-const NSIS_SETUP_PATH = join("src-tauri", "target", "release", "bundle", "nsis", "Bubli_0.1.0_x64-setup.exe");
+const NSIS_SETUP_PATH = windowsInstallerSourcePath();
 const PUBLIC_INSTALLER_PATH = join("public", "downloads", "windows", "Bubli-Windows-latest.exe");
 const PUBLIC_MANIFEST_PATH = join("public", "downloads", "windows", "manifest.json");
 const INSTALLED_EXE_PATH = join(
@@ -788,7 +788,7 @@ function runContractCheck() {
     {
       name: "script can build install and launch a QA-instrumented installed release without publishing the public download",
       pattern:
-        /const INSTALLED_RELEASE_MODE[\s\S]*process\.argv\.includes\("--installed-release"\)[\s\S]*const NSIS_SETUP_PATH = join\("src-tauri", "target", "release", "bundle", "nsis", "Bubli_0\.1\.0_x64-setup\.exe"\)[\s\S]*const INSTALLED_EXE_PATH = join\([\s\S]*"Bubli"[\s\S]*"bubli\.exe"[\s\S]*if \(INSTALLED_RELEASE_MODE\) \{[\s\S]*buildInstalledReleaseTauri\(qaEnv\)[\s\S]*installReleaseBundle\(qaEnv\)[\s\S]*spawn\(INSTALLED_EXE_PATH[\s\S]*function buildInstalledReleaseTauri\(qaEnv\)[\s\S]*"npm\.cmd run tauri -- build"[\s\S]*function installReleaseBundle\(qaEnv\)[\s\S]*spawnSync\(NSIS_SETUP_PATH, \["\/S"\]/,
+        /const INSTALLED_RELEASE_MODE[\s\S]*process\.argv\.includes\("--installed-release"\)[\s\S]*const NSIS_SETUP_PATH = windowsInstallerSourcePath\(\)[\s\S]*const INSTALLED_EXE_PATH = join\([\s\S]*"Bubli"[\s\S]*"bubli\.exe"[\s\S]*if \(INSTALLED_RELEASE_MODE\) \{[\s\S]*buildInstalledReleaseTauri\(qaEnv\)[\s\S]*installReleaseBundle\(qaEnv\)[\s\S]*spawn\(INSTALLED_EXE_PATH[\s\S]*function buildInstalledReleaseTauri\(qaEnv\)[\s\S]*"npm\.cmd run tauri -- build"[\s\S]*function installReleaseBundle\(qaEnv\)[\s\S]*spawnSync\(NSIS_SETUP_PATH, \["\/S"\][\s\S]*function windowsInstallerSourcePath\(\)[\s\S]*\$\{productName\}_\$\{version\}_x64-setup\.exe/,
       source: scriptSource,
     },
     {
@@ -1274,4 +1274,15 @@ function stopProcessTree(pid) {
 
 function stripTrailingSlash(value) {
   return value.trim().replace(/\/+$/, "");
+}
+
+function windowsInstallerSourcePath() {
+  const config = JSON.parse(readFileSync(join("src-tauri", "tauri.conf.json"), "utf8"));
+  const productName = String(config.productName ?? "Bubli").trim() || "Bubli";
+  const version = String(config.version ?? "").trim();
+  if (!version) {
+    throw new Error("src-tauri/tauri.conf.json must include a version for installed-release QA.");
+  }
+
+  return join("src-tauri", "target", "release", "bundle", "nsis", `${productName}_${version}_x64-setup.exe`);
 }

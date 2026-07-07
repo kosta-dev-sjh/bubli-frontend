@@ -241,7 +241,7 @@ assertContains(
 );
 assertContains(
   publishTauriWindowsDownload,
-  /src-tauri\/target\/release\/bundle\/nsis\/Bubli_0\.1\.0_x64-setup\.exe[\s\S]*public\/downloads\/windows\/Bubli-Windows-latest\.exe[\s\S]*manifest\.json/,
+  /const sourceRelative = windowsInstallerSourceRelative\(\)[\s\S]*const source = resolve\(root, sourceRelative\)[\s\S]*public\/downloads\/windows\/Bubli-Windows-latest\.exe[\s\S]*manifest\.json[\s\S]*source: sourceRelative[\s\S]*src-tauri\/target\/release\/bundle\/nsis\/\$\{productName\}_\$\{version\}_x64-setup\.exe/,
   "Windows download publish must copy the signed/iconed NSIS installer to the public direct-download exe path.",
 );
 if (existsSync(files.publicDownloadRoute)) {
@@ -424,7 +424,7 @@ assertContains(
 );
 assertContains(
   realOAuthQaScript,
-  /const INSTALLED_RELEASE_MODE[\s\S]*process\.argv\.includes\("--installed-release"\)[\s\S]*const NSIS_SETUP_PATH = join\("src-tauri", "target", "release", "bundle", "nsis", "Bubli_0\.1\.0_x64-setup\.exe"\)[\s\S]*const INSTALLED_EXE_PATH = join\([\s\S]*"Bubli"[\s\S]*"bubli\.exe"[\s\S]*if \(INSTALLED_RELEASE_MODE\) \{[\s\S]*buildInstalledReleaseTauri\(qaEnv\)[\s\S]*installReleaseBundle\(qaEnv\)[\s\S]*spawn\(INSTALLED_EXE_PATH[\s\S]*function buildInstalledReleaseTauri\(qaEnv\)[\s\S]*"npm\.cmd run tauri -- build"[\s\S]*function installReleaseBundle\(qaEnv\)[\s\S]*spawnSync\(NSIS_SETUP_PATH, \["\/S"\]/,
+  /const INSTALLED_RELEASE_MODE[\s\S]*process\.argv\.includes\("--installed-release"\)[\s\S]*const NSIS_SETUP_PATH = windowsInstallerSourcePath\(\)[\s\S]*const INSTALLED_EXE_PATH = join\([\s\S]*"Bubli"[\s\S]*"bubli\.exe"[\s\S]*if \(INSTALLED_RELEASE_MODE\) \{[\s\S]*buildInstalledReleaseTauri\(qaEnv\)[\s\S]*installReleaseBundle\(qaEnv\)[\s\S]*spawn\(INSTALLED_EXE_PATH[\s\S]*function buildInstalledReleaseTauri\(qaEnv\)[\s\S]*"npm\.cmd run tauri -- build"[\s\S]*function installReleaseBundle\(qaEnv\)[\s\S]*spawnSync\(NSIS_SETUP_PATH, \["\/S"\][\s\S]*function windowsInstallerSourcePath\(\)[\s\S]*\$\{productName\}_\$\{version\}_x64-setup\.exe/,
   "Manual real OAuth QA script must support a QA-instrumented installed-release mode that proves the NSIS-installed app.",
 );
 assertContains(
