@@ -2448,16 +2448,24 @@
     0 1px 2px rgba(0, 0, 0, 0.55);
 }
 
+/* 고스트 콘텐츠 래퍼 — 콘텐츠(숫자+이름) 자연 크기로 잡아 측정한다. 이 크기에 맞춰
+   창을 자동으로 조절하므로(autoSizeGhostWidgetWindow) 줄바꿈 없이 한 줄로 다 보인다. */
+.ghostContent {
+  width: max-content;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
 .ghostSub,
 .ghostSignal strong,
 .ghostSignal small {
-  /* 고스트 라벨(타이머 이름·요약 등)은 잘라서 …로 만들지 않고 줄바꿈해 전부 보여준다.
-     창은 콘텐츠에 맞춰 넉넉히 커지므로(Rust widget_window_size GHOST) 여기서는 폭만 제한한다. */
-  max-width: 260px;
+  /* 라벨은 한 줄(nowrap). 창이 콘텐츠 크기에 맞춰 커지므로 줄바꿈으로 지저분해지지 않는다.
+     혹시 최대 폭(500px)을 넘으면 …로만 처리(측정은 scrollWidth라 자연 폭을 그대로 잡음). */
+  max-width: 500px;
+  overflow: hidden;
   text-align: center;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: keep-all;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: rgba(255, 255, 255, 0.98);
   font-size: 15px;
   font-weight: 800;
