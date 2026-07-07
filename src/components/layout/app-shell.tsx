@@ -3,6 +3,7 @@
 import { Phone } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import type { ReadonlyURLSearchParams } from "next/navigation";
 import type { FormEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
@@ -89,6 +90,42 @@ function initialsFromName(name?: string | null) {
 
 function isActiveRoom(pathname: string, roomId: string) {
   return pathname.startsWith(`/app/project-rooms/${roomId}`);
+}
+
+// 룸을 바꿀 때, 지금 보고 있는 화면이 특정 룸에 묶여 있으면 그 룸 식별자도 새 룸으로 옮긴다.
+// 안 그러면 URL에 박힌 옛 roomId가 우선순위를 잡아(각 페이지가 searchParams.get("roomId") ?? activeRoomId 순으로 읽음)
+// 스위처로 룸을 바꿔도 화면은 옛 룸에 고정된다. 룸에 묶이지 않은 화면(홈, 다이렉트 메시지 등)은 건드리지 않는다.
+function roomSwitchHref(
+  pathname: string,
+  searchParams: ReadonlyURLSearchParams,
+  nextRoomId: string,
+): string | null {
+  // 룸 채팅(/app/chat?mode=room): 룸을 바꾸면 채팅도 새 룸으로. 다이렉트 메시지(mode=direct)는 룸에 안 묶이므로 제외.
+  if (pathname === "/app/chat") {
+    if (searchParams.get("mode") === "direct") return null;
+    if (searchParams.get("roomId") === nextRoomId) return null;
+    return `/app/chat?mode=room&roomId=${encodeURIComponent(nextRoomId)}`;
+  }
+
+  // 경로 세그먼트형 룸 페이지(웹): /app/project-rooms/{roomId}/(work|resources|chat)
+  const pathRoomMatch = pathname.match(/^\/app\/project-rooms\/([^/]+)(\/.*)?$/);
+  if (pathRoomMatch) {
+    const currentRoomId = decodeURIComponent(pathRoomMatch[1]);
+    if (currentRoomId === nextRoomId) return null;
+    const rest = pathRoomMatch[2] ?? "";
+    const query = searchParams.toString();
+    return `/app/project-rooms/${encodeURIComponent(nextRoomId)}${rest}${query ? `?${query}` : ""}`;
+  }
+
+  // 쿼리형 룸 페이지: ?roomId= (calendar, agent, project-room-resources, project-room-work 등)
+  const queryRoomId = searchParams.get("roomId");
+  if (queryRoomId && queryRoomId !== nextRoomId) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("roomId", nextRoomId);
+    return `${pathname}?${params.toString()}`;
+  }
+
+  return null;
 }
 
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
@@ -741,11 +778,13 @@ export function AppShell({ children }: AppShellProps) {
     setSelectedRoomId(room.id);
     setSelectedRoomLabel(room.name);
     setActiveProjectRoomId(room.id, room.name);
-    // 룸 채팅(/app/chat?mode=room)을 보는 중에 룸을 바꾸면 채팅 URL의 roomId도 새 룸으로 옮긴다.
-    // 안 그러면 이전 roomId가 URL에 고정돼(scopedProjectRoomId = queryRoomId ?? ...) 이전 룸 대화 로그가 계속 보인다.
+    // 지금 보고 있는 화면이 특정 룸에 묶여 있으면(경로 세그먼트든 ?roomId= 쿼리든) URL의 룸 식별자도 새 룸으로 옮긴다.
+    // 안 그러면 URL의 옛 roomId가 우선순위를 잡아(각 페이지가 searchParams.get("roomId") ?? activeRoomId 순으로 읽음)
+    // 스위처로 룸을 바꿔도 캘린더·에이전트·채팅·자료보드 화면이 옛 룸에 고정된다.
     // 이 경로는 스위처·룸 생성·보이스 조인 같은 실제 사용자 전환에서만 불리므로, 마운트 시 동기화(딥링크)와 충돌하지 않는다.
-    if (pathname === "/app/chat" && searchParams.get("mode") !== "direct" && searchParams.get("roomId") !== room.id) {
-      router.replace(`/app/chat?mode=room&roomId=${encodeURIComponent(room.id)}`);
+    const nextHref = roomSwitchHref(pathname, searchParams, room.id);
+    if (nextHref) {
+      router.replace(nextHref);
     }
   }
 
