@@ -64,10 +64,40 @@ const ko = {
   "tour.desktop.title": "데스크톱 버블",
   "tour.desktop.body": "데스크톱 앱을 설치하면 타이머, 메모, 할 일 버블을 화면 위에 띄울 수 있어요. 설정의 데스크톱 탭에서 관리해요.",
 
-  // 설정 > 표시, 튜토리얼 다시 보기
-  "onboarding.settings.replayTitle": "튜토리얼 다시 보기",
+  // 설정 > 표시, 회원사이트 튜토리얼 다시 보기
+  "onboarding.settings.replayTitle": "회원사이트 튜토리얼 다시 보기",
   "onboarding.settings.replayDesc": "워크스페이스 안내(사이드바, 프로젝트룸, 홈 카드, AI 후보함)를 처음부터 다시 봅니다.",
   "onboarding.settings.replayCta": "다시 보기",
+
+  // 위젯 전용 전체화면 튜토리얼
+  "widgetTutorial.aria": "위젯 튜토리얼",
+  "widgetTutorial.badge": "위젯 튜토리얼",
+  "widgetTutorial.skip": "건너뛰기",
+  "widgetTutorial.prev": "이전",
+  "widgetTutorial.next": "다음",
+  "widgetTutorial.done": "시작하기",
+  "widgetTutorial.welcome.title": "화면 위의 작은 작업실, 버블",
+  "widgetTutorial.welcome.body": "버블리 위젯은 브라우저를 열지 않아도 오늘 할 일·타이머·메모를 화면 위에 띄워 둡니다. 30초면 핵심만 짚어드릴게요.",
+  "widgetTutorial.bubble.title": "방울 — 언제나 떠 있는 시작점",
+  "widgetTutorial.bubble.body": "동그란 방울은 화면 어디든 두고, 클릭하면 메뉴가 열립니다. 드래그로 원하는 자리에 옮겨 두세요.",
+  "widgetTutorial.bar.title": "바 — 접어둔 위젯이 모이는 곳",
+  "widgetTutorial.bar.body": "쓰던 위젯을 접으면 얇은 바에 칩으로 모입니다. 칩 위에 올리면 미리보기만 살짝 떠요.",
+  "widgetTutorial.room.title": "개인과 프로젝트룸이 구분돼요",
+  "widgetTutorial.room.body": "상단에서 개인/프로젝트룸을 바꾸면 위젯 내용도 그 컨텍스트로 바뀝니다. 타이머·메모 같은 건 개인 전용이에요.",
+  "widgetTutorial.modes.title": "기본·반투명·고스트로 투과 조절",
+  "widgetTutorial.modes.body": "작업에 방해되지 않게 위젯 투명도를 3단계로 바꿀 수 있어요. 고스트는 숫자·핵심만 유리처럼 남깁니다.",
+  "widgetTutorial.ready.title": "준비 끝!",
+  "widgetTutorial.ready.body": "설정 > 표시에서 위젯 튜토리얼을 언제든 다시 볼 수 있어요.",
+  "widgetTutorial.scene.default": "기본",
+  "widgetTutorial.scene.translucent": "반투명",
+  "widgetTutorial.scene.ghost": "고스트",
+  "widgetTutorial.scene.personal": "개인",
+  "widgetTutorial.scene.room": "프로젝트룸",
+
+  // 설정 > 표시, 위젯 튜토리얼 다시 보기
+  "onboarding.settings.widgetReplayTitle": "위젯 튜토리얼 다시 보기",
+  "onboarding.settings.widgetReplayDesc": "데스크탑 버블(방울·바·개인/룸·투과 모드) 사용법을 전체화면으로 다시 봅니다.",
+  "onboarding.settings.widgetReplayCta": "다시 보기",
 } as const;
 
 type Key = keyof typeof ko;
@@ -134,9 +164,37 @@ const en: Record<Key, string> = {
   "tour.desktop.title": "Desktop bubbles",
   "tour.desktop.body": "Install the desktop app to float timer, memo, and todo bubbles on your screen. Manage them in the Desktop tab of Settings.",
 
-  "onboarding.settings.replayTitle": "Replay tutorial",
+  "onboarding.settings.replayTitle": "Replay member-site tutorial",
   "onboarding.settings.replayDesc": "Watch the workspace walkthrough (sidebar, project rooms, home cards, AI inbox) again from the start.",
   "onboarding.settings.replayCta": "Replay",
+
+  "widgetTutorial.aria": "Widget tutorial",
+  "widgetTutorial.badge": "Widget tutorial",
+  "widgetTutorial.skip": "Skip",
+  "widgetTutorial.prev": "Back",
+  "widgetTutorial.next": "Next",
+  "widgetTutorial.done": "Get started",
+  "widgetTutorial.welcome.title": "A tiny workspace on your screen",
+  "widgetTutorial.welcome.body": "The Bubli widget floats today's tasks, timers, and memos on your screen without opening a browser. Here are the essentials in 30 seconds.",
+  "widgetTutorial.bubble.title": "The bubble — always-there starting point",
+  "widgetTutorial.bubble.body": "Keep the round bubble anywhere; click it to open the menu, and drag it to the spot you like.",
+  "widgetTutorial.bar.title": "The bar — where folded widgets gather",
+  "widgetTutorial.bar.body": "Fold a widget and it collapses into a slim bar as a chip. Hover a chip to peek at a preview.",
+  "widgetTutorial.room.title": "Personal and project rooms stay separate",
+  "widgetTutorial.room.body": "Switch personal/project room at the top and the widget follows that context. Timers and memos are personal-only.",
+  "widgetTutorial.modes.title": "Default, translucent, ghost transparency",
+  "widgetTutorial.modes.body": "Dial the widget's opacity across three levels so it never gets in the way. Ghost keeps only the numbers, like glass.",
+  "widgetTutorial.ready.title": "You are ready!",
+  "widgetTutorial.ready.body": "You can reopen the widget tutorial anytime from Settings > Display.",
+  "widgetTutorial.scene.default": "Default",
+  "widgetTutorial.scene.translucent": "Translucent",
+  "widgetTutorial.scene.ghost": "Ghost",
+  "widgetTutorial.scene.personal": "Personal",
+  "widgetTutorial.scene.room": "Project room",
+
+  "onboarding.settings.widgetReplayTitle": "Replay widget tutorial",
+  "onboarding.settings.widgetReplayDesc": "Full-screen walkthrough of the desktop bubbles (bubble, bar, personal/room, transparency modes).",
+  "onboarding.settings.widgetReplayCta": "Replay",
 };
 
 const ja: Record<Key, string> = {
@@ -201,9 +259,37 @@ const ja: Record<Key, string> = {
   "tour.desktop.title": "デスクトップバブル",
   "tour.desktop.body": "デスクトップアプリを入れると、タイマー・メモ・ToDoのバブルを画面上に浮かべられます。設定のデスクトップタブで管理します。",
 
-  "onboarding.settings.replayTitle": "チュートリアルをもう一度見る",
+  "onboarding.settings.replayTitle": "会員サイトのチュートリアルをもう一度見る",
   "onboarding.settings.replayDesc": "ワークスペース案内(サイドバー・プロジェクトルーム・ホームカード・AI候補ボックス)を最初からもう一度見ます。",
   "onboarding.settings.replayCta": "もう一度見る",
+
+  "widgetTutorial.aria": "ウィジェットチュートリアル",
+  "widgetTutorial.badge": "ウィジェットチュートリアル",
+  "widgetTutorial.skip": "スキップ",
+  "widgetTutorial.prev": "戻る",
+  "widgetTutorial.next": "次へ",
+  "widgetTutorial.done": "はじめる",
+  "widgetTutorial.welcome.title": "画面の上の小さな作業場、バブル",
+  "widgetTutorial.welcome.body": "Bubliウィジェットは、ブラウザを開かなくても今日のタスク・タイマー・メモを画面上に浮かべます。30秒で要点だけご案内します。",
+  "widgetTutorial.bubble.title": "バブル — いつでも浮かぶ出発点",
+  "widgetTutorial.bubble.body": "丸いバブルは画面のどこにでも置けます。クリックでメニューが開き、ドラッグで好きな位置へ移せます。",
+  "widgetTutorial.bar.title": "バー — 畳んだウィジェットが集まる場所",
+  "widgetTutorial.bar.body": "使っていたウィジェットを畳むと、細いバーにチップとして集まります。チップに乗せるとプレビューだけ少し出ます。",
+  "widgetTutorial.room.title": "個人とプロジェクトルームは分かれます",
+  "widgetTutorial.room.body": "上部で個人/プロジェクトルームを切り替えると、ウィジェットの中身もその文脈に変わります。タイマーやメモは個人専用です。",
+  "widgetTutorial.modes.title": "標準・半透明・ゴーストで透過を調整",
+  "widgetTutorial.modes.body": "作業の邪魔にならないよう、ウィジェットの透明度を3段階で変えられます。ゴーストは数字だけをガラスのように残します。",
+  "widgetTutorial.ready.title": "準備完了！",
+  "widgetTutorial.ready.body": "ウィジェットチュートリアルは、設定 > 表示からいつでも再表示できます。",
+  "widgetTutorial.scene.default": "標準",
+  "widgetTutorial.scene.translucent": "半透明",
+  "widgetTutorial.scene.ghost": "ゴースト",
+  "widgetTutorial.scene.personal": "個人",
+  "widgetTutorial.scene.room": "プロジェクトルーム",
+
+  "onboarding.settings.widgetReplayTitle": "ウィジェットチュートリアルをもう一度見る",
+  "onboarding.settings.widgetReplayDesc": "デスクトップバブル(バブル・バー・個人/ルーム・透過モード)の使い方を全画面でもう一度見ます。",
+  "onboarding.settings.widgetReplayCta": "もう一度見る",
 };
 
 export const onboardingMessages = { ko, en, ja };

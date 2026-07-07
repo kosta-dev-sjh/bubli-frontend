@@ -14,7 +14,7 @@ import { ActivityDetectionPanel } from "@/features/activity/components";
 import { authApi } from "@/features/auth/api/authApi";
 import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { startGoogleCalendarConnect } from "@/features/calendar/api/googleCalendarAuth";
-import { OPEN_TUTORIAL_EVENT } from "@/features/onboarding";
+import { OPEN_TUTORIAL_EVENT, OPEN_WIDGET_TUTORIAL_EVENT } from "@/features/onboarding";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
 import { LocalBackupRecoveryPanel, LocalSyncOutboxPanel, TauriSyncStatusPanel } from "@/features/settings/components";
@@ -1507,6 +1507,20 @@ export default function SettingsPage() {
                     variant="secondary"
                   >
                     {t("onboarding.settings.replayCta")}
+                  </Button>
+                </div>
+                <div className={styles.row}>
+                  <div className={styles.rowText}>
+                    <strong>{t("onboarding.settings.widgetReplayTitle")}</strong>
+                    <p>{t("onboarding.settings.widgetReplayDesc")}</p>
+                  </div>
+                  <Button
+                    onClick={() => window.dispatchEvent(new Event(OPEN_WIDGET_TUTORIAL_EVENT))}
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                  >
+                    {t("onboarding.settings.widgetReplayCta")}
                   </Button>
                 </div>
               </div>
