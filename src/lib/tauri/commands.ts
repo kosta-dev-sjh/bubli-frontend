@@ -1559,6 +1559,19 @@ export const tauriCommands = {
 
 export const plannedTauriCommands = {} as const;
 
+// 위젯 창 위치 잠금(핀 고정) 상태. 핀을 켜면 이 창은 상단 고정에 더해 위치도 잠겨
+// 드래그로 움직이지 않는다. 창(webview)마다 자기 인스턴스에서 이 값을 들고 있으므로
+// 위젯별로 독립적으로 동작한다.
+let widgetWindowDragLocked = false;
+
+export function setWidgetWindowDragLocked(locked: boolean): void {
+  widgetWindowDragLocked = locked;
+}
+
+export function isWidgetWindowDragLocked(): boolean {
+  return widgetWindowDragLocked;
+}
+
 // 위젯 창 드래그 시작.
 // data-tauri-drag-region은 mousedown "target 요소 자체"에 속성이 있어야만 동작해서
 // 헤더 안 아이콘/텍스트(자식 요소)에서 누르면 드래그가 시작되지 않는다.
@@ -1567,6 +1580,8 @@ export const plannedTauriCommands = {} as const;
 // 드래그 도중 클릭 통과(set_ignore_cursor_events)가 켜지는 일을 막는다.
 export async function startWidgetWindowDragging(): Promise<void> {
   if (!isTauriRuntime()) return;
+  // 핀 고정(위치 잠금) 상태면 드래그 자체를 시작하지 않는다.
+  if (widgetWindowDragLocked) return;
 
   void tauriCommands.notifyWidgetDragStarted().catch(() => undefined);
   const { getCurrentWebviewWindow } = await import("@tauri-apps/api/webviewWindow");

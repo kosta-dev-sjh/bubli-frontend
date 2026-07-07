@@ -1265,7 +1265,14 @@ fn widget_window_size(widget: &WidgetWindowState) -> LogicalSize<f64> {
             WIDGET_MINIMIZED_WIDTH + 20.0,
             WIDGET_MINIMIZED_HEIGHT + 20.0,
         ),
-        "GHOST" => LogicalSize::new(188.0 + 24.0, 188.0 + 24.0),
+        // 고스트 창은 콘텐츠가 잘리지 않게 버블별로 넉넉히 잡는다(끄면 아래 기본 크기로 돌아온다).
+        // 타이머: 큰 숫자(58px)+타이머 이름(여러 줄 가능)이 …로 잘리지 않게.
+        // 투두: 완료/남음 요약 + 상위 항목 목록이 다 보이게 조금 더 높게.
+        "GHOST" => match widget.active_bubble.as_str() {
+            "timer" => LogicalSize::new(300.0, 232.0),
+            "todo" => LogicalSize::new(288.0, 300.0),
+            _ => LogicalSize::new(188.0 + 24.0, 188.0 + 24.0),
+        },
         // 콘텐츠 자동 높이에 맞춘 기본 창 크기 위에, 사용자가 리사이즈로 저장한 크기를
         // 우선한다(클램프된 값만 저장되므로 여기서는 그대로 쓴다).
         _ => widget_user_size_override(&widget.active_bubble)
