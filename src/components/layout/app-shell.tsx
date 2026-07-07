@@ -642,18 +642,15 @@ export function AppShell({ children }: AppShellProps) {
   }, [state]);
 
   useEffect(() => {
-    if (!shellContextReady || !isTauriRuntime() || runtimeSmokeEnabled) return;
-
-    const launchSelectedRoomId = selectedRoomId ?? getActiveProjectRoomId();
+    if (!shellContextReady || !readyUserId || !isTauriRuntime() || runtimeSmokeEnabled) return;
 
     void launchTauriAuthenticatedSurfaces({
       retryPolicy: "cooldown",
-      selectedRoomId: launchSelectedRoomId,
       sessionAlreadyValidated: true,
     }).catch((error: unknown) => {
       console.warn("Failed to launch Tauri authenticated surfaces after shell ready.", error);
     });
-  }, [readyUserId, selectedRoomId, shellContextReady]);
+  }, [readyUserId, shellContextReady]);
 
   useEffect(() => {
     function syncActiveProjectRoom(event: Event) {
