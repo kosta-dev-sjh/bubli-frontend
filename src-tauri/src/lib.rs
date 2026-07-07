@@ -2868,10 +2868,11 @@ fn arrange_widget_windows(
     let origin_y = monitor
         .as_ref()
         .map_or(0.0, |(monitor, _)| monitor.position().y as f64 / scale);
-    let monitor_width = monitor
-        .as_ref()
-        .map(|(monitor, _)| monitor.size().width as f64 / scale)
-        .unwrap_or(WIDGET_FALLBACK_MONITOR_WIDTH);
+    // 정렬은 모니터 전체가 아니라 "작업 영역"(work area) 안에서만 한다 — macOS 메뉴바/Dock,
+    // Windows 작업표시줄을 제외한 실제로 보이는 사각형. 가로뿐 아니라 세로 예산도 여기서 얻어야
+    // 창이 화면 밖(특히 하단)으로 벗어나지 않는다.
+    let (area_x, area_y, area_width, area_height) =
+        monitor_work_area_logical(monitor.as_ref().map(|(monitor, _)| monitor), scale);
     let next_monitor_id = monitor.as_ref().map(|(_, id)| id.clone());
 
     // 정렬 대상: 바/메뉴 제외, 실제 웹뷰가 떠 있는 보이는 버블 창(계단 인덱스 순 안정 정렬).
@@ -2909,10 +2910,14 @@ fn arrange_widget_windows(
         .and_then(|value| value.layout.as_deref())
         .unwrap_or("grid");
     let placements = match layout {
-        "column" => arrange_widget_column_placements(&targets, monitor_width),
-        "row" => arrange_widget_row_placements(&targets, monitor_width),
-        "cascade" => arrange_widget_cascade_placements(&targets, monitor_width),
-        _ => arrange_widget_grid_placements(&targets, monitor_width),
+        "column" => {
+            arrange_widget_column_placements(&targets, area_x, area_y, area_width, area_height)
+        }
+        "row" => arrange_widget_row_placements(&targets, area_x, area_y, area_width, area_height),
+        "cascade" => {
+            arrange_widget_cascade_placements(&targets, area_x, area_y, area_width, area_height)
+        }
+        _ => arrange_widget_grid_placements(&targets, area_x, area_y, area_width, area_height),
     };
 
     // store 좌표 갱신 + 정렬된 위젯 목록 스냅샷.
@@ -2966,31 +2971,69 @@ fn arrange_widget_windows(
     Ok(arranged)
 }
 
+/// 창 좌상단을 작업 영역 안으로 클램프한다 — 창 전체가 화면 안에 들어오도록.
+/// 창이 작업 영역보다 크면(비정상) 좌상단(area_x/area_y)에 붙인다.
+fn clamp_point_into_work_area(
+    x: f64,
+    y: f64,
+    size: &LogicalSize<f64>,
+    area_x: f64,
+    area_y: f64,
+    area_width: f64,
+    area_height: f64,
+) -> (f64, f64) {
+    let max_x = (area_x + area_width - size.width).max(area_x);
+    let max_y = (area_y + area_height - size.height).max(area_y);
+    (x.clamp(area_x, max_x), y.clamp(area_y, max_y))
+}
+
+/// 세로 예산 안에 한 열에 몇 개 창이 들어가는지(간격 포함, 최소 1).
+fn arrange_rows_that_fit(area_height: f64, max_item_height: f64) -> usize {
+    if max_item_height <= 0.0 {
+        return 1;
+    }
+    let usable = area_height - WIDGET_ARRANGE_GAP;
+    (((usable / (max_item_height + WIDGET_ARRANGE_GAP)).floor()) as isize).max(1) as usize
+}
+
 /// 우상단 앵커 그리드 좌표 계산(모니터-로컬 논리 px). 열은 오른쪽에서 왼쪽으로 채우고,
-/// 각 열은 위에서 아래로 최대 2개. 열 폭은 그 열에서 가장 넓은 창 기준이다.
+/// 한 열의 행 수는 작업 영역 세로 예산에 맞춰(최대 2개, 단 화면에 들어가는 만큼만) 정한다.
+/// 마지막에 모든 창을 작업 영역 안으로 클램프해 화면 밖으로 나가지 않게 한다.
 fn arrange_widget_grid_placements(
     targets: &[WidgetWindowState],
-    monitor_width: f64,
+    area_x: f64,
+    area_y: f64,
+    area_width: f64,
+    area_height: f64,
 ) -> Vec<(String, WidgetWindowPosition)> {
     let mut placements: Vec<(String, WidgetWindowPosition)> = Vec::new();
-    let mut column_right = monitor_width - WIDGET_ARRANGE_GAP;
+    let max_height = targets
+        .iter()
+        .map(|widget| widget_window_size(widget).height)
+        .fold(0.0_f64, f64::max);
+    let rows_per_column =
+        arrange_rows_that_fit(area_height, max_height).min(WIDGET_ARRANGE_ROWS_PER_COLUMN);
+    let mut column_right = area_x + area_width - WIDGET_ARRANGE_GAP;
 
-    for column in targets.chunks(WIDGET_ARRANGE_ROWS_PER_COLUMN) {
+    for column in targets.chunks(rows_per_column) {
         let column_width = column
             .iter()
             .map(|widget| widget_window_size(widget).width)
             .fold(0.0_f64, f64::max);
-        let column_x = (column_right - column_width).max(WIDGET_ARRANGE_GAP);
-        let mut row_y = WIDGET_ARRANGE_GAP;
+        let column_x = (column_right - column_width).max(area_x + WIDGET_ARRANGE_GAP);
+        let mut row_y = area_y + WIDGET_ARRANGE_GAP;
         for widget in column {
+            let size = widget_window_size(widget);
+            let (x, y) =
+                clamp_point_into_work_area(column_x, row_y, &size, area_x, area_y, area_width, area_height);
             placements.push((
                 widget_window_label(widget),
                 WidgetWindowPosition {
-                    x: column_x.round() as i32,
-                    y: row_y.round() as i32,
+                    x: x.round() as i32,
+                    y: y.round() as i32,
                 },
             ));
-            row_y += widget_window_size(widget).height + WIDGET_ARRANGE_GAP;
+            row_y += size.height + WIDGET_ARRANGE_GAP;
         }
         column_right = column_x - WIDGET_ARRANGE_GAP;
     }
@@ -3005,55 +3048,92 @@ struct ArrangeWidgetWindowsInput {
     layout: Option<String>,
 }
 
-/// 세로 정렬: 오른쪽에 한 열로 위→아래로 쌓는다.
+/// 세로 정렬: 오른쪽에 한 열로 위→아래로 쌓되, 세로 예산을 넘으면 왼쪽으로 새 열을 만들어
+/// 계속 쌓는다(화면 밖으로 흘러넘치지 않게 랩). 각 열 폭은 그 열의 최대 폭 기준.
 fn arrange_widget_column_placements(
     targets: &[WidgetWindowState],
-    monitor_width: f64,
+    area_x: f64,
+    area_y: f64,
+    area_width: f64,
+    area_height: f64,
 ) -> Vec<(String, WidgetWindowPosition)> {
     let mut placements: Vec<(String, WidgetWindowPosition)> = Vec::new();
-    let column_width = targets
-        .iter()
-        .map(|widget| widget_window_size(widget).width)
-        .fold(0.0_f64, f64::max);
-    let column_x = (monitor_width - WIDGET_ARRANGE_GAP - column_width).max(WIDGET_ARRANGE_GAP);
-    let mut row_y = WIDGET_ARRANGE_GAP;
+    let area_bottom = area_y + area_height - WIDGET_ARRANGE_GAP;
+    let mut column_right = area_x + area_width - WIDGET_ARRANGE_GAP;
+    let mut column_x = column_right;
+    let mut column_width = 0.0_f64;
+    let mut row_y = area_y + WIDGET_ARRANGE_GAP;
+
     for widget in targets {
+        let size = widget_window_size(widget);
+        // 이 창을 넣으면 작업 영역 하단을 넘고, 열이 비어있지 않다면 다음 열(왼쪽)로 랩한다.
+        if row_y + size.height > area_bottom && row_y > area_y + WIDGET_ARRANGE_GAP {
+            column_right = column_x - WIDGET_ARRANGE_GAP;
+            column_x = column_right;
+            column_width = 0.0;
+            row_y = area_y + WIDGET_ARRANGE_GAP;
+        }
+        column_width = column_width.max(size.width);
+        column_x = (column_right - column_width).max(area_x + WIDGET_ARRANGE_GAP);
+        let (x, y) =
+            clamp_point_into_work_area(column_x, row_y, &size, area_x, area_y, area_width, area_height);
         placements.push((
             widget_window_label(widget),
             WidgetWindowPosition {
-                x: column_x.round() as i32,
-                y: row_y.round() as i32,
+                x: x.round() as i32,
+                y: y.round() as i32,
             },
         ));
-        row_y += widget_window_size(widget).height + WIDGET_ARRANGE_GAP;
+        row_y += size.height + WIDGET_ARRANGE_GAP;
     }
     placements
 }
 
-/// 가로 정렬: 상단에 한 줄로 왼쪽→오른쪽으로 늘어놓는다.
+/// 가로 정렬: 상단에 한 줄로 왼쪽→오른쪽으로 늘어놓되, 가로 예산을 넘으면 아래로 새 줄을
+/// 만들어 계속 늘어놓는다(화면 밖으로 흘러넘치지 않게 랩). 각 줄 높이는 그 줄의 최대 높이 기준.
 fn arrange_widget_row_placements(
     targets: &[WidgetWindowState],
-    _monitor_width: f64,
+    area_x: f64,
+    area_y: f64,
+    area_width: f64,
+    area_height: f64,
 ) -> Vec<(String, WidgetWindowPosition)> {
     let mut placements: Vec<(String, WidgetWindowPosition)> = Vec::new();
-    let mut col_x = WIDGET_ARRANGE_GAP;
+    let area_right = area_x + area_width - WIDGET_ARRANGE_GAP;
+    let mut col_x = area_x + WIDGET_ARRANGE_GAP;
+    let mut row_y = area_y + WIDGET_ARRANGE_GAP;
+    let mut row_height = 0.0_f64;
+
     for widget in targets {
+        let size = widget_window_size(widget);
+        // 이 창을 넣으면 작업 영역 우측을 넘고, 줄이 비어있지 않다면 다음 줄(아래)로 랩한다.
+        if col_x + size.width > area_right && col_x > area_x + WIDGET_ARRANGE_GAP {
+            col_x = area_x + WIDGET_ARRANGE_GAP;
+            row_y += row_height + WIDGET_ARRANGE_GAP;
+            row_height = 0.0;
+        }
+        row_height = row_height.max(size.height);
+        let (x, y) = clamp_point_into_work_area(col_x, row_y, &size, area_x, area_y, area_width, area_height);
         placements.push((
             widget_window_label(widget),
             WidgetWindowPosition {
-                x: col_x.round() as i32,
-                y: WIDGET_ARRANGE_GAP.round() as i32,
+                x: x.round() as i32,
+                y: y.round() as i32,
             },
         ));
-        col_x += widget_window_size(widget).width + WIDGET_ARRANGE_GAP;
+        col_x += size.width + WIDGET_ARRANGE_GAP;
     }
     placements
 }
 
-/// 계단식: 오른쪽 위에서 대각선으로 겹쳐 쌓는다(카드 덱 느낌).
+/// 계단식: 오른쪽 위에서 대각선으로 겹쳐 쌓는다(카드 덱 느낌). 대각선이 작업 영역 하단이나
+/// 좌측을 넘으려 하면 다시 우상단으로 되돌려(랩) 새 덱을 시작한다. 마지막에 클램프.
 fn arrange_widget_cascade_placements(
     targets: &[WidgetWindowState],
-    monitor_width: f64,
+    area_x: f64,
+    area_y: f64,
+    area_width: f64,
+    area_height: f64,
 ) -> Vec<(String, WidgetWindowPosition)> {
     let mut placements: Vec<(String, WidgetWindowPosition)> = Vec::new();
     let step = 36.0_f64;
@@ -3061,16 +3141,35 @@ fn arrange_widget_cascade_placements(
         .iter()
         .map(|widget| widget_window_size(widget).width)
         .fold(0.0_f64, f64::max);
-    let base_x = (monitor_width - WIDGET_ARRANGE_GAP - base_width).max(WIDGET_ARRANGE_GAP);
-    for (index, widget) in targets.iter().enumerate() {
-        let offset = step * index as f64;
+    let base_x = (area_x + area_width - WIDGET_ARRANGE_GAP - base_width).max(area_x + WIDGET_ARRANGE_GAP);
+    let base_y = area_y + WIDGET_ARRANGE_GAP;
+    let area_bottom = area_y + area_height - WIDGET_ARRANGE_GAP;
+    let mut deck = 0.0_f64;
+    for widget in targets {
+        let size = widget_window_size(widget);
+        // 대각선 오프셋이 하단을 넘거나 좌측 여백을 침범하면 덱을 우상단으로 되감는다.
+        if deck > 0.0
+            && (base_y + deck + size.height > area_bottom || base_x - deck < area_x + WIDGET_ARRANGE_GAP)
+        {
+            deck = 0.0;
+        }
+        let (x, y) = clamp_point_into_work_area(
+            base_x - deck,
+            base_y + deck,
+            &size,
+            area_x,
+            area_y,
+            area_width,
+            area_height,
+        );
         placements.push((
             widget_window_label(widget),
             WidgetWindowPosition {
-                x: (base_x - offset).max(WIDGET_ARRANGE_GAP).round() as i32,
-                y: (WIDGET_ARRANGE_GAP + offset).round() as i32,
+                x: x.round() as i32,
+                y: y.round() as i32,
             },
         ));
+        deck += step;
     }
     placements
 }
@@ -4934,7 +5033,8 @@ mod widget_runtime_tests {
             default_widget_window_state("chat", Some("chat".to_string())),
         ];
 
-        let placements = arrange_widget_grid_placements(&targets, 1440.0);
+        // 세로 예산이 넉넉하면(2000px) 한 열에 최대 2개, 우상단 앵커.
+        let placements = arrange_widget_grid_placements(&targets, 0.0, 0.0, 1440.0, 2000.0);
 
         assert_eq!(placements.len(), 3);
         let todo_size = widget_default_bubble_size("todo");
@@ -4961,6 +5061,51 @@ mod widget_runtime_tests {
         assert_eq!(placements[2].0, "bubli-widget-chat");
         assert_eq!(placements[2].1.x, column_two_x);
         assert_eq!(placements[2].1.y, 24);
+    }
+
+    #[test]
+    fn arrange_keeps_windows_inside_work_area() {
+        // 버블 8개 전부를 작은 작업 영역(1280×720)에 정렬해도, 어떤 프리셋이든
+        // 모든 창의 사각형이 작업 영역 안에 완전히 들어와야 한다(화면 밖 이탈 금지).
+        let targets: Vec<WidgetWindowState> = QA_ALL_WIDGET_BUBBLES
+            .iter()
+            .map(|bubble| default_widget_window_state(bubble, Some((*bubble).to_string())))
+            .collect();
+
+        let (area_x, area_y, area_w, area_h) = (0.0_f64, 0.0_f64, 1280.0_f64, 720.0_f64);
+        for layout in ["grid", "column", "row", "cascade"] {
+            let placements = match layout {
+                "column" => arrange_widget_column_placements(&targets, area_x, area_y, area_w, area_h),
+                "row" => arrange_widget_row_placements(&targets, area_x, area_y, area_w, area_h),
+                "cascade" => {
+                    arrange_widget_cascade_placements(&targets, area_x, area_y, area_w, area_h)
+                }
+                _ => arrange_widget_grid_placements(&targets, area_x, area_y, area_w, area_h),
+            };
+            assert_eq!(placements.len(), targets.len(), "layout {layout} dropped windows");
+            for (label, position) in &placements {
+                let widget = targets
+                    .iter()
+                    .find(|widget| &widget_window_label(widget) == label)
+                    .expect("placement label matches a target");
+                let size = widget_window_size(widget);
+                let x = position.x as f64;
+                let y = position.y as f64;
+                // 좌상단은 작업 영역 안, 우하단도 작업 영역 안(±1px 반올림 허용).
+                assert!(x >= area_x - 1.0, "layout {layout}: {label} x {x} < left");
+                assert!(y >= area_y - 1.0, "layout {layout}: {label} y {y} < top");
+                assert!(
+                    x + size.width <= area_x + area_w + 1.0,
+                    "layout {layout}: {label} right edge {} > area right",
+                    x + size.width
+                );
+                assert!(
+                    y + size.height <= area_y + area_h + 1.0,
+                    "layout {layout}: {label} bottom edge {} > area bottom",
+                    y + size.height
+                );
+            }
+        }
     }
 
     #[test]

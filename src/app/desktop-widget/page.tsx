@@ -1373,6 +1373,11 @@ function DesktopWidgetSurface() {
   const [todoRevision, setTodoRevision] = useState(0);
   const [timerRevision, setTimerRevision] = useState(0);
   const [displayRefreshRevision, setDisplayRefreshRevision] = useState(0);
+  // 떠다니는 오브(menu 창) 전용: 에이전트 후보 제안 요약 줄. 새 제안이 오면 오브가 말풍선으로 띄운다.
+  // suggestionNonce는 "새 제안 도착"을 알리는 카운터 — 후보 수가 늘 때만 올린다(오브가 remount로 팝).
+  const [orbAgentSuggestions, setOrbAgentSuggestions] = useState<string[]>([]);
+  const [orbSuggestionNonce, setOrbSuggestionNonce] = useState(0);
+  const orbPrevSuggestionCountRef = useRef(0);
   const [timerSnapshot, setTimerSnapshot] = useState<TimeLogResponse | null>(null);
   const [activeTimerHeartbeatId, setActiveTimerHeartbeatId] = useState<string | null>(null);
   const [voiceConnectionLabel, setVoiceConnectionLabel] = useState<string | null>(null);
@@ -3406,31 +3411,74 @@ function DesktopWidgetSurface() {
   );
 
   // 바/메뉴 화면에서 공통 서버 사용 롤업(usage-summaries/today)을 한 줄 요약으로 보여준다.
+  // 한 번만 불러오면 세션 중 사용량이 늘어도 숫자가 고정돼 목업처럼 보인다 — 주기적으로
+  // 다시 불러와 "오늘 열기/조작" 카운트가 실사용에 따라 갱신되게 한다(바는 이미 4초 주기로
+  // 항목을 폴링하므로 45초 주기 롤업 재조회는 부담이 미미하다).
   useEffect(() => {
     if (!widgetSessionReady || !isWidgetChrome) return;
 
     let cancelled = false;
 
-    void widgetApi
-      .getTodayUsageRollups()
-      .then((summary) => {
-        if (cancelled) return;
-        if (!summary || (summary.totalOpenCount === 0 && summary.totalInteractionCount === 0)) {
-          setMenuUsageSummary(null);
-          return;
-        }
-        setMenuUsageSummary(
-          t("widget.menu.todayUsage", { interaction: summary.totalInteractionCount, open: summary.totalOpenCount }),
-        );
-      })
-      .catch(() => {
-        if (!cancelled) setMenuUsageSummary(null);
-      });
+    const refreshUsageSummary = () => {
+      void widgetApi
+        .getTodayUsageRollups()
+        .then((summary) => {
+          if (cancelled) return;
+          if (!summary || (summary.totalOpenCount === 0 && summary.totalInteractionCount === 0)) {
+            setMenuUsageSummary(null);
+            return;
+          }
+          setMenuUsageSummary(
+            t("widget.menu.todayUsage", { interaction: summary.totalInteractionCount, open: summary.totalOpenCount }),
+          );
+        })
+        .catch(() => {
+          if (!cancelled) setMenuUsageSummary(null);
+        });
+    };
+
+    refreshUsageSummary();
+    const intervalId = window.setInterval(refreshUsageSummary, 45_000);
 
     return () => {
       cancelled = true;
+      window.clearInterval(intervalId);
     };
   }, [isWidgetChrome, t, widgetSessionReady]);
+
+  // 떠다니는 오브 창에서만: 에이전트 후보 제안 요약을 주기적으로 불러온다. 오브는 이 목록의
+  // 길이가 늘면(=새 제안 도착) 말풍선으로 첫 줄을 잠깐 보여준다(Codex 봇 스타일).
+  useEffect(() => {
+    if (!widgetSessionReady || !isMenuOrb) return;
+
+    let cancelled = false;
+
+    const refreshOrbSuggestions = () => {
+      void widgetApi
+        .getSummary(selectedWidgetRoomId)
+        .then((summary) => {
+          if (cancelled) return;
+          const next = summary?.agentSuggestionSummary ?? [];
+          setOrbAgentSuggestions(next);
+          // 후보 수가 이전보다 늘었을 때만(=새 제안 도착) 팝 카운터를 올린다.
+          if (next.length > orbPrevSuggestionCountRef.current) {
+            setOrbSuggestionNonce((current) => current + 1);
+          }
+          orbPrevSuggestionCountRef.current = next.length;
+        })
+        .catch(() => {
+          if (!cancelled) setOrbAgentSuggestions([]);
+        });
+    };
+
+    refreshOrbSuggestions();
+    const intervalId = window.setInterval(refreshOrbSuggestions, 8_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [isMenuOrb, selectedWidgetRoomId, widgetSessionReady]);
 
   const openMainApp = useCallback(
     async (route?: "settings") => {
@@ -3497,16 +3545,14 @@ function DesktopWidgetSurface() {
   }
 
   if (isMenuOrb) {
+    // 오브는 더 이상 메뉴가 아니다 — 누르면 에이전트 위젯을 열고, 새 후보 제안은 말풍선으로 띄운다.
+    // (자동정렬/설정/종료 등 메뉴 기능은 바 pill에 그대로 있다.)
     return (
       <DesktopWidgetMenuOrb
-        hasRoomContext={Boolean(selectedWidgetRoomId)}
-        onArrangeBubbles={arrangeWidgetBubbles}
-        onOpenBubble={restoreBubbleFromBar}
-        onOpenMainApp={openMainApp}
-        onOpenSettings={openMainAppSettings}
-        onQuit={quitDesktopApp}
-        onToggleRoomContext={toggleWidgetRoomContext}
-        usageSummary={menuUsageSummary}
+        agentSuggestionCount={orbAgentSuggestions.length}
+        agentSuggestionLatest={orbAgentSuggestions[0] ?? null}
+        onOpenAgent={() => void restoreBubbleFromBar("agent")}
+        suggestionNonce={orbSuggestionNonce}
       />
     );
   }
