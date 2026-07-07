@@ -14,6 +14,7 @@ export type ResourceVersionResponse = {
   createdAt: string;
   checksum?: string | null;
   createdBy?: string | null;
+  downloadUrl?: string | null;
   fileId?: string | null;
   id: string;
   originalName: string;
@@ -28,6 +29,7 @@ export type ResourceResponse = {
   aiDocumentStatus?: AiDocumentStatus;
   createdAt: string;
   currentVersion?: ResourceVersionResponse | null;
+  downloadUrl?: string | null;
   id: string;
   kind: ResourceKind;
   ownerId: string;
@@ -42,8 +44,9 @@ export type ResourceResponse = {
 export type ResourceUpdateRequest = Partial<Pick<ResourceResponse, "status" | "title" | "visibility">>;
 
 export type ResourceDownloadUrlResponse = {
-  expiresAt: string;
-  url: string;
+  downloadUrl?: string | null;
+  expiresAt?: string | null;
+  url?: string | null;
 };
 
 export type ResourceSummaryResponse = {
