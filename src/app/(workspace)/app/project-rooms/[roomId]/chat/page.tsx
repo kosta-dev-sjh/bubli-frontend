@@ -3,10 +3,6 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef } from "react";
 
-import { projectRoomRoute } from "@/lib/project-room-routes";
-import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
-import { isTauriRuntime } from "@/lib/tauri/is-tauri";
-
 export default function ProjectRoomChatPage() {
   const params = useParams<{ roomId?: string | string[] }>();
   const router = useRouter();
@@ -25,14 +21,8 @@ export default function ProjectRoomChatPage() {
       return;
     }
 
-    if (!isTauriRuntime()) {
-      router.replace(`/app/chat?mode=room&roomId=${encodeURIComponent(roomId)}`);
-      return;
-    }
-
-    void openTauriChatWidget({ eventType: "handoff:room-chat-route", roomId })
-      .then(() => router.replace(projectRoomRoute(roomId, "work")))
-      .catch(() => router.replace(projectRoomRoute(roomId, "work")));
+    // 데스크톱 앱도 이제 웹과 동일하게 메인 창에서 곧장 소통 화면을 연다(위젯 핸드오프 없음).
+    router.replace(`/app/chat?mode=room&roomId=${encodeURIComponent(roomId)}`);
   }, [roomId, router]);
 
   return null;
