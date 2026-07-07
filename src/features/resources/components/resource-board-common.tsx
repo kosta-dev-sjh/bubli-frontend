@@ -66,6 +66,7 @@ export type ResourcePreviewIntent = { kind: "delete" | "rename"; token: number }
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 
 type ResourceWorkGenerationKind = "kanban" | "wbs";
+type DocumentDraftType = "CLARIFICATION_ITEMS" | "CLIENT_QUESTIONS" | "MEETING_NOTE" | "PROJECT_BRIEF" | "WBS_TODO_PLAN";
 
 type ResourceWorkGenerationState =
   | { kind: "idle" }
@@ -75,6 +76,14 @@ type ResourceWorkGenerationState =
 
 const RESOURCE_ANALYSIS_JOB_POLL_ATTEMPTS = 24;
 const RESOURCE_ANALYSIS_JOB_POLL_INTERVAL_MS = 2500;
+
+const documentDraftOptions: { labelKey: MessageKey; value: DocumentDraftType }[] = [
+  { labelKey: "resources.common.draftTypeProjectBrief", value: "PROJECT_BRIEF" },
+  { labelKey: "resources.common.draftTypeClarificationItems", value: "CLARIFICATION_ITEMS" },
+  { labelKey: "resources.common.draftTypeClientQuestions", value: "CLIENT_QUESTIONS" },
+  { labelKey: "resources.common.draftTypeMeetingNote", value: "MEETING_NOTE" },
+  { labelKey: "resources.common.draftTypeWbsTodoPlan", value: "WBS_TODO_PLAN" },
+];
 
 const statusCopyKey: Record<ResourceStatus, MessageKey> = {
   ANALYZED: "resources.common.statusAnalyzed",
@@ -799,6 +808,8 @@ export function ResourcePreview({
   const [draftState, setDraftState] = useState<{ kind: "idle" } | { kind: "running" } | { jobId: string; kind: "started" } | { kind: "error"; message: string }>({
     kind: "idle",
   });
+  const [documentDraftType, setDocumentDraftType] = useState<DocumentDraftType>("PROJECT_BRIEF");
+  const [draftMenuOpen, setDraftMenuOpen] = useState(false);
   const [workGenerationState, setWorkGenerationState] = useState<ResourceWorkGenerationState>({ kind: "idle" });
   const [related, setRelated] = useState<ResourceRelationResponse[]>([]);
   const [renameOpen, setRenameOpen] = useState(false);
@@ -1168,11 +1179,12 @@ export function ResourcePreview({
       return;
     }
 
+    setDraftMenuOpen(false);
     setDraftState({ kind: "running" });
 
     try {
       const job = await agentApi.draftDocument({
-        documentType: "proposal",
+        documentType: documentDraftType,
         instruction: t("resources.common.draftInstruction"),
         roomId,
         sourceResourceIds: [activeResource.id],
@@ -1181,7 +1193,7 @@ export function ResourcePreview({
     } catch (error) {
       setDraftState({ kind: "error", message: getErrorMessage(error, t) });
     }
-  }, [activeResource, draftState.kind, roomId, t]);
+  }, [activeResource, documentDraftType, draftState.kind, roomId, t]);
 
   const handleGenerateWork = useCallback(
     async (target: ResourceWorkGenerationKind) => {
@@ -1313,6 +1325,7 @@ export function ResourcePreview({
       : analysisAlreadyRequested || analysisAlreadyCompleted
         ? visibleStatus
         : t("resources.common.analyzeRun");
+  const selectedDraftOption = documentDraftOptions.find((option) => option.value === documentDraftType) ?? documentDraftOptions[0];
 
   return (
     <aside className={styles.detail} aria-label={t("resources.common.previewAria")}>
@@ -1464,16 +1477,6 @@ export function ResourcePreview({
                   {questionState.kind === "running" ? t("resources.common.questionRunning") : t("resources.common.questionCandidate")}
                 </button>
                 <button
-                  aria-label={t("resources.common.draftDocumentAria")}
-                  className={styles.actionButton}
-                  disabled={draftState.kind === "running"}
-                  onClick={() => void handleDraftDocument()}
-                  type="button"
-                >
-                  <FileText aria-hidden size={14} strokeWidth={2} />
-                  {draftState.kind === "running" ? t("resources.common.draftRunning") : t("resources.common.documentDraft")}
-                </button>
-                <button
                   aria-label="선택 문서로 WBS 생성"
                   className={styles.actionButton}
                   disabled={workGenerationState.kind === "running" && workGenerationState.target === "wbs"}
@@ -1493,6 +1496,52 @@ export function ResourcePreview({
                   <KanbanSquare aria-hidden size={14} strokeWidth={2} />
                   {workGenerationState.kind === "running" && workGenerationState.target === "kanban" ? "칸반 생성 중" : "칸반 생성"}
                 </button>
+                <div className={styles.draftActionGroup}>
+                  <div className={styles.draftTypeMenu}>
+                    <button
+                      aria-expanded={draftMenuOpen}
+                      aria-haspopup="listbox"
+                      aria-label={t("resources.common.draftTypeAria")}
+                      className={styles.draftMenuButton}
+                      disabled={draftState.kind === "running"}
+                      onClick={() => setDraftMenuOpen((current) => !current)}
+                      type="button"
+                    >
+                      <span>{t("resources.common.draftTypeLabel")}</span>
+                      <strong>{t(selectedDraftOption.labelKey)}</strong>
+                      <ChevronDown aria-hidden size={15} strokeWidth={2} />
+                    </button>
+                    {draftMenuOpen ? (
+                      <div className={styles.draftMenuList} role="listbox">
+                        {documentDraftOptions.map((option) => (
+                          <button
+                            aria-selected={option.value === documentDraftType}
+                            className={cn(styles.draftMenuOption, option.value === documentDraftType && styles.draftMenuOptionActive)}
+                            key={option.value}
+                            onClick={() => {
+                              setDocumentDraftType(option.value);
+                              setDraftMenuOpen(false);
+                            }}
+                            role="option"
+                            type="button"
+                          >
+                            {t(option.labelKey)}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                  <button
+                    aria-label={t("resources.common.draftDocumentAria")}
+                    className={styles.actionButton}
+                    disabled={draftState.kind === "running"}
+                    onClick={() => void handleDraftDocument()}
+                    type="button"
+                  >
+                    <FileText aria-hidden size={14} strokeWidth={2} />
+                    {draftState.kind === "running" ? t("resources.common.draftRunning") : t("resources.common.documentDraft")}
+                  </button>
+                </div>
               </>
             ) : null}
             <button
