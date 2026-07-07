@@ -733,9 +733,14 @@ function buildDisplayBubbles(input: {
   const chatRoute = input.roomId ? `/app/project-rooms/${encodeURIComponent(input.roomId)}/chat` : "/app/chat";
   const scheduleRoute = roomScopedRoute("/app/calendar", input.roomId);
   const personalScheduleRoute = roomScopedRoute("/app/calendar", null);
-  // 작업(WORK) 타이머는 그 룸에만 귀속 — 전역(개인) 위젯에서는 룸 타이머를 숨기고 개인(roomId 없음) 타이머만 보인다.
-  const runningFallback = input.dashboard?.runningTimer ?? null;
-  const activeTimer = input.timer ?? (!isRoomScoped && runningFallback?.roomId == null ? runningFallback : null);
+  // 실행 중(또는 일시정지) 타이머는 사용자당 1개뿐이라, 위젯 스코프와 무관하게 타이머 버블에 항상 노출한다.
+  // 다른 룸에 걸린 타이머도 여기서 바로 종료할 수 있어야 "안 보여서 멈추지도 못하는" 데드락
+  // (새 start가 서버에서 409로 막힘)이 생기지 않는다. 어느 룸 타이머인지는 아래 timer row의 roomName 라벨로 구분한다.
+  const activeTimer = input.timer ?? input.dashboard?.runningTimer ?? null;
+  // 실행 중 타이머가 귀속된 "그 룸"의 이름(현재 위젯 스코프가 아니라 타이머 자신의 룸 기준).
+  const activeTimerRoomLabel = activeTimer?.roomId
+    ? (input.roomNames?.[activeTimer.roomId] ?? (activeTimer.roomId === input.roomId ? (input.room?.name ?? null) : null))
+    : null;
   // 캘린더는 오늘뿐 아니라 향후 일정 전체(14일 창)가 보여야 하므로, 전체 목록(input.schedules)을
   // 우선한다. 예전엔 오늘 일정이 있으면 todaySchedules(오늘만)가 전체를 가려, 캘린더에 이번주·다음주
   // 일정이 아예 안 뜨던 문제가 있었다. 전체가 비었을 때만 오늘 목록으로 폴백한다.
@@ -1060,6 +1065,8 @@ function buildDisplayBubbles(input: {
               id: activeTimer.id,
               kind: "time",
               label: activeTimer.timerType === "WORK" ? t("widget.timer.workTimer") : t("widget.timer.generalTimer"),
+              // 타이머가 귀속된 룸 이름(다른 룸에 걸린 타이머를 개인/다른 룸 스코프에서 볼 때 구분용).
+              roomName: activeTimerRoomLabel ?? undefined,
               status: activeTimer.status,
               timerDurationSeconds: activeTimer.durationSeconds ?? null,
               timerLastStartedAt: activeTimer.lastStartedAt ?? null,
@@ -1384,6 +1391,8 @@ function DesktopWidgetSurface() {
   const [orbSuggestionNonce, setOrbSuggestionNonce] = useState(0);
   const orbPrevSuggestionCountRef = useRef(0);
   const [timerSnapshot, setTimerSnapshot] = useState<TimeLogResponse | null>(null);
+  // 타이머 시작/종료 실패 안내(권한 없음·이미 실행 중 등). 잠깐 떴다가 자동으로 사라진다.
+  const [timerActionNotice, setTimerActionNotice] = useState<string | null>(null);
   const [activeTimerHeartbeatId, setActiveTimerHeartbeatId] = useState<string | null>(null);
   const [voiceConnectionLabel, setVoiceConnectionLabel] = useState<string | null>(null);
   const [voiceMicMuted, setVoiceMicMuted] = useState(false);
@@ -2011,18 +2020,9 @@ function DesktopWidgetSurface() {
           : selectedRoomId
             ? []
             : (summaryDashboard?.todayTasks ?? []);
-      const activeTimerCandidate = timerSnapshot?.status === "PAUSED" ? timerSnapshot : (dashboard?.runningTimer ?? timerSnapshot);
-      // 룸 컨텍스트: 그 룸 타이머만. 개인 컨텍스트: 룸에 귀속되지 않은(개인) 타이머만 — 룸 작업타이머는 전역에 노출하지 않는다.
-      const activeTimer =
-        activeTimerCandidate == null
-          ? null
-          : selectedRoomId
-            ? activeTimerCandidate.roomId === selectedRoomId
-              ? activeTimerCandidate
-              : null
-            : activeTimerCandidate.roomId == null
-              ? activeTimerCandidate
-              : null;
+      // 실행 중(또는 일시정지) 타이머는 사용자당 1개뿐이라, 위젯 스코프와 무관하게 항상 노출한다.
+      // (다른 룸에 걸린 타이머도 어디서든 바로 종료할 수 있어야 데드락이 안 생긴다. 룸 구분은 라벨로.)
+      const activeTimer = timerSnapshot?.status === "PAUSED" ? timerSnapshot : (dashboard?.runningTimer ?? timerSnapshot);
       const messageItems = messages?.items ?? cachedMessages;
       const schedules = schedulesValue?.items ?? (selectedRoomId ? [] : (summaryDashboard?.todaySchedules ?? []));
       const tasks = tasksValue?.items ?? (selectedRoomId ? [] : (summaryDashboard?.todayTasks ?? []));
@@ -2953,6 +2953,8 @@ function DesktopWidgetSurface() {
       setActiveTimerHeartbeatId(timeLog.status === "RUNNING" ? timeLog.id : null);
       recordLocalTimerState(timeLog);
       setTimerRevision((current) => current + 1);
+      // 액션이 성공했으면 직전 실패 안내는 지운다.
+      setTimerActionNotice(null);
     },
     [recordLocalTimerState],
   );
@@ -2983,9 +2985,18 @@ function DesktopWidgetSurface() {
   const handleWidgetTimerActionError = useCallback(
     async (error: unknown, roomId?: string | null) => {
       if (error instanceof ApiClientError) {
-        // 이미 실행 중인 타이머(409)는 서버가 알려준 현재 상태를 화면에 반영하면 된다.
+        // 이미 실행 중인 타이머(409): 조용히 넘기지 말고 안내한다. 실행 중 타이머는 스코프와
+        // 무관하게 화면에 노출되므로(refresh 후), 사용자가 그 타이머를 바로 종료할 수 있다.
         // 빠른 연타나 느린 배경 갱신으로 start가 한 번 더 나가는 경우에도 dev overlay가 뜨지 않게 한다.
         if (error.status === 409 && error.code === "PERSONAL_409_001") {
+          setTimerActionNotice(t("widget.timer.alreadyRunning"));
+          await refreshTimerFromServer(roomId);
+          return;
+        }
+
+        // 룸 권한 없음(룸 멤버가 아니거나 권한이 끊긴 경우): 왜 안 되는지 명확히 안내한다.
+        if (error.status === 403) {
+          setTimerActionNotice(t("widget.timer.forbidden"));
           await refreshTimerFromServer(roomId);
           return;
         }
@@ -2999,8 +3010,15 @@ function DesktopWidgetSurface() {
       console.error("Widget timer action failed", error);
       await refreshTimerFromServer(roomId);
     },
-    [refreshTimerFromServer],
+    [refreshTimerFromServer, t],
   );
+
+  // 타이머 실패 안내는 잠깐만 보여주고 자동으로 사라진다.
+  useEffect(() => {
+    if (!timerActionNotice) return;
+    const timeoutId = window.setTimeout(() => setTimerActionNotice(null), 4200);
+    return () => window.clearTimeout(timeoutId);
+  }, [timerActionNotice]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;
@@ -3682,6 +3700,7 @@ function DesktopWidgetSurface() {
       onToggleAlwaysOnTop={toggleAlwaysOnTop}
       onToggleVoiceMic={toggleWidgetVoiceMic}
       presentation="tauri"
+      timerActionNotice={timerActionNotice}
       windowId={windowId}
       windowVisible={windowVisible}
     />
