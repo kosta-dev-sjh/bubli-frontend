@@ -17,7 +17,6 @@ import {
   ExternalLink,
   FileText,
   Ghost,
-  Headphones,
   Inbox,
   LayoutGrid,
   MessageSquare,
@@ -25,6 +24,7 @@ import {
   Minus,
   Pause,
   Pencil,
+  Phone,
   PhoneOff,
   Pin,
   Play,
@@ -1379,7 +1379,7 @@ function ChatBody({
             onClick={() => void runVoiceAction("start")}
             type="button"
           >
-            <Headphones size={13} strokeWidth={2} />
+            <Phone size={13} strokeWidth={2} />
           </button>
         ) : null}
       </div>
