@@ -34,7 +34,7 @@
 
 .kicker {
   color: var(--blue-ink);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 760;
   letter-spacing: 0;
 }
@@ -135,14 +135,16 @@
   min-width: 0;
 }
 
-/* 섹션 전환 — 새 패널이 마운트될 때 짧게 떠오른다. 레이아웃 점프 없이 opacity/transform만 사용. */
-/* 이동(transform) 애니메이션은 유리 패널의 overflow hidden과 겹쳐 글자를 잘라 보이게 해서 opacity만 쓴다. */
+/* 섹션 전환 — 새 패널이 마운트될 때 짧게 떠오른다. scale은 유리 패널 잘림을 만들어 금지.
+   떠오르는 이동만 유지해 전환 모션을 살린다(사용자 요청). */
 @keyframes settings-panel-in {
   from {
     opacity: 0;
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -274,7 +276,7 @@
   align-items: center;
   gap: 8px;
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 620;
   line-height: 1.5;
   cursor: pointer;
@@ -432,7 +434,7 @@
   border-radius: 999px;
   background: rgba(111, 184, 242, 0.14);
   color: var(--blue-ink);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.01em;
 }
@@ -447,7 +449,7 @@
   border-radius: 999px;
   background: rgba(142, 205, 246, 0.24);
   color: var(--blue-ink);
-  font-size: 11.5px;
+  font-size: 14px;
   font-weight: 760;
   letter-spacing: 0.01em;
   white-space: nowrap;

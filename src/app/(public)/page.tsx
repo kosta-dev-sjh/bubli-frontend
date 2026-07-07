@@ -59,9 +59,10 @@ export default function HomePage() {
         <PublicHomeFlow />
       </section>
 
+      {/* 왜 섹션은 장식을 걷어내고 여백과 타이포로만 정돈한다.
+          같은 방울 이미지가 섹션 배경 2개 + 카드마다 1개씩 총 5번 반복돼 의미 없이 시선만 흩었고,
+          배경 영상(slow-bubble-flow.mp4)은 바로 위 흐름 구간에서 이미 쓰고 있어 여기 또 깔면 중복이다. */}
       <section className="landing-section" id="why">
-        <DecorBubble floating size="lg" style={{ top: "6%", right: "3%" }} />
-        <DecorBubble floating size="sm" style={{ bottom: "10%", left: "2%" }} />
         <Reveal>
           <header className="landing-section__head landing-section__head--left">
             <Chip>{t("public.home.whyChip")}</Chip>
@@ -75,7 +76,6 @@ export default function HomePage() {
             return (
               <Reveal key={card.titleKey} delay={140 + index * 130} className="landing-feature-cell">
                 <GlassPanel className="landing-feature-card">
-                  <DecorBubble size="md" />
                   <span className="landing-feature-card__index" aria-hidden="true">
                     {String(index + 1).padStart(2, "0")}
                   </span>
@@ -89,9 +89,11 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* 섹션 상단 한가운데(top 4%, left 40%) 떠 있던 방울 이미지는 제거했다.
+          위 "자료에서 흔들립니다" 카드 그리드 바로 아래 빈 공간에 카피와 정렬 없이
+          홀로 떠서 이상하게 배치된 그림으로 보였기 때문이다. */}
       <Reveal>
         <section className="landing-section landing-desktop" id="desktop">
-          <DecorBubble floating size="md" style={{ top: "4%", left: "40%" }} />
           <div className="landing-desktop__copy">
             <Chip>{t("public.home.desktopChip")}</Chip>
             <h2>{t("public.home.desktopTitle")}</h2>

@@ -897,15 +897,23 @@ function buildDisplayBubbles(input: {
   const personalScheduleItems = personalScheduleSource.map((item) => scheduleToRow(item, personalScheduleRoute));
   const memoItems = input.memos.filter((item) => item.status === "ACTIVE");
   const personalMemoItems = (input.personalMemos ?? []).filter((item) => item.status === "ACTIVE");
-  const memoToRow = (item: WidgetMemoResponse, roomId?: string | null): WidgetPreviewItem => ({
-    id: item.id,
-    handoffLabel: formatShortTime(item.updatedAt),
-    handoffUrl: roomScopedRoute("/app", roomId),
-    kind: "memo",
-    label: memoTitle(t, item),
-    memoBody: item.body,
-    status: formatShortTime(item.updatedAt),
-  });
+  const memoToRow = (item: WidgetMemoResponse, roomId?: string | null): WidgetPreviewItem => {
+    const title = memoTitle(t, item);
+    // 바 hover 팝오버에서 제목 한 줄만으로는 내용을 알기 어려워, 본문 요약(detail)을 같이 내려준다.
+    // 제목이 본문 첫 줄과 같으면(짧은 메모) 중복이라 생략한다.
+    const body = item.body.trim();
+    const detail = body && body !== title && !title.startsWith(body) ? body : undefined;
+    return {
+      detail,
+      id: item.id,
+      handoffLabel: formatShortTime(item.updatedAt),
+      handoffUrl: roomScopedRoute("/app", roomId),
+      kind: "memo",
+      label: title,
+      memoBody: item.body,
+      status: formatShortTime(item.updatedAt),
+    };
+  };
   const fileItems = input.resources.filter((item) => item.kind !== "MEMO");
   const resourceToRow = (item: WidgetResourceResponse, fallbackRoomId?: string | null): WidgetPreviewItem => ({
     id: item.id,
@@ -2212,19 +2220,22 @@ function DesktopWidgetSurface() {
 
     async function loadBarItems() {
       if (!isTauri) {
-        setBarItems([
-          {
-            activeBubble: "timer",
+        // 브라우저 미리보기용 접힌 칩 구성 — 실제 최소화 상태는 Tauri 창 스토어가 관리하고,
+        // 여기서는 인라인 카운트·라이브 타이머 라벨이 보이는 칩 종류만 배치한다.
+        // 칩에 표시되는 숫자 자체는 위 loadDisplayApiState가 불러온 실데이터에서만 나온다.
+        setBarItems(
+          (["timer", "todo", "schedule", "memo"] as const).map((bubbleType) => ({
+            activeBubble: bubbleType,
             alwaysOnTop: true,
             clickThrough: false,
             dockOrbVisible: false,
             mode: "MINIMIZED",
             position: { x: 0, y: 0 },
             trayVisible: false,
-            windowId: "timer",
+            windowId: bubbleType,
             windowVisible: false,
-          },
-        ]);
+          })),
+        );
         return;
       }
 

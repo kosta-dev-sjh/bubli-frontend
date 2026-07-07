@@ -37,7 +37,7 @@
 /* Enter 줄바꿈 · Cmd/Ctrl+Enter 저장 힌트 — 초소형 보조 문구(12px 예외). */
 .composeHint {
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 560;
   word-break: keep-all;
 }
@@ -45,7 +45,7 @@
 .notice {
   margin: 0;
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 560;
   line-height: 1.45;
   word-break: keep-all;
@@ -92,7 +92,7 @@
 
 .memoMeta time {
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 560;
 }
 
@@ -112,7 +112,7 @@
   color: var(--color-muted);
   background: transparent;
   font: inherit;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 620;
   cursor: pointer;
   word-break: keep-all;

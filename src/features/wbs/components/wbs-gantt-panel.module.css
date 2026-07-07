@@ -464,14 +464,21 @@
 /* ---------- 간트 표면: 평평한 내부 (유리는 바깥 pane 하나) ---------- */
 .ganttSurface {
   background: rgba(255, 255, 255, 0.55);
-  block-size: min(520px, calc(100dvh - 250px));
+  /* 이중 세로 스크롤 해소 — 고정 높이(min(520px, …)) 대신 콘텐츠(작업 행) 높이만큼
+     자라게 해서 세로 스크롤은 페이지(.bubli-main-scroll) 하나만 남긴다.
+     block-size: auto는 간트 루트의 h-full(height: 100%)을 덮는 명시 선언이다. */
+  block-size: auto;
   border: 1px solid rgba(44, 53, 64, 0.1);
   border-radius: 14px;
   color: #2C3540;
   font-family: var(--font-workspace, "LINE Seed Sans KR", Pretendard, sans-serif);
   letter-spacing: 0;
-  min-block-size: 420px;
+  /* 행이 없어도 타임라인 헤더 + 빈 상태 추가 행이 눌리지 않을 최소 높이 */
+  min-block-size: 260px;
   overflow-anchor: none;
+  /* 가로는 간트 타임라인 특성상 내부 스크롤 1개만 유지, 세로 내부 스크롤은 금지 */
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .ganttSurface[data-gantt-dragging="true"] {
@@ -911,7 +918,7 @@
 .syncReconsentNote {
   margin: 4px 0 0;
   color: var(--blue-ink);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
   line-height: 1.5;
   word-break: keep-all;

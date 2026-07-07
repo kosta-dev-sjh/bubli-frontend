@@ -63,7 +63,7 @@
 
 .count {
   color: var(--rb-ink-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
 }
@@ -114,7 +114,7 @@
   align-items: center;
   gap: 7px;
   color: var(--rb-ink-muted);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -280,7 +280,7 @@
 /* dev PR 214 이식: 동기화 스트립 — 연결된 로컬 폴더 안내(작은 줄) */
 .dropzoneText small {
   color: var(--rb-ink-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.4;
 }
@@ -327,7 +327,7 @@
 .localIndexRow small,
 .localIndexRow p {
   color: var(--rb-ink-muted);
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .localIndexHeader strong,
@@ -379,7 +379,7 @@
 
 .localIndexPreview span {
   color: var(--rb-ink-accent);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 650;
 }
 
@@ -389,7 +389,7 @@
   margin: 0;
   color: var(--rb-ink);
   font: inherit;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.55;
   white-space: pre-wrap;
 }
@@ -397,7 +397,7 @@
 .localIndexEmpty {
   margin: 0;
   color: var(--rb-ink-muted);
-  font-size: 12px;
+  font-size: 14px;
 }
 
 /* ---------- 파일 행: 글리프 · 이름/메타 · 상태 칩 1개 · 호버 액션 ---------- */
@@ -872,7 +872,7 @@
 
 .sectionCount {
   color: var(--rb-ink-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
 }
@@ -993,7 +993,7 @@
 .versionMeta {
   flex: 0 0 auto;
   color: var(--rb-ink-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -1180,7 +1180,7 @@
 
 .commentDate {
   color: var(--rb-ink-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }

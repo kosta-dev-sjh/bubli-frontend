@@ -61,6 +61,7 @@ export const TAURI_COMMANDS = {
   readWidgetPref: "read_widget_pref",
   readWidgetSummaryCache: "read_widget_summary_cache",
   reindexFile: "reindex_file",
+  reconcileLocalFilesWithServer: "reconcile_local_files_with_server",
   recoverTimerState: "recover_timer_state",
   recordActivityContext: "record_activity_context",
   recordTimerState: "record_timer_state",
@@ -350,6 +351,17 @@ export type LocalFileEventsMarkSyncedResult = {
   completedAt: string;
   failedCount: number;
   syncedCount: number;
+};
+
+// 서버→앱 방향 조정 입력: 서버에 지금 존재하는 개인 자료 id 집합.
+export type LocalFilesServerReconcileInput = {
+  resourceIds: string[];
+};
+
+export type LocalFilesServerReconcileResult = {
+  completedAt: string;
+  /** 서버 자료가 사라져 LOCAL_ONLY로 되돌린 로컬 인덱스 행 개수. */
+  resetCount: number;
 };
 
 export type LocalFileAnalysisBackfillStageInput = {
@@ -1098,6 +1110,10 @@ export type TauriCommandContract = {
     args: LocalFileEventsMarkSyncedInput;
     result: LocalFileEventsMarkSyncedResult;
   };
+  reconcile_local_files_with_server: {
+    args: LocalFilesServerReconcileInput;
+    result: LocalFilesServerReconcileResult;
+  };
   mark_widget_usage_summary_synced: {
     args: WidgetUsageSummaryMarkSyncedInput;
     result: WidgetUsageSummaryMarkSyncedResult;
@@ -1457,6 +1473,10 @@ export const tauriCommands = {
   },
   markLocalFileEventsSynced(input: LocalFileEventsMarkSyncedInput) {
     return invokeTauri<LocalFileEventsMarkSyncedResult>(TAURI_COMMANDS.markLocalFileEventsSynced, { input });
+  },
+  // 서버에서 지워진 개인 자료를 로컬 인덱스(local_files)에 반영하는 서버→앱 방향 조정.
+  reconcileLocalFilesWithServer(input: LocalFilesServerReconcileInput) {
+    return invokeTauri<LocalFilesServerReconcileResult>(TAURI_COMMANDS.reconcileLocalFilesWithServer, { input });
   },
   markWidgetUsageSummaryFailed(input: WidgetUsageSummaryMarkFailedInput) {
     return invokeTauri<WidgetUsageSummaryMarkFailedResult>(TAURI_COMMANDS.markWidgetUsageSummaryFailed, { input });

@@ -5087,6 +5087,7 @@ pub fn run() {
             local_files::get_local_file_analysis_status,
             local_files::stage_local_file_events_for_sync,
             local_files::mark_local_file_events_synced,
+            local_files::reconcile_local_files_with_server,
             local_files::stage_local_file_analysis_backfill,
             local_files::mark_local_file_analyses_sent,
             local_files::unwatch_all_managed_folders,

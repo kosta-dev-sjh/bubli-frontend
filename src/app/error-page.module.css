@@ -47,7 +47,7 @@
 }
 
 .code {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -73,7 +73,7 @@
 .detail {
   margin: -12px auto 22px;
   max-width: 36ch;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.5;
   color: var(--ink-faint);
   word-break: break-word;

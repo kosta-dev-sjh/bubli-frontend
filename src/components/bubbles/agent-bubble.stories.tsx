@@ -26,7 +26,7 @@ function Cell({ children, label }: { children: ReactNode; label: string }) {
   return (
     <div style={{ display: "grid", gap: 8, justifyItems: "center" }}>
       {children}
-      <span style={{ fontSize: 12, color: "var(--ink-soft)" }}>{label}</span>
+      <span style={{ fontSize: 14, color: "var(--ink-soft)" }}>{label}</span>
     </div>
   );
 }

@@ -2,7 +2,7 @@
 // summary 캐시와 같은 방식으로 (kind, context:'personal'|roomId)로 키를 분리해
 // 개인/룸 컨텍스트의 상태가 서로 덮어쓰지 않게 한다. Tauri 런타임이 아니면 no-op이며
 // 서버로는 절대 반영하지 않는다(뽀모도로 사이클은 로컬 전용, 스펙 §타이머 버블).
-import { getStoredAuthSession } from "@/lib/auth/auth-session";
+import { getStoredAuthSession, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
 import { tauriCommands } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
@@ -50,8 +50,15 @@ function isTimerMode(value: unknown): value is WidgetTimerMode {
 
 // summary-client와 동일한 컨텍스트 스코프 규칙. 룸이면 room:{id}, 아니면 personal.
 // 사용자 격리를 위해 JWT sub를 접두어로 붙인다(토큰 없으면 anon).
-function resolvePrefCacheKey(selectedRoomId?: string | null): string {
-  const token = getStoredAuthSession()?.accessToken ?? null;
+// 주의: 바에서 복원된 새 창·앱 재시작 직후에는 세션 미러 복원보다 이 키 계산이 먼저 돌 수 있다.
+// 그 순간 동기 localStorage가 비어 있으면 sub:anon 키로 읽어버려 저장해 둔 탭·뽀모도로를
+// 못 찾는 레이스가 있었으므로, 토큰이 없을 때는 Tauri 미러 복원을 한 번 기다린 뒤 키를 확정한다
+// (비-Tauri는 기존과 동일하게 동기 값만 쓴다).
+async function resolvePrefCacheKey(selectedRoomId?: string | null): Promise<string> {
+  let token = getStoredAuthSession()?.accessToken ?? null;
+  if (!token && isTauriRuntime()) {
+    token = (await restoreStoredAuthSessionFromTauri().catch(() => null))?.accessToken ?? null;
+  }
   const subject = getJwtSubject(token) ?? "anon";
   const roomId = selectedRoomId?.trim();
   const scope = roomId ? `room:${roomId}` : "personal";
@@ -74,7 +81,7 @@ function getJwtSubject(token: string | null): string | null {
 export async function readWidgetTimerMode(selectedRoomId?: string | null): Promise<WidgetTimerMode | null> {
   if (!isTauriRuntime()) return null;
   try {
-    const cached = await tauriCommands.readWidgetPref({ cacheKey: resolvePrefCacheKey(selectedRoomId), kind: TIMER_MODE_KIND });
+    const cached = await tauriCommands.readWidgetPref({ cacheKey: await resolvePrefCacheKey(selectedRoomId), kind: TIMER_MODE_KIND });
     if (!cached) return null;
     const parsed: unknown = JSON.parse(cached.valueJson);
     const mode = (parsed as { mode?: unknown })?.mode;
@@ -88,7 +95,7 @@ export async function writeWidgetTimerMode(mode: WidgetTimerMode, selectedRoomId
   if (!isTauriRuntime()) return;
   try {
     await tauriCommands.storeWidgetPref({
-      cacheKey: resolvePrefCacheKey(selectedRoomId),
+      cacheKey: await resolvePrefCacheKey(selectedRoomId),
       kind: TIMER_MODE_KIND,
       valueJson: JSON.stringify({ mode }),
     });
@@ -104,7 +111,7 @@ function isTimerKind(value: unknown): value is WidgetTimerKind {
 export async function readWidgetTimerKind(selectedRoomId?: string | null): Promise<WidgetTimerKind | null> {
   if (!isTauriRuntime()) return null;
   try {
-    const cached = await tauriCommands.readWidgetPref({ cacheKey: resolvePrefCacheKey(selectedRoomId), kind: TIMER_SUBKIND_KIND });
+    const cached = await tauriCommands.readWidgetPref({ cacheKey: await resolvePrefCacheKey(selectedRoomId), kind: TIMER_SUBKIND_KIND });
     if (!cached) return null;
     const parsed: unknown = JSON.parse(cached.valueJson);
     const kind = (parsed as { kind?: unknown })?.kind;
@@ -118,7 +125,7 @@ export async function writeWidgetTimerKind(kind: WidgetTimerKind, selectedRoomId
   if (!isTauriRuntime()) return;
   try {
     await tauriCommands.storeWidgetPref({
-      cacheKey: resolvePrefCacheKey(selectedRoomId),
+      cacheKey: await resolvePrefCacheKey(selectedRoomId),
       kind: TIMER_SUBKIND_KIND,
       valueJson: JSON.stringify({ kind }),
     });
@@ -161,7 +168,7 @@ function normalizePomodoroState(parsed: Partial<PomodoroState>): PomodoroState {
 }
 
 export async function readPomodoroState(selectedRoomId?: string | null): Promise<PomodoroState | null> {
-  const cacheKey = resolvePrefCacheKey(selectedRoomId);
+  const cacheKey = await resolvePrefCacheKey(selectedRoomId);
   // Tauri에서는 영속 저장본을 우선(다른 창/재오픈 반영)하고, 아직 저장 전이면 인메모리로 폴백한다.
   if (isTauriRuntime()) {
     try {
@@ -179,7 +186,7 @@ export async function readPomodoroState(selectedRoomId?: string | null): Promise
 }
 
 export async function writePomodoroState(state: PomodoroState, selectedRoomId?: string | null): Promise<void> {
-  const cacheKey = resolvePrefCacheKey(selectedRoomId);
+  const cacheKey = await resolvePrefCacheKey(selectedRoomId);
   pomodoroStateCache.set(cacheKey, state);
   if (!isTauriRuntime()) return;
   try {

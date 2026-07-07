@@ -23,7 +23,7 @@ type Story = StoryObj<typeof meta>;
 
 const row: CSSProperties = { display: "flex", gap: 28, alignItems: "center", flexWrap: "wrap" };
 
-const legendItem: CSSProperties = { display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: "var(--ink-soft)" };
+const legendItem: CSSProperties = { display: "flex", alignItems: "center", gap: 7, fontSize: 14, color: "var(--ink-soft)" };
 function Dot({ c }: { c: string }) {
   return <span style={{ width: 8, height: 8, borderRadius: "50%", background: c, flex: "0 0 auto" }} />;
 }

@@ -62,7 +62,7 @@
 .hintRow {
   padding: 2px 9px 3px;
   /* 초소형 보조 힌트 — 상태 배지와 같은 최소 폰트 예외(12px 유지). */
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 620;
 }
 

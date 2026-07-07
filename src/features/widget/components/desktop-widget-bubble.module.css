@@ -2924,15 +2924,17 @@
   background: color-mix(in srgb, var(--acc) 20%, transparent);
 }
 
-/* 타이머 칩만 아이콘 옆 컴팩트 시간 텍스트가 붙는다(배지 없음). */
-.barTimerChip {
+/* 인라인 라벨 칩 — 아이콘 옆에 14px 컴팩트 텍스트가 붙는다(배지 없음).
+   타이머(뽀모도로 남은 mm:ss·서버 경과·현재 시각), 투두/일정/메모/알림(카운트)이 쓴다. */
+.barLabelChip {
   grid-auto-flow: column;
   width: auto;
   gap: 5px;
   padding: 0 10px 0 8px;
 }
 
-.chipTime {
+/* 칩 인라인 라벨 텍스트 — 위젯 최소 폰트 14px 정책을 따른다(이보다 줄이지 말 것). */
+.chipInlineLabel {
   color: var(--acc-ink);
   font-size: 14px;
   font-weight: 700;
@@ -2940,7 +2942,7 @@
   white-space: nowrap;
 }
 
-/* 16px 우상단 카운트 배지 — 초소형 고정 높이라 최소 폰트 예외(12px 유지). */
+/* 16px 우상단 카운트 배지(소통·에이전트·초안 칩) — 폰트는 최소 14px 정책을 따른다. */
 .chipBadge {
   position: absolute;
   top: -5px;

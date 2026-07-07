@@ -143,7 +143,8 @@
 }
 
 .wbsWorkspace .pane {
-  overflow-x: auto;
+  /* 가로 스크롤은 간트 내부(.gantt 루트) 하나만 둔다 — pane에도 overflow-x: auto를
+     주면 같은 축의 스크롤바가 두 겹으로 겹쳐 보인다. */
   padding: 16px;
 }
 
@@ -600,6 +601,10 @@
 
   .wbsInspectorPopover {
     inline-size: 100%;
+    /* 좁은 화면에서는 팝오버가 아니라 본문 흐름에 끼어드는 패널이 되므로,
+       고정 max-height + 내부 스크롤을 풀어 페이지 스크롤 하나로 이어지게 한다. */
+    max-block-size: none;
+    overflow: visible;
     position: static;
   }
 

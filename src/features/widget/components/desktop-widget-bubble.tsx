@@ -3849,8 +3849,9 @@ const BAR_PREVIEW_POPOVER_ID = "bubli-bar-preview";
 // 메뉴 패널·hover 프리뷰·goo 팝이 떠 있는 동안에는 페이드를 아예 정지한다.
 const BAR_IDLE_FADE_MS = 8000;
 
-// 접힌 칩은 전부 바에 노출한다 — "+N" 접기·잘림 없음. 칩이 아이콘 전용 36px 타일이라
-// 최악 조합(7개 + 타이머 시간 텍스트)도 Rust WIDGET_BAR_WIDTH(640 고정)를 넘지 않는다.
+// 접힌 칩은 전부 바에 노출한다 — "+N" 접기·잘림 없음. 칩은 36px 타일 + 인라인 라벨
+// (타이머 mm:ss, 투두/일정/메모 카운트)인데, 최악 조합(7개 전부 + "99+" 라벨 + 타이머 12:34)도
+// 약 580px로 Rust WIDGET_BAR_WIDTH(640 고정)를 넘지 않는다.
 // 알림 버블 칩은 바 맨 왼쪽의 고정 알림 칩과 완전히 중복(같은 종·같은 카운트)이라 제외하고,
 // 알림 버블 복원은 Bubli 메뉴의 바로가기 그리드가 담당한다.
 function collectBarFoldedItems(minimizedItems: WidgetWindowState[]) {
@@ -3868,10 +3869,174 @@ function collectBarFoldedItems(minimizedItems: WidgetWindowState[]) {
 }
 
 // 아이콘 전용 칩의 카운트 배지(16px, 우상단). 0/비숫자면 배지를 그리지 않는다.
+// 로딩("...")·오류("!") 스캐폴드 문자열도 NaN이라 자연히 걸러진다 — 가짜 숫자를 만들지 않는다.
 function barChipBadge(metric: string) {
   const count = Number.parseInt(metric, 10);
   if (!Number.isFinite(count) || count <= 0) return null;
   return count > 99 ? "99+" : String(count);
+}
+
+// 카운트를 "99+" 상한 문자열로 바꾼다. 0 이하면 null — 라벨 자체를 그리지 않는다.
+function formatChipCount(count: number): string | null {
+  if (!Number.isFinite(count) || count <= 0) return null;
+  return count > 99 ? "99+" : String(count);
+}
+
+// 오늘과 겹치는 일정 수 — 일정 칩 인라인 카운트는 14일 창 전체가 아니라 "오늘 N"만 센다.
+// (일정 버블의 metric은 "14:00"·"종일" 같은 첫 일정 시각 문자열이라, parseInt로 배지를 만들면
+// 시(hour)가 카운트처럼 보이는 버그가 있었다. 카운트는 rows의 원본 시각에서 직접 센다.)
+function countTodaySchedules(rows: WidgetPreviewItem[]): number {
+  const now = new Date();
+  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const dayEnd = dayStart + 24 * 60 * 60 * 1000;
+  return rows.filter((row) => {
+    if (!row.startsAt) return false;
+    const start = new Date(row.startsAt).getTime();
+    if (Number.isNaN(start)) return false;
+    const endRaw = row.endsAt ? new Date(row.endsAt).getTime() : start;
+    const end = Number.isNaN(endRaw) ? start : endRaw;
+    return start < dayEnd && end >= dayStart;
+  }).length;
+}
+
+// 투두/일정/메모 칩의 아이콘 옆 인라인 카운트(14px 텍스트). 데이터가 없으면 null — 라벨 생략.
+// 타이머는 라이브 라벨(useBarTimerLive)이 따로 담당하고, 소통/에이전트/초안은 코너 배지를 유지한다.
+function barChipInlineCount(bubbleType: WidgetBubbleType, bubble: WidgetPreviewBubble): string | null {
+  if (bubbleType === "todo" || bubbleType === "memo") return barChipBadge(bubble.metric);
+  if (bubbleType === "schedule") return formatChipCount(countTodaySchedules(bubble.rows));
+  return null;
+}
+
+// 시계 모드 칩 라벨(HH:MM) — 초까지 붙이면 칩이 너무 넓어져 분 단위만 보여준다.
+function formatHoursMinutes(date: Date): string {
+  const pad = (value: number) => value.toString().padStart(2, "0");
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+// 바 타이머 칩과 hover 팝오버가 공유하는 라이브 스냅샷.
+type BarTimerSnapshot = {
+  // 칩에 그대로 붙는 라이브 라벨. 우선순위: 뽀모도로 남은 mm:ss > 서버 타이머 경과 > 시계 HH:MM.
+  live: { kind: "clock" | "pomodoro" | "work"; label: string } | null;
+  // 마지막 틱의 벽시계(ms). 렌더 중 Date.now() 호출 금지(react-hooks/purity)라 틱이 채워준다.
+  now: number | null;
+  pomodoro: PomodoroState | null;
+  timerMode: WidgetTimerMode | null;
+  timerRow: WidgetPreviewItem | undefined;
+};
+
+const emptyBarTimerSnapshot: BarTimerSnapshot = { live: null, now: null, pomodoro: null, timerMode: null, timerRow: undefined };
+
+// 타이머 버블이 바에 접혀 있는 동안의 라이브 타이머 상태.
+// - 뽀모도로는 GhostPomodoro와 같은 벽시계(phaseEndsAt) 기반 1초 틱으로 남은 시간을 계산하고,
+//   타이머 창이 닫혀 있어도(=바에만 접혀 있어도) 페이즈 자동 전환·사이클 카운트·임박 알림음을 이어간다.
+//   칩은 타이머 버블이 최소화됐을 때만 뜨므로, 열린 타이머 창과 전환 저장이 겹칠 일이 없다.
+// - 서버 작업 타이머는 timerLastStartedAt 기준으로 경과를 재계산해 폴링 주기와 무관하게 흐른다.
+// - 저장 상태(뽀모도로·탭 모드)는 5초 주기 + 창 포커스 복귀 때 다시 읽어 다른 표면의 변경을 따라잡는다.
+function useBarTimerLive(enabled: boolean, timerBubble: WidgetPreviewBubble | undefined): BarTimerSnapshot {
+  const [pomodoro, setPomodoro] = useState<PomodoroState | null>(null);
+  const [timerMode, setTimerMode] = useState<WidgetTimerMode | null>(null);
+  // 1초 틱이 채우는 벽시계(ms). 렌더는 이 값으로만 시간을 계산한다(렌더 중 Date.now() 금지).
+  const [liveNow, setLiveNow] = useState<number | null>(null);
+  const pomodoroRef = useRef<PomodoroState | null>(null);
+  useEffect(() => {
+    pomodoroRef.current = pomodoro;
+  }, [pomodoro]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    const load = () => {
+      void readPomodoroState(null).then((stored) => {
+        if (!cancelled) setPomodoro(stored);
+      });
+      void readWidgetTimerMode(null).then((stored) => {
+        if (!cancelled) setTimerMode(stored);
+      });
+    };
+    load();
+    const intervalId = window.setInterval(load, 5000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") load();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [enabled]);
+
+  const timerRow = timerBubble?.rows.find((row) => row.kind === "time");
+  const serverTimerRunning = timerRow?.status === "RUNNING";
+  const pomodoroRunning = Boolean(pomodoro?.running && pomodoro.phaseEndsAt);
+  // 시간이 흐르는 표시(뽀모도로 러닝·서버 타이머 러닝·시계)일 때만 1초 틱 — 정지 칩은 리렌더 없음.
+  const needsTick = enabled && (pomodoroRunning || serverTimerRunning || timerMode === "clock");
+
+  useEffect(() => {
+    if (!needsTick) return;
+    const tick = () => {
+      const current = pomodoroRef.current;
+      if (current?.running && current.phaseEndsAt) {
+        const left = Math.round((current.phaseEndsAt - Date.now()) / 1000);
+        if (left > 0) {
+          // 집중 마무리 임박(남은 60초) 알림음 — 페이즈당 1회(PomodoroView/고스트와 큐 키 공유).
+          if (current.phase === "focus") maybePlayPomodoroEndingSound(left, current.phaseEndsAt);
+        } else {
+          // 페이즈 종료 → 자동 전환 저장. 타이머 창이 닫혀 있어도 바가 사이클을 이어간다.
+          const nextPhase: PomodoroPhase = current.phase === "focus" ? "break" : "focus";
+          const nextDuration = phaseDurationSeconds(nextPhase, current.focusMinutes, current.breakMinutes);
+          const next: PomodoroState = {
+            ...current,
+            cyclesCompleted: current.phase === "focus" ? current.cyclesCompleted + 1 : current.cyclesCompleted,
+            phase: nextPhase,
+            phaseEndsAt: Date.now() + nextDuration * 1000,
+            remainingSeconds: null,
+            running: true,
+          };
+          pomodoroRef.current = next;
+          setPomodoro(next);
+          void writePomodoroState(next, null);
+        }
+      }
+      setLiveNow(Date.now());
+    };
+    tick();
+    const intervalId = window.setInterval(tick, 1000);
+    // 백그라운드 스로틀로 멈춰 보이지 않게 포커스/가시성 복귀 시 즉시 재계산한다.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [needsTick]);
+
+  if (!enabled) return emptyBarTimerSnapshot;
+
+  // 시간이 필요한 라벨은 첫 틱(liveNow)이 채워진 뒤에 그린다 — 마운트 직후 한 프레임은 아이콘만.
+  let live: BarTimerSnapshot["live"] = null;
+  if (pomodoro?.running && pomodoro.phaseEndsAt) {
+    if (liveNow !== null) {
+      const left = Math.max(0, Math.round((pomodoro.phaseEndsAt - liveNow) / 1000));
+      live = { kind: "pomodoro", label: formatMinutesSeconds(left) };
+    }
+  } else if (timerRow && timerRow.status === "RUNNING") {
+    if (liveNow !== null) {
+      live = { kind: "work", label: elapsedWidgetTimerLabel(timerRow) };
+    }
+  } else if (timerRow && timerRow.status === "PAUSED") {
+    // 일시정지된 서버 타이머는 누적 경과를 고정 표시한다(실데이터 — 0을 지어내지 않음).
+    live = { kind: "work", label: formatMinutesSeconds(timerRow.timerDurationSeconds ?? 0) };
+  } else if (timerMode === "clock" && liveNow !== null) {
+    live = { kind: "clock", label: formatHoursMinutes(new Date(liveNow)) };
+  }
+  return { live, now: liveNow, pomodoro, timerMode, timerRow };
 }
 
 // Bubli 메뉴 패널 본문: 바와 메뉴 오브가 공유하는 동일한 바로가기 레이아웃.
@@ -4081,6 +4246,7 @@ const BarChipButton = memo(function BarChipButton({
   bubbleType,
   chipEnterExit,
   describedBy,
+  liveTimerLabel = null,
   onHidePreview,
   onRestoreBubble,
   onShowPreview,
@@ -4092,6 +4258,8 @@ const BarChipButton = memo(function BarChipButton({
   bubbleType: WidgetBubbleType;
   chipEnterExit: BarChipEnterExit;
   describedBy?: string;
+  // 타이머 칩 전용 라이브 라벨(뽀모도로 남은 mm:ss/서버 경과/현재 시각). 바가 1초 틱으로 내려준다.
+  liveTimerLabel?: string | null;
   onHidePreview: (target: WidgetBubbleType) => void;
   onRestoreBubble: (bubbleType: WidgetBubbleType) => void;
   onShowPreview: (target: WidgetBubbleType) => void;
@@ -4102,18 +4270,28 @@ const BarChipButton = memo(function BarChipButton({
   const { t } = useI18n();
   const meta = getBubbleMeta(bubbleType);
   const Icon = meta.Icon;
-  // 칩은 아이콘 전용 36px 타일 + 우상단 16px 카운트 배지(>0일 때만).
-  // 타이머만 배지 대신 컴팩트 시간 텍스트를 보여준다. 전체 라벨은 aria/hover 팝오버 담당.
+  // 칩은 36px 아이콘 타일이 기본. 위젯을 안 열어도 내용이 읽히도록
+  // 타이머=라이브 시간, 투두·일정·메모=카운트를 아이콘 옆 14px 텍스트로 붙인다
+  // (실데이터가 없으면 라벨 자체를 생략 — 0/가짜 숫자 금지).
+  // 소통·에이전트·초안 버블은 기존 우상단 카운트 배지를 유지한다.
   const isTimerChip = bubbleType === "timer";
-  const badge = isTimerChip ? null : barChipBadge(bubble.metric);
+  const inlineLabel = isTimerChip ? liveTimerLabel : barChipInlineCount(bubbleType, bubble);
+  const badge = isTimerChip || inlineLabel !== null ? null : barChipBadge(bubble.metric);
+  // 스크린리더 라벨도 눈에 보이는 라이브 값과 같은 내용으로 맞춘다.
+  const ariaLabel =
+    isTimerChip && liveTimerLabel
+      ? t("widget.timer.count", { value: liveTimerLabel })
+      : bubbleType === "schedule" && inlineLabel
+        ? t("widget.bar.todaySchedule", { count: inlineLabel })
+        : t(bubble.compactLabel as MessageKey);
 
   return (
     <motion.button
       layout
       {...chipEnterExit}
       aria-describedby={describedBy}
-      aria-label={t(bubble.compactLabel as MessageKey)}
-      className={[styles.barChip, isTimerChip ? styles.barTimerChip : "", accentClassNames[meta.accent]]
+      aria-label={ariaLabel}
+      className={[styles.barChip, inlineLabel !== null ? styles.barLabelChip : "", accentClassNames[meta.accent]]
         .filter(Boolean)
         .join(" ")}
       onBlur={() => onHidePreview(bubbleType)}
@@ -4128,7 +4306,7 @@ const BarChipButton = memo(function BarChipButton({
       whileTap={whileTap}
     >
       <Icon size={15} strokeWidth={2.1} aria-hidden="true" />
-      {isTimerChip ? <b className={styles.chipTime}>{bubble.metric}</b> : null}
+      {inlineLabel !== null ? <b className={styles.chipInlineLabel}>{inlineLabel}</b> : null}
       {badge ? (
         <i className={styles.chipBadge} aria-hidden="true">
           {badge}
@@ -4179,6 +4357,11 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   // 알림 버블 칩만 제외(고정 알림 칩과 중복)하고 접힌 칩은 전부 노출한다.
   // 4초 폴링이 같은 목록을 유지하면(참조 동일) 필터 결과도 재사용한다.
   const visibleItems = useMemo(() => collectBarFoldedItems(minimizedItems), [minimizedItems]);
+
+  // 타이머 버블이 바에 접혀 있을 때만 라이브 타이머(뽀모도로 1초 틱·서버 경과·시계)를 돌린다.
+  // 칩 텍스트와 hover 팝오버가 같은 스냅샷을 공유한다.
+  const timerFolded = visibleItems.some((item) => item.activeBubble === "timer");
+  const barTimer = useBarTimerLive(timerFolded, bubbleDataByType?.timer);
 
   // 알림 구이(gooey) 팝: 미확인 알림 수가 "증가"할 때만 알림 칩에서 제목 버블이 솟는다.
   // 첫 데이터 수신(baseline)은 팝하지 않고, 3초 유지 후 칩으로 다시 흡수된다.
@@ -4477,6 +4660,66 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
     }
     const bubble = bubbleDataByType?.[previewTarget] ?? getWidgetPreviewBubble(previewTarget);
     const meta = getBubbleMeta(previewTarget);
+    // 타이머 팝오버는 서버 rows 원문(status "RUNNING" 같은 enum) 대신 로컬 라이브 상태까지 합쳐
+    // 실제 진행 내용(뽀모도로 남은 시간·페이즈·사이클, 서버 타이머 경과, 시계)을 보여준다.
+    if (previewTarget === "timer") {
+      const rows: WidgetPreviewItem[] = [];
+      const pomodoro = barTimer.pomodoro;
+      if (pomodoro) {
+        const phaseLabel = pomodoro.phase === "focus" ? t("widget.timer.pomodoroFocus") : t("widget.timer.pomodoroBreak");
+        const phaseTotal = phaseDurationSeconds(pomodoro.phase, pomodoro.focusMinutes, pomodoro.breakMinutes);
+        // 러닝 중이거나 페이즈 중간에 일시정지한 상태만 행으로 보여준다(손도 안 댄 대기 상태 제외).
+        const pausedMidPhase =
+          !pomodoro.running && pomodoro.remainingSeconds !== null && pomodoro.remainingSeconds < phaseTotal;
+        if (barTimer.live?.kind === "pomodoro" || pausedMidPhase) {
+          rows.push({
+            detail: `${phaseLabel} · ${t("widget.timer.pomodoroCycles", { value: pomodoro.cyclesCompleted })}${
+              pomodoro.running ? "" : ` · ${t("widget.timer.pause")}`
+            }`,
+            id: "bar-timer-pomodoro",
+            kind: "time",
+            label: t("widget.timer.tabPomodoro"),
+            status:
+              barTimer.live?.kind === "pomodoro"
+                ? barTimer.live.label
+                : formatMinutesSeconds(pomodoro.remainingSeconds ?? phaseTotal),
+          });
+        }
+      }
+      if (barTimer.timerRow) {
+        rows.push({
+          ...barTimer.timerRow,
+          detail: barTimer.timerRow.roomName ?? undefined,
+          status:
+            barTimer.timerRow.status === "RUNNING"
+              ? elapsedWidgetTimerLabel(barTimer.timerRow)
+              : formatMinutesSeconds(barTimer.timerRow.timerDurationSeconds ?? 0),
+        });
+      }
+      if (barTimer.timerMode === "clock" && barTimer.now !== null) {
+        rows.push({
+          id: "bar-timer-clock",
+          kind: "time",
+          label: t("widget.timer.tabClock"),
+          // 렌더 중 Date.now() 금지 — 1초 틱이 채운 barTimer.now로 현재 시각을 그린다.
+          status: formatClock(new Date(barTimer.now)),
+        });
+      }
+      const pomodoroPhaseLabel =
+        pomodoro && (pomodoro.phase === "focus" ? t("widget.timer.pomodoroFocus") : t("widget.timer.pomodoroBreak"));
+      return {
+        accent: meta.accent,
+        headline: barTimer.live ? t("widget.timer.count", { value: barTimer.live.label }) : t(bubble.compactLabel as MessageKey),
+        Icon: meta.Icon,
+        label: t(meta.label),
+        rows: rows.slice(0, 3),
+        sub:
+          barTimer.live?.kind === "pomodoro" && pomodoroPhaseLabel
+            ? `${t("widget.timer.tabPomodoro")} · ${pomodoroPhaseLabel}`
+            : t(bubble.notificationLabel as MessageKey),
+        truncated: false,
+      };
+    }
     return {
       accent: meta.accent,
       headline: t(bubble.compactLabel as MessageKey),
@@ -4486,7 +4729,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
       sub: t(bubble.notificationLabel as MessageKey),
       truncated: bubble.rows.length > 3,
     };
-  }, [bubbleDataByType, notificationSignal, previewTarget, t]);
+  }, [barTimer, bubbleDataByType, notificationSignal, previewTarget, t]);
   const PreviewIcon = preview?.Icon;
 
   // 팝오버 등장: 칩(아래 중앙)을 앵커로 스프링 스케일 인 — reduced-motion은 페이드만.
@@ -4501,7 +4744,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   const gooExit = prefersReducedMotion ? gooExitReduced : gooExitFull;
 
   // 바 창은 pill 하나만 시각적으로 유지한다(접힘 상시 미리보기 카드 없음).
-  // 창 너비는 Rust(WIDGET_BAR_WIDTH)가 640 고정이고 칩이 아이콘 전용 36px 타일이라
+  // 창 너비는 Rust(WIDGET_BAR_WIDTH)가 640 고정이고, 인라인 라벨(타이머 시간·카운트)을 붙여도
   // 접힌 칩 전부(알림 버블 제외 최대 7개)가 어떤 조합에서도 창을 넘지 않는다 — "+N" 없음.
   // pill 위 투명 영역에는 hover 팝오버와 Bubli 메뉴 morph 패널이 뜬다(absolute라 pill이 밀리지 않는다).
   // 창 높이는 Rust WIDGET_BAR_HEIGHT(640)가 패널(≈532px)과 hover preview 여유를 수용한다.
@@ -4624,10 +4867,13 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
                 ) : null}
               </AnimatePresence>
             </span>
+            {/* 알림 칩도 코너 배지 대신 아이콘 옆 14px 안읽음 카운트를 붙인다(0이면 아이콘만). */}
             <motion.button
               aria-describedby={previewTarget === "notice" ? BAR_PREVIEW_POPOVER_ID : undefined}
               aria-label={t(notificationSignal.notificationLabel as MessageKey)}
-              className={[styles.barChip, accentClassNames.lilac].join(" ")}
+              className={[styles.barChip, barChipBadge(notificationSignal.metric) ? styles.barLabelChip : "", accentClassNames.lilac]
+                .filter(Boolean)
+                .join(" ")}
               onBlur={() => hidePreview("notice")}
               onFocus={() => showPreview("notice")}
               onMouseEnter={() => showPreview("notice")}
@@ -4639,9 +4885,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
             >
               <Bell size={15} strokeWidth={2.1} aria-hidden="true" />
               {barChipBadge(notificationSignal.metric) ? (
-                <i className={styles.chipBadge} aria-hidden="true">
-                  {barChipBadge(notificationSignal.metric)}
-                </i>
+                <b className={styles.chipInlineLabel}>{barChipBadge(notificationSignal.metric)}</b>
               ) : null}
             </motion.button>
             <AnimatePresence>
@@ -4695,6 +4939,8 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
                   chipEnterExit={chipEnterExit}
                   describedBy={previewTarget === bubbleType ? BAR_PREVIEW_POPOVER_ID : undefined}
                   key={bubbleType}
+                  // 타이머 칩만 라이브 라벨이 1초 틱으로 갱신된다(다른 칩은 항상 null — memo 유지).
+                  liveTimerLabel={bubbleType === "timer" ? (barTimer.live?.label ?? null) : null}
                   onHidePreview={hidePreview}
                   onRestoreBubble={onRestoreBubble}
                   onShowPreview={showPreview}

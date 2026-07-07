@@ -181,11 +181,12 @@ export function PersonalResourceWorkspace() {
     return () => window.removeEventListener(PERSONAL_RESOURCES_CHANGED_EVENT, handlePersonalResourcesChanged);
   }, [loadResources]);
 
-  // 데스크톱 위젯/다른 탭에서 올라온 자료를 포커스 복귀 시 재검증한다(loadResources는 목록을 유지한 채 갱신).
+  // 데스크톱 위젯/로컬 폴더 조정 등 다른 표면이 쏘는 resource 변경 신호와
+  // 포커스 복귀 시 재검증한다(loadResources는 목록을 유지한 채 갱신).
   const revalidateResources = useCallback(() => {
     void loadResources();
   }, [loadResources]);
-  useDataRefresh({ domains: [], onRefresh: revalidateResources });
+  useDataRefresh({ domains: ["resource"], onRefresh: revalidateResources });
 
   const resources = useMemo(() => (state.kind === "ready" ? state.resources : EMPTY_RESOURCES), [state]);
   const generatedDocuments = useMemo(() => (state.kind === "ready" ? state.generatedDocuments : []), [state]);
