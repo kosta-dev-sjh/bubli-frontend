@@ -46,6 +46,7 @@ import {
   setLiveKitMicEnabled,
 } from "@/lib/livekit-client";
 import { voiceStore } from "@/lib/voice-store";
+import { startCallRingtone, stopCallRingtone } from "@/lib/sound/call-sound";
 import { playNotificationSound } from "@/lib/sound/notification-sound";
 import {
   ACTIVE_PROJECT_ROOM_CHANGE_EVENT,
@@ -841,6 +842,22 @@ function ChatPageContent() {
     [activeVoiceRoom, voiceParticipants],
   );
 
+  // 발신자(전화 건 사람) 링백 — 내가 만든 OPEN 통화방에 나 혼자만 참여 중이면(상대가 아직 안 받음)
+  // 상대가 받을 때까지 통화음을 울린다. 수신자 쪽 통화음(app-shell의 incomingVoiceCall)과 대칭이다.
+  const isRingingBack =
+    isInVoice && isVoiceCreator && activeVoiceRoom?.status === "OPEN" && joinedVoiceParticipants.length <= 1;
+
+  useEffect(() => {
+    if (!isRingingBack) return;
+    startCallRingtone();
+    // 무응답 시 무한 링백 방지 — 45초 후 소리만 멈춘다(통화방은 유지, 수동으로 나가기 가능).
+    const timeoutId = window.setTimeout(() => stopCallRingtone(), 45_000);
+    return () => {
+      window.clearTimeout(timeoutId);
+      stopCallRingtone();
+    };
+  }, [isRingingBack]);
+
   const loadRooms = useCallback(async () => {
     setRoomsState({ kind: "loading" });
 
@@ -1040,6 +1057,8 @@ function ChatPageContent() {
   useEffect(() => {
     if (!openVoiceRoomDbId) return;
 
+    // 링백 중(상대 응답 대기)에는 더 자주 확인해, 상대가 받으면 발신자 통화음이 빨리 멈추게 한다.
+    const intervalMs = isRingingBack ? 3000 : 12000;
     const interval = window.setInterval(() => {
       void voiceApi
         .getRoom(openVoiceRoomDbId)
@@ -1047,10 +1066,10 @@ function ChatPageContent() {
         .catch(() => {
           // 폴링 실패는 조용히 무시 (다음 주기에 재시도)
         });
-    }, 12000);
+    }, intervalMs);
 
     return () => window.clearInterval(interval);
-  }, [openVoiceRoomDbId]);
+  }, [openVoiceRoomDbId, isRingingBack]);
 
   // 소셜/채팅룸/초대 상태 백그라운드 폴링 (친구 요청·초대 수락이 자동 반영)
   useEffect(() => {
