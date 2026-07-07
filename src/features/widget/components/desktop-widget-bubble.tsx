@@ -76,7 +76,6 @@ import {
   type WidgetTimerMode,
 } from "@/lib/widget/widget-pref-client";
 import { autoSizeGhostWidgetWindow, isWidgetWindowDragLocked, readCurrentTauriWindowMonitorState, startWidgetWindowDragging, tauriCommands, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
-import { isMacTauriRuntime } from "@/lib/tauri/platform";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
 import styles from "./desktop-widget-bubble.module.css";
@@ -3891,7 +3890,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
       const navElement = barNavRef.current;
       const target = event.target as HTMLElement | null;
       if (target?.closest(widgetDragIgnoreSelector)) return;
-      if (!rootElement || !navElement || !isMacTauriRuntime()) {
+      if (!rootElement || !navElement || !isTauriRuntime()) {
         return;
       }
 
@@ -3979,7 +3978,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
       if (event.button !== 0) return;
       const target = event.target as HTMLElement | null;
       if (target?.closest(widgetDragIgnoreSelector)) return;
-      if (isMacTauriRuntime()) return;
+      if (isTauriRuntime()) return;
       handleWidgetDragMouseDown(event);
     },
     [],

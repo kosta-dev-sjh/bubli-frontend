@@ -22,6 +22,10 @@ const JOB_TITLE_KEY: Record<AgentJobType, MessageKey> = {
 const RAW_JOB_PATTERN = /\bjob(?:type|id)\s*=/i;
 const JOB_TYPE_PATTERN = /jobtype\s*=\s*([a-z_]+)/i;
 
+export function hasRawJobMetadata(notification: Pick<NotificationResponse, "title" | "body">): boolean {
+  return RAW_JOB_PATTERN.test(`${notification.title ?? ""} ${notification.body ?? ""}`);
+}
+
 // "…, jobType=X, jobId=Y" 같은 조각을 제거해 사람이 쓴 앞머리 문장만 남긴다.
 function stripRawJobMetadata(value: string): string {
   return value
@@ -43,12 +47,12 @@ export function formatNotificationContent(
 ): FormattedNotification {
   const rawTitle = (notification.title ?? "").trim();
   const rawBody = (notification.body ?? "").trim();
-  const combined = `${rawTitle} ${rawBody}`;
 
-  if (!RAW_JOB_PATTERN.test(combined)) {
+  if (!hasRawJobMetadata(notification)) {
     return { title: rawTitle, body: rawBody || null };
   }
 
+  const combined = `${rawTitle} ${rawBody}`;
   const jobType = combined.match(JOB_TYPE_PATTERN)?.[1]?.toUpperCase() as AgentJobType | undefined;
   const titleKey = jobType && jobType in JOB_TITLE_KEY ? JOB_TITLE_KEY[jobType] : "notification.job.doneTitle";
 

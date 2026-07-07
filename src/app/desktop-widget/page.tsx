@@ -43,6 +43,7 @@ import {
   type WidgetPreviewItem,
 } from "@/features/widget/desktop-widget-preview-data";
 import { notificationApi } from "@/features/notification/api/notificationApi";
+import { formatNotificationContent, hasRawJobMetadata } from "@/features/notification/format-notification";
 import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { timerApi } from "@/features/timer/api/timerApi";
 import { todoApi } from "@/features/todo/api/todoApi";
@@ -641,21 +642,36 @@ function itemStateResponseToOverrides(
 function buildNotificationSignal(
   t: TranslateFn,
   notifications: WidgetNotificationResponse[],
-  unreadNotificationCount?: number,
 ): WidgetNotificationSignal {
-  const unread = notifications.filter((item) => item.status === "UNREAD");
-  const unreadCount = Math.max(unread.length, unreadNotificationCount ?? 0);
+  const unread = filterWidgetVisibleUnreadNotifications(notifications);
+  const unreadCount = unread.length;
   return {
     compactLabel: t("widget.signal.alertCount", { count: unreadCount }),
     metric: String(unreadCount),
     notificationLabel: unreadCount > 0 ? t("widget.signal.newAlertCount", { count: unreadCount }) : t("widget.signal.noNewAlert"),
-    rows: unread.slice(0, 3).map((item) => ({
-      id: item.id,
-      detail: item.body ?? undefined,
-      kind: item.sourceType === "MESSAGE" ? "message" : item.sourceType === "RESOURCE" ? "resource" : "agent",
-      label: item.title,
-      status: item.sourceType,
-    })),
+    rows: unread.slice(0, 3).map((item) => widgetNotificationToRow(t, item)),
+  };
+}
+
+function filterWidgetVisibleUnreadNotifications(notifications: WidgetNotificationResponse[]) {
+  return notifications.filter((item) => item.status === "UNREAD" && !hasRawJobMetadata(item));
+}
+
+function widgetNotificationToRow(t: TranslateFn, item: WidgetNotificationResponse): WidgetPreviewItem {
+  const formatted = formatNotificationContent(t, item);
+  return {
+    id: item.id,
+    detail: formatted.body ?? undefined,
+    handoffLabel: item.sourceType,
+    handoffUrl:
+      item.sourceType === "MESSAGE"
+        ? "/app/chat"
+        : item.sourceType === "RESOURCE" || item.sourceType === "COMMENT"
+          ? "/app/resources"
+          : "/app/agent",
+    kind: item.sourceType === "MESSAGE" ? "message" : item.sourceType === "RESOURCE" || item.sourceType === "COMMENT" ? "resource" : "agent",
+    label: formatted.title || item.title,
+    status: item.sourceType,
   };
 }
 
@@ -666,7 +682,6 @@ function buildDisplayBubbles(input: {
   memos: WidgetMemoResponse[];
   messages: WidgetChatMessageResponse[];
   notifications: WidgetNotificationResponse[];
-  unreadNotificationCount?: number;
   /** AI 에이전트 초안 생성 탭의 현재 범위 초안. */
   generatedDocuments?: GeneratedDocumentResponse[];
   /** 룸 컨텍스트에서도 초안 생성 탭에서 분리해 보여줄 개인 초안. */
@@ -903,12 +918,8 @@ function buildDisplayBubbles(input: {
   const personalAgentRows = input.roomId
     ? (input.personalSuggestions ?? []).map((item) => suggestionToRow(item, "/app/agent", "personal"))
     : [];
-  const unreadNotifications = input.notifications.filter((item) => item.status === "UNREAD").slice(0, 3);
-  const unreadCount = Math.max(
-    input.notifications.filter((item) => item.status === "UNREAD").length,
-    input.unreadNotificationCount ?? 0,
-    input.dashboard?.unreadNotificationCount ?? 0,
-  );
+  const unreadNotifications = filterWidgetVisibleUnreadNotifications(input.notifications);
+  const unreadCount = unreadNotifications.length;
   const voiceParticipants = input.voiceRoom?.participants.filter((item) => item.status === "JOINED") ?? [];
 
   return {
@@ -936,20 +947,7 @@ function buildDisplayBubbles(input: {
       panelLabel: t("widget.alert.panelLabel"),
       roomId: null,
       roomLabel: t("widget.kind.notification"),
-      rows: unreadNotifications.map((item) => ({
-        id: item.id,
-        detail: item.body ?? undefined,
-        handoffLabel: item.sourceType,
-        handoffUrl:
-          item.sourceType === "MESSAGE"
-            ? "/app/chat"
-            : item.sourceType === "RESOURCE" || item.sourceType === "COMMENT"
-              ? "/app/resources"
-              : "/app/agent",
-        kind: item.sourceType === "MESSAGE" ? "message" : item.sourceType === "RESOURCE" || item.sourceType === "COMMENT" ? "resource" : "agent",
-        label: item.title,
-        status: item.sourceType,
-      })),
+      rows: unreadNotifications.slice(0, 3).map((item) => widgetNotificationToRow(t, item)),
     }),
     chat: withBubble("chat", {
       chatRoomId: input.chatRoom?.id,
@@ -1384,7 +1382,7 @@ function DesktopWidgetSurface() {
   }, []);
 
   // 창별 상호작용 rect 보고(투명 영역 클릭 통과). 브라우저 미리보기에서는 동작하지 않는다.
-  useWidgetInteractiveRectReporting(isTauri && mounted);
+  useWidgetInteractiveRectReporting(isTauri && mounted && widgetSessionReady && windowVisible);
 
   useLayoutEffect(() => {
     const htmlStyle = document.documentElement.style;
@@ -1999,7 +1997,6 @@ function DesktopWidgetSurface() {
       const tasks = tasksValue?.items ?? (selectedRoomId ? [] : (summaryDashboard?.todayTasks ?? []));
       const roomBoardTasks =
         roomBoardResult.status === "fulfilled" && roomBoardResult.value ? roomBoardResult.value.items : [];
-      const dashboardUnreadNotificationCount = dashboardValue?.unreadNotificationCount ?? summaryDashboard?.unreadNotificationCount;
       const generatedDocumentsForWidget =
         loadGeneratedDocuments && generatedDocumentsResult.status === "fulfilled" ? (generatedDocumentsValue?.items ?? []) : [];
       const personalGeneratedDocumentsForWidget =
@@ -2010,7 +2007,7 @@ function DesktopWidgetSurface() {
       const nextNotificationSignal =
         loadNotifications && notificationsResult.status === "rejected"
           ? widgetDisplayLoadSignal("error")
-          : buildNotificationSignal(t, notifications, dashboardUnreadNotificationCount);
+          : buildNotificationSignal(t, notifications);
       setNotificationSignal((current) =>
         hadLoadedDisplay && loadNotifications && notificationsResult.status === "rejected"
           ? current
@@ -2042,7 +2039,6 @@ function DesktopWidgetSurface() {
           myTasks: tasks,
           roomBoardTasks,
           timer: activeTimer,
-          unreadNotificationCount: dashboardUnreadNotificationCount,
           voiceConnectionLabel,
           voiceRoom: voiceValue,
         }, t);

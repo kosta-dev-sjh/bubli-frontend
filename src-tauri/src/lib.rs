@@ -2595,8 +2595,9 @@ fn drag_widget_bar_window(
     input: WidgetBarDragInput,
 ) -> Result<WidgetBarDragResult, String> {
     let label = window.label().to_string();
-    if !is_widget_window_label(&label) || !label.ends_with("-bar") {
-        return Err("drag_widget_bar_window can only be called from the bar widget".to_string());
+    let is_bar_or_menu = label.ends_with("-bar") || label.ends_with("-menu");
+    if !is_widget_window_label(&label) || !is_bar_or_menu {
+        return Err("drag_widget_bar_window can only be called from the bar or menu widget".to_string());
     }
 
     let scale = window
