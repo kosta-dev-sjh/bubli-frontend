@@ -34,7 +34,7 @@
 
 .kicker {
   color: var(--blue-ink);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 760;
   letter-spacing: 0;
 }
@@ -91,6 +91,7 @@
 }
 
 .navLink {
+  overflow-wrap: anywhere;
   border: 0;
   border-radius: 12px;
   padding: 10px 13px;
@@ -134,16 +135,16 @@
   min-width: 0;
 }
 
-/* 섹션 전환 — 새 패널이 마운트될 때 짧게 떠오른다. 레이아웃 점프 없이 opacity/transform만 사용. */
+/* 섹션 전환 — 새 패널이 마운트될 때 짧게 떠오른다. scale은 유리 패널 잘림을 만들어 금지.
+   떠오르는 이동만 유지해 전환 모션을 살린다(사용자 요청). */
 @keyframes settings-panel-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(8px);
   }
-
   to {
     opacity: 1;
-    transform: none;
+    transform: translateY(0);
   }
 }
 
@@ -182,7 +183,8 @@
 }
 
 .subhead {
-  margin: 16px 0 0;
+  /* 소단락 사이 숨 쉴 틈 — 데스크톱 탭처럼 단락이 많은 화면이 한 덩어리로 붙어 보이지 않게. */
+  margin: 24px 0 0;
   color: var(--ink);
   font-size: 15px;
   font-weight: 740;
@@ -197,10 +199,10 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 18px;
   min-height: 58px;
   border-bottom: 1px solid var(--settings-hairline);
-  padding: 13px 2px;
+  padding: 15px 2px;
 }
 
 .rows > .row:last-child {
@@ -248,17 +250,57 @@
   text-align: right;
 }
 
+/* 폴더 해제 2단계 확인 상자 — 해제 행 바로 아래에서
+   "남는 것(자료보드 자료)"과 "지울 수 있는 것(서버 자료)"을 확인받는다. */
+.folderConfirm {
+  display: grid;
+  gap: 10px;
+  margin: 4px 0 12px;
+  padding: 13px 15px;
+  border: 1px solid var(--settings-hairline);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.folderConfirm p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 640;
+  line-height: 1.55;
+  word-break: keep-all;
+}
+
+.folderConfirmCheck {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-muted);
+  font-size: 14px;
+  font-weight: 620;
+  line-height: 1.5;
+  cursor: pointer;
+  word-break: keep-all;
+}
+
+.folderConfirmCheck input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--bubble-blue);
+}
+
+.folderConfirmActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .sectionFoot {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   padding-top: 8px;
-}
-
-.embeddedPanelStack {
-  display: grid;
-  gap: 16px;
-  padding: 10px 0 16px;
 }
 
 .textInput,
@@ -383,7 +425,7 @@
   transform: translateX(18px);
 }
 
-/* desktopOnly 행 안내 — 웹에서 잠긴 토글 아래 "데스크톱 앱에서 사용하는 기능" 문구. */
+/* desktopOnly 행 안내 — 웹에서 잠긴 토글 아래 "데스크톱 앱에서 켜고 끌 수 있어요" 문구. */
 .desktopOnlyNote {
   display: inline-flex;
   width: fit-content;
@@ -392,9 +434,40 @@
   border-radius: 999px;
   background: rgba(111, 184, 242, 0.14);
   color: var(--blue-ink);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.01em;
+}
+
+/* 동의 상태 배지 — 제목 옆에서 동의됨(페일스카이)/동의 필요(pearl)를 글자로 보여준다. */
+.consentBadge {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: 2px;
+  margin-left: 8px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgba(142, 205, 246, 0.24);
+  color: var(--blue-ink);
+  font-size: 14px;
+  font-weight: 760;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.consentBadge[data-on="false"] {
+  background: rgba(232, 196, 160, 0.3);
+  color: var(--ink);
+}
+
+[data-theme="dark"] .consentBadge {
+  background: rgba(142, 205, 246, 0.2);
+  color: var(--sky-light);
+}
+
+[data-theme="dark"] .consentBadge[data-on="false"] {
+  background: rgba(232, 196, 160, 0.22);
+  color: var(--color-warning);
 }
 
 .guard,
@@ -459,6 +532,19 @@
 
 :global([data-theme="dark"]) .row {
   border-bottom-color: rgba(150, 170, 215, 0.16);
+}
+
+:global([data-theme="dark"]) .folderConfirm {
+  border-color: rgba(150, 170, 215, 0.24);
+  background: rgba(28, 39, 61, 0.42);
+}
+
+:global([data-theme="dark"]) .folderConfirm p {
+  color: rgba(232, 240, 250, 0.94);
+}
+
+:global([data-theme="dark"]) .folderConfirmCheck {
+  color: rgba(176, 190, 208, 0.78);
 }
 
 :global([data-theme="dark"]) .emptyRow {

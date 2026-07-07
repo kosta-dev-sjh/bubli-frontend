@@ -1021,21 +1021,10 @@ export function WorkspaceDashboard() {
 
   const fetchDashboard = useCallback(async () => {
     try {
-      const data = await dashboardApi.getWork();
-      setState(hasDashboardItems(data) ? { data, kind: "ready" } : { data, kind: "empty" });
-
       const { from, to } = getWeekRange(new Date());
-      const [
-        roomResult,
-        personalTaskResult,
-        feedTaskResult,
-        resourceResult,
-        activityResult,
-        activityHeatmapResult,
-        scheduleResult,
-        suggestionResult,
-        notificationResult,
-      ] = await Promise.allSettled([
+      // 요약(getWork)이 끝나기를 기다렸다가 카드 9종을 부르던 직렬 대기를 없앤다 —
+      // 서로 결과를 쓰지 않으므로 10개를 동시에 요청해 첫 화면을 한 왕복 빠르게 채운다.
+      const batchPromise = Promise.allSettled([
         projectRoomApi.list(),
         todoApi.list(),
         dashboardApi.getTasks(),
@@ -1047,6 +1036,20 @@ export function WorkspaceDashboard() {
         agentApi.listPersonalSuggestions({ status: "DRAFT" }),
         notificationApi.list({ size: 20 }),
       ]);
+      const data = await dashboardApi.getWork();
+      setState(hasDashboardItems(data) ? { data, kind: "ready" } : { data, kind: "empty" });
+
+      const [
+        roomResult,
+        personalTaskResult,
+        feedTaskResult,
+        resourceResult,
+        activityResult,
+        activityHeatmapResult,
+        scheduleResult,
+        suggestionResult,
+        notificationResult,
+      ] = await batchPromise;
 
       setRooms(roomResult.status === "fulfilled" ? roomResult.value.items : []);
       setRoomsLoaded(true);

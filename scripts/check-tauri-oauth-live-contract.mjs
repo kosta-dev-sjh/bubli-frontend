@@ -1,4 +1,4 @@
-const DEFAULT_API_BASE_URL = "http://localhost:8080";
+const DEFAULT_API_BASE_URL = "http://127.0.0.1:8080";
 const TAURI_LOOPBACK_REDIRECT_URI = "http://127.0.0.1:3791/auth/callback";
 const TEST_STATE = "tauri-oauth-live-contract";
 const REQUEST_TIMEOUT_MS = 10_000;

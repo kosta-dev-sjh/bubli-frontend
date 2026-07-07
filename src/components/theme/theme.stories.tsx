@@ -30,7 +30,7 @@ function Sample() {
     <div style={{ display: "grid", gap: 16 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
         <ThemeToggle />
-        <span style={{ fontSize: 12, color: "var(--text-faint, #98A5AF)" }}>
+        <span style={{ fontSize: 14, color: "var(--text-faint, #98A5AF)" }}>
           theme: {theme} · resolved: {resolvedTheme}
         </span>
       </div>

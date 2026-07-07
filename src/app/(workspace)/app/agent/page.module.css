@@ -114,7 +114,7 @@
   padding: 0 6px;
   color: var(--color-muted);
   background: rgba(210, 225, 238, 0.5);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 900;
   line-height: 1;
 }
@@ -268,7 +268,7 @@
   flex: 0 0 auto;
   margin-left: auto;
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 760;
   text-align: right;
   white-space: nowrap;
@@ -329,7 +329,7 @@
   padding: 2px 9px;
   color: var(--color-muted);
   background: rgba(255, 255, 255, 0.56);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
   line-height: 1.35;
   white-space: nowrap;
@@ -363,7 +363,7 @@
   align-items: center;
   border-radius: 999px;
   padding: 3px 10px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 850;
   line-height: 1.35;
   white-space: nowrap;
@@ -480,14 +480,14 @@
   content: counter(how-step);
   display: grid;
   flex: 0 0 auto;
-  width: 19px;
-  height: 19px;
+  width: 22px; /* 숫자 14px이 원 안에 들어가게 보정 */
+  height: 22px;
   place-items: center;
   margin-top: 1px;
   border-radius: 50%;
   color: var(--blue-ink);
   background: rgba(216, 240, 255, 0.8);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 900;
   line-height: 1;
 }

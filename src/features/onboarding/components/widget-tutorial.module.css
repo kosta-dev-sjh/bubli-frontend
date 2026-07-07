@@ -67,7 +67,7 @@
   border-radius: 999px;
   background: color-mix(in srgb, var(--bubble-blue) 16%, transparent);
   color: var(--blue-ink);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.01em;
 }
@@ -75,7 +75,7 @@
   border: 0;
   background: transparent;
   color: var(--ink-soft);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   padding: 6px 8px;
@@ -179,8 +179,11 @@
 }
 
 /* ---------- SVG 장면 요소(유리 톤) ---------- */
+/* 방울은 납작한 단색이 아니라 유리 물방울처럼 — 공용 radialGradient(defs)로 채운다.
+   (지원 안 되는 환경 대비 단색 fill을 먼저 두고 url()로 덮는다.) */
 .bubbleFill {
   fill: rgba(215, 234, 244, 0.5);
+  fill: url(#bubli-tut-bubble);
 }
 .bubbleStroke {
   fill: none;
@@ -197,12 +200,12 @@
 }
 .svgCaption {
   fill: var(--ink-soft);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
 }
 .svgCaptionRoom {
   fill: var(--blue-ink);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
 }
 .deskLine {
@@ -279,6 +282,7 @@
 }
 .modeBubble {
   fill: rgba(158, 216, 255, 0.55);
+  fill: url(#bubli-tut-bubble);
   stroke: rgba(111, 184, 242, 0.6);
   stroke-width: 1.5;
 }

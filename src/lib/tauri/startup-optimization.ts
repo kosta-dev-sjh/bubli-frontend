@@ -17,7 +17,6 @@ export type TauriStartupOptimizationConfig = {
 
 const STARTUP_OPTIMIZATION_CACHE_KEY = "tauri-runtime";
 const STARTUP_OPTIMIZATION_KIND = "startup_optimization_profile";
-const defaultProfile = normalizeProfile(process.env.NEXT_PUBLIC_BUBLI_TAURI_STARTUP_PROFILE);
 
 const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimizationConfig> = {
   aggressive: {
@@ -66,13 +65,28 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
   },
 };
 
-function normalizeProfile(value: unknown): TauriStartupOptimizationProfile {
+function normalizeProfile(value: unknown): TauriStartupOptimizationProfile | null {
   if (value === "aggressive" || value === "balanced" || value === "fast" || value === "windows") return value;
-  return "fast";
+  return null;
+}
+
+function normalizeProfileOrDefault(value: unknown): TauriStartupOptimizationProfile {
+  return normalizeProfile(value) ?? "fast";
+}
+
+function resolveDefaultProfile(): TauriStartupOptimizationProfile {
+  const configured = normalizeProfile(process.env.NEXT_PUBLIC_BUBLI_TAURI_STARTUP_PROFILE);
+  if (configured) return configured;
+
+  return isWindowsRuntime() ? "windows" : "fast";
+}
+
+function isWindowsRuntime() {
+  return isTauriRuntime() && typeof navigator !== "undefined" && /\bWindows\b/i.test(navigator.userAgent);
 }
 
 export function defaultTauriStartupOptimizationConfig(): TauriStartupOptimizationConfig {
-  return profileConfigs[defaultProfile];
+  return profileConfigs[resolveDefaultProfile()];
 }
 
 export async function readTauriStartupOptimizationConfig(): Promise<TauriStartupOptimizationConfig> {
@@ -85,7 +99,7 @@ export async function readTauriStartupOptimizationConfig(): Promise<TauriStartup
     });
     if (!cached) return defaultTauriStartupOptimizationConfig();
     const parsed = JSON.parse(cached.valueJson) as { profile?: unknown };
-    return profileConfigs[normalizeProfile(parsed.profile)];
+    return profileConfigs[normalizeProfileOrDefault(parsed.profile)];
   } catch {
     return defaultTauriStartupOptimizationConfig();
   }
@@ -97,6 +111,6 @@ export async function writeTauriStartupOptimizationProfile(profile: TauriStartup
   await tauriCommands.storeWidgetPref({
     cacheKey: STARTUP_OPTIMIZATION_CACHE_KEY,
     kind: STARTUP_OPTIMIZATION_KIND,
-    valueJson: JSON.stringify({ profile: normalizeProfile(profile) }),
+    valueJson: JSON.stringify({ profile: normalizeProfileOrDefault(profile) }),
   });
 }

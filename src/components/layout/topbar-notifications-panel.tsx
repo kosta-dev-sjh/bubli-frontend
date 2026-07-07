@@ -18,6 +18,7 @@ export type TopbarNotificationsPanelProps = {
   items: NotificationResponse[];
   onAcceptInvitation?: (invitation: ProjectRoomInvitationResponse) => void;
   onArchive: (notificationId: string) => void;
+  onArchiveAll?: () => void;
   onMarkAllRead?: () => void;
   onMarkRead: (notificationId: string) => void;
   /** 알림 본문 클릭 → 출처(sourceType/sourceId)로 이동. 상위(app-shell)가 라우팅을 결정한다. */
@@ -31,6 +32,7 @@ export function TopbarNotificationsPanel({
   items,
   onAcceptInvitation,
   onArchive,
+  onArchiveAll,
   onMarkAllRead,
   onMarkRead,
   onOpen,
@@ -53,16 +55,20 @@ export function TopbarNotificationsPanel({
     >
       <header className={styles.notificationsHead}>
         <strong>{t("layout.notifications.title")}</strong>
-        {unreadCount > 0 ? (
-          <span className={styles.notificationsHeadMeta}>
-            {t("layout.notifications.unreadCount", { count: unreadCount })}
-            {onMarkAllRead ? (
-              <Button className={styles.notificationReadButton} onClick={onMarkAllRead} size="sm" variant="ghost">
-                {t("layout.notifications.markAllRead")}
-              </Button>
-            ) : null}
-          </span>
-        ) : null}
+        {/* 일괄 동작은 항상 헤더에 상주한다 — 미읽음이 없어도 "모두 지우기"는 쓸 수 있어야 한다. */}
+        <span className={styles.notificationsHeadMeta}>
+          {unreadCount > 0 ? t("layout.notifications.unreadCount", { count: unreadCount }) : null}
+          {onMarkAllRead && unreadCount > 0 ? (
+            <Button className={styles.notificationReadButton} onClick={onMarkAllRead} size="sm" variant="ghost">
+              {t("layout.notifications.markAllRead")}
+            </Button>
+          ) : null}
+          {onArchiveAll && visibleItems.length > 0 ? (
+            <Button className={styles.notificationReadButton} onClick={onArchiveAll} size="sm" variant="ghost">
+              {t("layout.notifications.archiveAll")}
+            </Button>
+          ) : null}
+        </span>
       </header>
       {invitations.length ? (
         <div className={styles.invitesSection}>

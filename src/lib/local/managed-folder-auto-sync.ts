@@ -6,7 +6,9 @@ import {
   scanPersonalManagedFolder,
   syncPersonalLocalFileEventsToServer,
 } from "@/lib/local/managed-folder-client";
+import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
+import { notifyDataChanged } from "@/lib/data-changed";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { tauriCommands } from "@/lib/tauri/commands";
 import { listenManagedFolderWatchEvents } from "@/lib/tauri/events";
@@ -16,6 +18,9 @@ const CONSENT_REFRESH_INTERVAL_MS = 60_000;
 const LOCAL_FILE_EVENT_SYNC_BATCH_LIMIT = 20;
 const LOCAL_FILE_EVENT_SYNC_MAX_BATCHES_PER_TICK = 5;
 const WATCH_EVENT_SYNC_DEBOUNCE_MS = 400;
+// 서버→앱 조정용 개인 자료 목록 순회 상한 — 서버 오류로 인한 무한 순회를 막는다.
+const SERVER_RESOURCE_RECONCILE_PAGE_SIZE = 100;
+const SERVER_RESOURCE_RECONCILE_MAX_PAGES = 50;
 
 let syncIntervalId: number | null = null;
 let syncInFlight = false;
@@ -283,10 +288,15 @@ async function syncManagedFolderEventsOnce(localFolderId?: string) {
         pendingFullSyncRequested = true;
       }
 
+      // 60초 인터벌이 요청하는 full-sync를 이번 실행에서 실제로 돌렸는지 기록한다.
+      // 서버→앱 조정은 full-sync 틱에서만 붙여서 감시 이벤트(폴더 단위)까지 서버를 훑지 않게 한다.
+      let fullSyncDrained = false;
+
       while (pendingFullSyncRequested || pendingFolderSyncIds.size > 0) {
         if (pendingFullSyncRequested) {
           pendingFullSyncRequested = false;
           pendingFolderSyncIds.clear();
+          fullSyncDrained = true;
           const drained = await drainPersonalLocalFileEvents({ consentGranted });
           updateManagedFolderAutoSyncStatus({
             lastFileAnalysisFailedCount: drained.analysisFailedCount,
@@ -329,6 +339,12 @@ async function syncManagedFolderEventsOnce(localFolderId?: string) {
         maxAttempts: 3,
       });
       analysisBackfillHasRun = true;
+
+      // full-sync 틱의 마지막 단계: 서버에서 지워진 개인 자료를 로컬 인덱스에 반영한다.
+      // 로컬→서버 방향과 달리 서버 삭제는 앱으로 밀어줄 경로가 없어서 여기서 당겨 맞춘다.
+      if (fullSyncDrained) {
+        await reconcileLocalIndexWithServerResources();
+      }
     } catch {
       cachedConsent = null;
       cachedConsentCheckedAt = 0;
@@ -351,6 +367,33 @@ async function syncManagedFolderEventsOnce(localFolderId?: string) {
   })();
 
   return syncInFlightPromise;
+}
+
+// 서버→앱 방향 조정: 서버에서 지워진 개인 자료를 참조하던 로컬 인덱스 행을 LOCAL_ONLY로 되돌린다.
+// 실패는 조용히 넘어간다 — 다음 60초 틱에서 자연히 재시도되고, 조정이 늦어도 데이터가 깨지지는 않는다.
+async function reconcileLocalIndexWithServerResources() {
+  try {
+    // 1) 서버 개인 자료 id 집합을 페이지 단위로 모은다(상한 50페이지).
+    const resourceIds: string[] = [];
+    for (let page = 0; page < SERVER_RESOURCE_RECONCILE_MAX_PAGES; page += 1) {
+      const response = await resourcesApi.listPersonalPage(page, SERVER_RESOURCE_RECONCILE_PAGE_SIZE);
+      for (const resource of response.items) {
+        resourceIds.push(resource.id);
+      }
+      if (!response.hasNext) {
+        break;
+      }
+    }
+
+    // 2) 이 집합에 없는 resource_id를 가진 로컬 인덱스 행을 LOCAL_ONLY로 되돌린다.
+    const result = await tauriCommands.reconcileLocalFilesWithServer({ resourceIds });
+    if (result.resetCount > 0) {
+      // 서버에서 지워진 자료의 연결이 풀렸으니 자료 화면(웹/메인 창)이 재조회하도록 알린다.
+      notifyDataChanged("resource");
+    }
+  } catch {
+    // 서버 조회나 로컬 조정 실패는 다음 틱에서 다시 시도하므로 여기서는 조용히 무시한다.
+  }
 }
 
 async function scanSyncEnabledManagedFoldersOnce(consentGranted: boolean) {

@@ -27,6 +27,8 @@ mod widget_usage;
 const WIDGET_WINDOW_LABEL_PREFIX: &str = "bubli-widget";
 const WIDGET_WINDOW_URL: &str = "desktop-widget/";
 const WIDGET_ROOM_CONTEXT_CHANGED_EVENT: &str = "bubli-widget-room-context-changed";
+const WIDGET_WINDOW_STATE_CHANGED_EVENT: &str = "bubli-widget-window-state-changed";
+const WIDGET_BAR_ITEMS_CHANGED_EVENT: &str = "bubli-widget-bar-items-changed";
 const MAIN_WINDOW_LABEL: &str = "main";
 const APP_TRAY_ID: &str = "bubli-main-tray";
 const APP_TRAY_SHOW_ID: &str = "bubli-main-show";
@@ -55,8 +57,9 @@ const WIDGET_WINDOW_GUTTER: f64 = 44.0;
 const WIDGET_BAR_WIDTH: f64 = 640.0;
 const WIDGET_BAR_HEIGHT: f64 = 640.0;
 // 바 창은 투명 여유를 포함하므로 native top-left가 화면 밖으로 일부 나갈 수 있다.
-// 그래도 복원 시 사용자가 찾을 수 있도록 최소한 이 폭만큼은 선호 모니터 안에 남긴다.
-#[cfg(target_os = "macos")]
+// 그래도 복원 시 사용자가 찾을 수 있도록 최소한 이 폭만큼은 모니터 안에 남긴다.
+// (바 클램프가 macOS 전용이었을 때는 macOS 전용 상수였지만, 이제 Windows에서도 같은
+// 클램프를 쓰므로 플랫폼 공통 상수다.)
 const WIDGET_BAR_MIN_VISIBLE_WIDTH: f64 = 320.0;
 // desktop-widget-bubble.module.css .bubbleBar 높이(칩 36 + padding 16 + border 2)와
 // .barRoot padding 4를 합친 보이는 pill의 대략적 세로 예산.
@@ -105,9 +108,11 @@ const QA_ALL_WIDGET_BUBBLES: [&str; 8] = [
 // 사용자 크기 조절 클램프: 버블별 최소 = 현재 기본 크기, 최대 = 최소 × 1.6.
 // src/features/widget/components/desktop-widget-bubble.tsx 리사이즈 핸들과 동기화한다.
 const WIDGET_USER_SIZE_MAX_SCALE: f64 = 1.6;
-// 버블 자동 정렬(arrange_widget_windows): 우상단 앵커, 24px 간격, 한 열에 2개.
+// 버블 자동 정렬(arrange_widget_windows): 우상단 앵커, 24px 간격.
 const WIDGET_ARRANGE_GAP: f64 = 24.0;
 const WIDGET_ARRANGE_ROWS_PER_COLUMN: usize = 2;
+// 계단식 세로 낙차 — 가로는 창 폭 전체만큼 떨어뜨리므로(겹침 금지) 세로 오프셋만 계단 느낌을 만든다.
+const WIDGET_CASCADE_STEP_Y: f64 = 72.0;
 
 // 사용자가 리사이즈로 정한 버블별 창 크기(논리 px). 시작 시 SQLite
 // local_widget_bubble_sizes에서 로드하고, resize_widget_window가 갱신한다.
@@ -324,17 +329,6 @@ fn widget_pointer_inside_rects(rects: &[WidgetInteractiveRect], x: f64, y: f64) 
     })
 }
 
-fn widget_pointer_scale(window: &WebviewWindow) -> f64 {
-    window
-        .current_monitor()
-        .ok()
-        .flatten()
-        .map(|monitor| monitor.scale_factor())
-        .or_else(|| window.scale_factor().ok())
-        .unwrap_or(1.0)
-        .max(0.5)
-}
-
 fn widget_pointer_local_position(
     cursor: &PhysicalPosition<f64>,
     origin: &PhysicalPosition<i32>,
@@ -390,22 +384,56 @@ fn widget_pointer_should_ignore(window: &WebviewWindow, label: &str) -> bool {
     let Ok(origin) = window.outer_position() else {
         return false;
     };
-    let scale = widget_pointer_scale(window);
     let Ok(size) = window.outer_size() else {
         return false;
     };
-    let (local_x, local_y) = widget_pointer_local_position(&cursor, &origin, scale);
-    let width = size.width as f64 / scale;
-    let height = size.height as f64 / scale;
 
-    // 멀티 모니터/배율 전환 직후에는 OS가 커서·창 원점·scale을 한 틱 동안 서로 다른
-    // 좌표계로 줄 수 있다. 이때 투명 영역으로 오판해 ignore=true를 걸면 창 조작이 죽으므로
-    // 창 범위 밖으로 크게 튄 좌표는 안전하게 "클릭 가능"으로 실패시킨다.
-    if !widget_pointer_position_is_plausible(local_x, local_y, width, height) {
+    // 멀티 모니터(배율 상이)에서는 창 backing scale과 current_monitor()와 커서 쪽 모니터가
+    // 이동 직후 서로 다른 값을 줄 수 있다. 한 배율만 믿고 판정하면 좌표가 절반/두 배로
+    // 왜곡돼 "투명 영역" 오판 → 클릭 통과 고정(조작 불능)이 된다. 그래서 그럴듯한 배율
+    // 후보를 전부 시도하고 하나라도 상호작용 영역 위라고 판정되면 클릭 가능을 유지한다.
+    let mut scales: Vec<f64> = Vec::with_capacity(3);
+    let mut push_scale = |value: f64| {
+        let value = value.max(0.5);
+        if !scales
+            .iter()
+            .any(|existing| (existing - value).abs() < 0.01)
+        {
+            scales.push(value);
+        }
+    };
+    if let Ok(window_scale) = window.scale_factor() {
+        push_scale(window_scale);
+    }
+    if let Ok(Some(monitor)) = window.current_monitor() {
+        push_scale(monitor.scale_factor());
+    }
+    if let Ok(Some((cursor_monitor, _))) =
+        monitor_nearest_physical_point(&window.app_handle().clone(), cursor.x, cursor.y)
+    {
+        push_scale(cursor_monitor.scale_factor());
+    }
+    if scales.is_empty() {
         return false;
     }
 
-    !widget_pointer_inside_rects(&rects, local_x, local_y)
+    let mut any_plausible_outside = false;
+    for scale in scales {
+        let (local_x, local_y) = widget_pointer_local_position(&cursor, &origin, scale);
+        let width = size.width as f64 / scale;
+        let height = size.height as f64 / scale;
+        if !widget_pointer_position_is_plausible(local_x, local_y, width, height) {
+            continue;
+        }
+        if widget_pointer_inside_rects(&rects, local_x, local_y) {
+            // 어느 배율 해석으로든 버튼/헤더 위면 클릭을 살린다(안전 우선).
+            return false;
+        }
+        any_plausible_outside = true;
+    }
+
+    // 그럴듯한 해석이 하나도 없으면(좌표계 붕괴) 클릭 가능 유지.
+    any_plausible_outside
 }
 
 /// 위젯 창마다 커서 폴러 스레드 하나를 유지한다. 창이 사라지면 스스로 종료·정리한다.
@@ -619,10 +647,16 @@ struct WidgetWindowPositionInput {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct WidgetBarDragInput {
+    #[serde(default)]
+    cursor_x: Option<f64>,
+    #[serde(default)]
+    cursor_y: Option<f64>,
     grab_x: f64,
     grab_y: f64,
     nav_height: f64,
     nav_width: f64,
+    #[serde(default)]
+    placement: Option<String>,
     root_height: f64,
     root_width: f64,
 }
@@ -832,7 +866,7 @@ fn toggle_widget_window_from_shortcut(app: &AppHandle) -> Result<(), String> {
     })?;
 
     if !widget.window_visible
-        && !widget_keeps_webview_when_hidden(&widget)
+        && widget_minimizes_to_bar(&widget)
         && authenticated_surfaces_enabled(&auth_state)?
     {
         ensure_widget_bar_window(app, &monitor_state, &state)?;
@@ -846,6 +880,7 @@ fn toggle_widget_window_from_shortcut(app: &AppHandle) -> Result<(), String> {
         apply_widget_window_state(app, &monitor_state, &widget)?;
     }
 
+    emit_widget_window_state_changed(app, &widget);
     refresh_widget_bar_window(app, &monitor_state, &state)?;
     Ok(())
 }
@@ -1130,24 +1165,37 @@ fn remember_widget_window_absolute_position(
         return Ok(());
     }
 
-    let monitor = app
-        .get_webview_window(label)
-        .and_then(|window| window.current_monitor().ok().flatten())
-        .map(|monitor| {
-            let (monitors, _primary) = list_monitors(app)?;
-            let id = monitors
-                .iter()
-                .enumerate()
-                .find(|(_, candidate)| monitors_match(candidate, &monitor))
-                .map(|(index, candidate)| monitor_id(candidate, index))
-                .unwrap_or_else(|| PRIMARY_MONITOR_ID.to_string());
-            Ok::<(Monitor, String), String>((monitor, id))
+    // 창 중심의 실제 물리 좌표가 놓인 모니터를 1순위로 쓴다. current_monitor()는 프로그램
+    // 이동/경계 드래그 직후 이전 모니터를 물고 있어서 좌표가 엉뚱한 모니터-로컬로 저장됐고
+    // 다음 위치 재적용 때 작업영역 우하단으로 클램프돼 "창이 우하단에 박히는" 버그를 만들었다.
+    let window = app.get_webview_window(label);
+    let center = window
+        .as_ref()
+        .and_then(|window| window.outer_size().ok())
+        .map(|size| {
+            (
+                absolute_x as f64 + size.width as f64 / 2.0,
+                absolute_y as f64 + size.height as f64 / 2.0,
+            )
         })
-        .transpose()?
+        .unwrap_or((absolute_x as f64, absolute_y as f64));
+    let monitor = monitor_nearest_physical_point(app, center.0, center.1)
+        .ok()
+        .flatten()
         .or_else(|| {
-            monitor_nearest_physical_point(app, absolute_x as f64, absolute_y as f64)
-                .ok()
-                .flatten()
+            window
+                .as_ref()
+                .and_then(|window| window.current_monitor().ok().flatten())
+                .and_then(|monitor| {
+                    let (monitors, _primary) = list_monitors(app).ok()?;
+                    let id = monitors
+                        .iter()
+                        .enumerate()
+                        .find(|(_, candidate)| monitors_match(candidate, &monitor))
+                        .map(|(index, candidate)| monitor_id(candidate, index))
+                        .unwrap_or_else(|| PRIMARY_MONITOR_ID.to_string());
+                    Some((monitor, id))
+                })
         });
     let scale = monitor
         .as_ref()
@@ -1157,15 +1205,41 @@ fn remember_widget_window_absolute_position(
     let origin = monitor.as_ref().map(|(monitor, _)| monitor.position());
     let origin_x = origin.map_or(0, |position| position.x);
     let origin_y = origin.map_or(0, |position| position.y);
-    let (work_area_x, work_area_y, work_area_width, work_area_height) =
-        monitor_work_area_logical(monitor.as_ref().map(|(monitor, _)| monitor), scale);
     // Moved 이벤트 좌표는 물리 px이므로 현재 창이 올라간 모니터의 논리 px(모니터-로컬)로 환산해 저장한다.
     // widget_screen_position이 같은 단위로 복원하므로 HiDPI에서도 위치가 두 배로 밀리지 않는다.
     let relative_x = ((absolute_x - origin_x) as f64 / scale).round() as i32;
     let relative_y = ((absolute_y - origin_y) as f64 / scale).round() as i32;
-    let next_monitor_id = monitor.as_ref().map(|(_, id)| id.clone());
 
     let state = app.state::<WidgetState>();
+    // 클램프는 위젯 상태 락 밖에서 계산한다(모니터 열거 API 호출을 락 안에서 하지 않기 위해).
+    // 먼저 짧은 락으로 위젯 스냅샷만 뽑아 창 크기를 얻는다.
+    let snapshot = {
+        let guard = state
+            .lock()
+            .map_err(|_| "widget state lock failed".to_string())?;
+        guard
+            .bubbles
+            .values()
+            .find(|widget| widget_window_label(widget) == label)
+            .cloned()
+    };
+    let Some(snapshot) = snapshot else {
+        return Ok(());
+    };
+    let size = widget_window_size(&snapshot);
+    // 모니터 경계를 넘는 드래그 중에는 current_monitor()가 이전 모니터를 반환할 수 있다.
+    // 좌표(창 중심)가 실제로 놓인 모니터를 다시 찾아 그 모니터 기준으로 저장해야,
+    // 저장 좌표가 원래 모니터로 되끌려오지 않고 바/버블이 모니터를 자유롭게 옮겨간다.
+    let (clamped_x, clamped_y, resolved_monitor) = clamp_widget_local_position_on_best_monitor(
+        app,
+        &snapshot,
+        &size,
+        monitor.as_ref(),
+        relative_x as f64,
+        relative_y as f64,
+    );
+    let next_monitor_id = resolved_monitor.map(|(_, id)| id);
+
     let layout = {
         let mut guard = state
             .lock()
@@ -1178,17 +1252,6 @@ fn remember_widget_window_absolute_position(
             return Ok(());
         };
 
-        let size = widget_window_size(widget);
-        let (clamped_x, clamped_y) = clamp_widget_local_position(
-            widget,
-            &size,
-            work_area_x,
-            work_area_y,
-            work_area_width,
-            work_area_height,
-            relative_x as f64,
-            relative_y as f64,
-        );
         widget.position = WidgetWindowPosition {
             x: clamped_x.round() as i32,
             y: clamped_y.round() as i32,
@@ -1229,7 +1292,6 @@ fn widget_window_url(widget: &WidgetWindowState) -> String {
     url
 }
 
-#[cfg(target_os = "macos")]
 fn onboarding_overlay_window_geometry(
     app: &AppHandle,
     monitor_state: &AppMonitorState,
@@ -1292,7 +1354,8 @@ fn widget_default_bubble_size(bubble_type: &str) -> LogicalSize<f64> {
     match bubble_type {
         "chat" => LogicalSize::new(336.0 + WIDGET_WINDOW_GUTTER, 420.0 + WIDGET_WINDOW_GUTTER),
         "agent" => LogicalSize::new(332.0 + WIDGET_WINDOW_GUTTER, 420.0 + WIDGET_WINDOW_GUTTER),
-        "timer" => LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 400.0 + WIDGET_WINDOW_GUTTER),
+        // 타이머는 시계/타이머/뽀모도로 탭이 EN/JA에서도 말줄임 없이 다 보여야 해서 최소 폭을 넓게 잡는다.
+        "timer" => LogicalSize::new(356.0 + WIDGET_WINDOW_GUTTER, 400.0 + WIDGET_WINDOW_GUTTER),
         "resource" => LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 330.0 + WIDGET_WINDOW_GUTTER),
         "memo" => LogicalSize::new(308.0 + WIDGET_WINDOW_GUTTER, 320.0 + WIDGET_WINDOW_GUTTER),
         "schedule" => LogicalSize::new(324.0 + WIDGET_WINDOW_GUTTER, 340.0 + WIDGET_WINDOW_GUTTER),
@@ -1439,6 +1502,65 @@ fn monitor_nearest_physical_point(
     Ok(best.map(|(_, _, monitor, id)| (monitor, id)))
 }
 
+#[cfg(target_os = "macos")]
+fn monitor_nearest_logical_point(
+    app: &AppHandle,
+    x: f64,
+    y: f64,
+) -> Result<Option<(Monitor, String)>, String> {
+    let (monitors, primary) = list_monitors(app)?;
+    let primary_id = primary.as_ref().and_then(|primary_monitor| {
+        monitors
+            .iter()
+            .enumerate()
+            .find(|(_, monitor)| monitors_match(monitor, primary_monitor))
+            .map(|(index, monitor)| monitor_id(monitor, index))
+    });
+
+    let mut best: Option<(f64, bool, Monitor, String)> = None;
+    for (index, monitor) in monitors.iter().enumerate() {
+        let scale = monitor.scale_factor().max(0.5);
+        let position = monitor.position();
+        let size = monitor.size();
+        let left = position.x as f64 / scale;
+        let top = position.y as f64 / scale;
+        let right = left + size.width as f64 / scale;
+        let bottom = top + size.height as f64 / scale;
+        let dx = if x < left {
+            left - x
+        } else if x > right {
+            x - right
+        } else {
+            0.0
+        };
+        let dy = if y < top {
+            top - y
+        } else if y > bottom {
+            y - bottom
+        } else {
+            0.0
+        };
+        let distance = dx * dx + dy * dy;
+        let id = monitor_id(monitor, index);
+        let is_primary = primary_id.as_ref().is_some_and(|value| value == &id);
+        let should_replace = best
+            .as_ref()
+            .map(|(best_distance, best_is_primary, _, _)| {
+                distance < *best_distance
+                    || ((distance - *best_distance).abs() < f64::EPSILON
+                        && is_primary
+                        && !*best_is_primary)
+            })
+            .unwrap_or(true);
+
+        if should_replace {
+            best = Some((distance, is_primary, monitor.clone(), id));
+        }
+    }
+
+    Ok(best.map(|(_, _, monitor, id)| (monitor, id)))
+}
+
 fn monitor_preference_path(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app
         .path()
@@ -1542,15 +1664,26 @@ fn widget_default_local_position(
         ),
         bubble_type => {
             let step = widget_default_cascade_index(bubble_type) * WIDGET_DEFAULT_MARGIN;
+            // 하단 클램프: 인덱스가 큰 버블(작은 모니터 포함)이 화면 아래로 밀려나지 않게 한다.
+            let max_y =
+                (monitor_height - size.height - WIDGET_DEFAULT_MARGIN).max(WIDGET_DEFAULT_MARGIN);
             (
                 (monitor_width - size.width - WIDGET_DEFAULT_MARGIN - step)
                     .max(WIDGET_DEFAULT_MARGIN),
-                WIDGET_DEFAULT_MARGIN + step,
+                (WIDGET_DEFAULT_MARGIN + step).min(max_y),
             )
         }
     }
 }
 
+/// 바 창의 로컬 좌표를 "주어진 한 모니터의 작업 영역" 안으로 클램프한다(바만 — pill이
+/// 최소한 일부는 항상 보이게). 버블 창은 자유 배치를 유지한다(반쯤 화면 밖도 허용).
+/// 예전에는 macOS 전용 + 항상 "현재/선호 모니터"의 작업 영역이 넘어와서, 바를 다른
+/// 모니터로 끌고 가면 저장 좌표가 원래 모니터 안으로 되끌려왔다(= 바가 모니터를 못
+/// 벗어나는 원인). 이제 이 함수는 순수한 단일-작업영역 클램프로 남기고, 어느 모니터의
+/// 작업 영역을 쓸지는 clamp_widget_local_position_on_best_monitor가 "그 좌표가 실제로
+/// 놓인 모니터"를 찾아 정한다. 바가 화면 밖으로 사라지는 문제는 Windows에서도 같으므로
+/// 두 플랫폼 모두 적용한다.
 fn clamp_widget_local_position(
     widget: &WidgetWindowState,
     size: &LogicalSize<f64>,
@@ -1561,39 +1694,108 @@ fn clamp_widget_local_position(
     x: f64,
     y: f64,
 ) -> (f64, f64) {
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = (
-            widget,
-            size,
-            work_area_x,
-            work_area_y,
-            work_area_width,
-            work_area_height,
-        );
+    if widget.active_bubble != "bar" {
         return (x, y);
     }
 
-    #[cfg(target_os = "macos")]
-    {
-        if widget.active_bubble != "bar" {
-            return (x, y);
-        }
+    let min_x = work_area_x - (size.width - WIDGET_BAR_MIN_VISIBLE_WIDTH).max(0.0);
+    let max_x = (work_area_x + work_area_width - WIDGET_BAR_MIN_VISIBLE_WIDTH).max(min_x);
+    // 기본(위쪽 프리뷰) 배치에서는 pill이 창 하단에 붙는다. 따라서 화면 상단에서는
+    // native window y가 음수가 될 수 있어야 보이는 pill이 실제 상단까지 올라간다.
+    let visible_top_offset = (size.height - WIDGET_BAR_VISIBLE_HEIGHT).max(0.0);
+    let visible_bottom_offset =
+        (size.height - WIDGET_BAR_ROOT_PADDING).max(WIDGET_BAR_VISIBLE_HEIGHT);
+    let min_y = work_area_y + WIDGET_DEFAULT_MARGIN - visible_top_offset;
+    let max_y =
+        (work_area_y + work_area_height - WIDGET_DEFAULT_MARGIN - visible_bottom_offset).max(min_y);
 
-        let min_x = work_area_x - (size.width - WIDGET_BAR_MIN_VISIBLE_WIDTH).max(0.0);
-        let max_x = (work_area_x + work_area_width - WIDGET_BAR_MIN_VISIBLE_WIDTH).max(min_x);
-        // 기본(위쪽 프리뷰) 배치에서는 pill이 창 하단에 붙는다. 따라서 화면 상단에서는
-        // native window y가 음수가 될 수 있어야 보이는 pill이 실제 상단까지 올라간다.
-        let visible_top_offset = (size.height - WIDGET_BAR_VISIBLE_HEIGHT).max(0.0);
-        let visible_bottom_offset =
-            (size.height - WIDGET_BAR_ROOT_PADDING).max(WIDGET_BAR_VISIBLE_HEIGHT);
-        let min_y = work_area_y + WIDGET_DEFAULT_MARGIN - visible_top_offset;
-        let max_y =
-            (work_area_y + work_area_height - WIDGET_DEFAULT_MARGIN - visible_bottom_offset)
-                .max(min_y);
+    (x.clamp(min_x, max_x), y.clamp(min_y, max_y))
+}
 
-        (x.clamp(min_x, max_x), y.clamp(min_y, max_y))
-    }
+/// 한 모니터의 로컬 논리 좌표를 다른 모니터의 로컬 논리 좌표로 바꾼다.
+/// 모니터 원점(position)은 물리 px이므로, 두 모니터의 scale이 달라도 물리 px를 거쳐
+/// 환산하면 화면 위 실제 위치가 유지된다.
+fn convert_local_point_between_monitors(
+    x: f64,
+    y: f64,
+    from_origin_x: i32,
+    from_origin_y: i32,
+    from_scale: f64,
+    to_origin_x: i32,
+    to_origin_y: i32,
+    to_scale: f64,
+) -> (f64, f64) {
+    let global_x = from_origin_x as f64 + x * from_scale;
+    let global_y = from_origin_y as f64 + y * from_scale;
+    (
+        (global_x - to_origin_x as f64) / to_scale,
+        (global_y - to_origin_y as f64) / to_scale,
+    )
+}
+
+/// 로컬 좌표를 "그 좌표(창 중심)가 실제로 놓인 모니터" 기준으로 클램프한다.
+/// 드래그/이동 중에는 current_monitor()가 이전 모니터를 물고 있을 수 있어서, 좌표
+/// 자체로 목적지 모니터를 찾아야 바가 모니터 경계를 자유롭게 넘는다. 반환 좌표는
+/// 반환된 모니터 기준 로컬 논리 px이므로 호출자는 monitor_id도 함께 갈아끼워야 한다.
+fn clamp_widget_local_position_on_best_monitor(
+    app: &AppHandle,
+    widget: &WidgetWindowState,
+    size: &LogicalSize<f64>,
+    current_monitor: Option<&(Monitor, String)>,
+    x: f64,
+    y: f64,
+) -> (f64, f64, Option<(Monitor, String)>) {
+    let Some((monitor, current_id)) = current_monitor else {
+        // 모니터 정보를 전혀 얻지 못하면 예전처럼 폴백 작업 영역 안으로만 클램프한다.
+        let (area_x, area_y, area_width, area_height) = monitor_work_area_logical(None, 1.0);
+        let (clamped_x, clamped_y) = clamp_widget_local_position(
+            widget,
+            size,
+            area_x,
+            area_y,
+            area_width,
+            area_height,
+            x,
+            y,
+        );
+        return (clamped_x, clamped_y, None);
+    };
+
+    let scale = monitor.scale_factor().max(0.5);
+    let origin = monitor.position();
+    // 창 중심(물리 px)이 놓인(가장 가까운) 모니터가 "그 창의 모니터"다.
+    let center_x = origin.x as f64 + (x + size.width / 2.0) * scale;
+    let center_y = origin.y as f64 + (y + size.height / 2.0) * scale;
+    let (target_monitor, target_id) = monitor_nearest_physical_point(app, center_x, center_y)
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| (monitor.clone(), current_id.clone()));
+
+    let target_scale = target_monitor.scale_factor().max(0.5);
+    let target_origin = target_monitor.position();
+    let (local_x, local_y) = convert_local_point_between_monitors(
+        x,
+        y,
+        origin.x,
+        origin.y,
+        scale,
+        target_origin.x,
+        target_origin.y,
+        target_scale,
+    );
+    let (area_x, area_y, area_width, area_height) =
+        monitor_work_area_logical(Some(&target_monitor), target_scale);
+    let (clamped_x, clamped_y) = clamp_widget_local_position(
+        widget,
+        size,
+        area_x,
+        area_y,
+        area_width,
+        area_height,
+        local_x,
+        local_y,
+    );
+    (clamped_x, clamped_y, Some((target_monitor, target_id)))
 }
 
 fn monitor_work_area_logical(monitor: Option<&Monitor>, scale: f64) -> (f64, f64, f64, f64) {
@@ -1668,6 +1870,19 @@ fn macos_dock_guard_physical(monitor: &Monitor, work_area_height: f64, scale: f6
     0.0
 }
 
+#[cfg(target_os = "macos")]
+fn monitor_work_area_logical_global(monitor: &Monitor, scale: f64) -> (f64, f64, f64, f64) {
+    let work_area = monitor.work_area();
+    let work_height = work_area.size.height as f64 / scale;
+    let dock_guard = macos_dock_guard_logical(monitor, work_height, scale);
+    (
+        work_area.position.x as f64 / scale,
+        work_area.position.y as f64 / scale,
+        work_area.size.width as f64 / scale,
+        (work_height - dock_guard).max(WIDGET_BAR_VISIBLE_HEIGHT + WIDGET_DEFAULT_MARGIN),
+    )
+}
+
 fn widget_screen_position(
     app: &AppHandle,
     monitor_state: &AppMonitorState,
@@ -1697,17 +1912,32 @@ fn widget_screen_position(
     let size = widget_window_size(widget);
 
     if !widget_position_is_unset(&widget.position) {
-        let (local_x, local_y) = clamp_widget_local_position(
+        // 저장 좌표가 저장된 모니터의 작업 영역을 벗어나 있으면(모니터 해상도 변경, 예전
+        // 버그로 남은 좌표 등) 그 좌표가 실제로 가리키는 모니터를 찾아 그쪽 기준으로
+        // 복원한다 — 강제로 선호 모니터에 가두지 않는다.
+        let (local_x, local_y, resolved_monitor) = clamp_widget_local_position_on_best_monitor(
+            app,
             widget,
             &size,
-            work_area_x,
-            work_area_y,
-            work_area_width,
-            work_area_height,
+            monitor.as_ref(),
             widget.position.x as f64,
             widget.position.y as f64,
         );
-        return Ok(LogicalPosition::new(origin_x + local_x, origin_y + local_y));
+        let (resolved_origin_x, resolved_origin_y) = resolved_monitor
+            .as_ref()
+            .map(|(resolved, _)| {
+                let resolved_scale = resolved.scale_factor().max(0.5);
+                let position = resolved.position();
+                (
+                    position.x as f64 / resolved_scale,
+                    position.y as f64 / resolved_scale,
+                )
+            })
+            .unwrap_or((origin_x, origin_y));
+        return Ok(LogicalPosition::new(
+            resolved_origin_x + local_x,
+            resolved_origin_y + local_y,
+        ));
     }
 
     let (default_x, default_y) =
@@ -1918,8 +2148,26 @@ fn open_external_url(url: String) -> Result<(), String> {
     tauri_plugin_opener::open_url(trimmed, None::<&str>).map_err(|error| error.to_string())
 }
 
+// 상시 표면인 바/메뉴만 숨김 웹뷰를 유지한다. 콘텐츠 버블은 최소화 시 바 칩 상태만 남기고
+// 네이티브 웹뷰를 내려 메모리 점유와 숨은 타이머/리스너를 줄인다.
 fn widget_keeps_webview_when_hidden(widget: &WidgetWindowState) -> bool {
     widget.active_bubble == "bar" || widget.active_bubble == "menu"
+}
+
+// 바/메뉴가 아닌 콘텐츠 버블은 숨을 때 바의 복원 칩으로 돌아가므로 바 창 존재를 보장해야 한다.
+fn widget_minimizes_to_bar(widget: &WidgetWindowState) -> bool {
+    widget.active_bubble != "bar" && widget.active_bubble != "menu"
+}
+
+// 재사용되는 웹뷰는 URL 쿼리로 상태를 다시 읽지 않으므로, 창 상태가 바뀔 때 해당 창의
+// React 상태를 이 이벤트로 동기화한다(창 라벨 대상 emit — 다른 창에는 가지 않는다).
+fn emit_widget_window_state_changed(app: &AppHandle, widget: &WidgetWindowState) {
+    let label = widget_window_label(widget);
+    let _ = app.emit_to(&label, WIDGET_WINDOW_STATE_CHANGED_EVENT, widget.clone());
+}
+
+fn emit_widget_bar_items_changed(app: &AppHandle) {
+    let _ = app.emit_to("bubli-widget-bar", WIDGET_BAR_ITEMS_CHANGED_EVENT, ());
 }
 
 fn set_widget_room_context_for_store(
@@ -2382,6 +2630,7 @@ fn refresh_widget_bar_window(
     if app.get_webview_window(&widget_window_label(&bar)).is_some() {
         apply_widget_window_state(app, monitor_state, &bar)?;
     }
+    emit_widget_bar_items_changed(app);
     Ok(())
 }
 
@@ -2424,6 +2673,7 @@ fn seed_widget_bar_items(
         seed_widget_bar_items_for_store(&mut guard, selected_room_id)
     };
     persist_widget_window_state(&app, &state)?;
+    emit_widget_bar_items_changed(&app);
     Ok(items)
 }
 
@@ -2444,6 +2694,7 @@ fn close_all_widget_windows(
         }
     }
     persist_widget_window_state(&app, &state)?;
+    emit_widget_bar_items_changed(&app);
 
     Ok(destroy_all_widget_windows(&app))
 }
@@ -2520,6 +2771,142 @@ fn set_preferred_app_monitor(
     monitor_preference_result(&app, requested_monitor_id)
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MoveWidgetWindowsToMonitorInput {
+    monitor_id: String,
+}
+
+/// Bubli 메뉴의 "모니터로 이동": 바 + 메뉴 + 열린 버블 창을 통째로 지정 모니터로 옮긴다.
+/// 저장 좌표는 모니터-로컬이므로 로컬 좌표를 그대로 두고 monitor_id만 갈아끼우면 상대
+/// 배치가 유지된다. 새 모니터가 더 작아 작업 영역을 벗어나는 창만 안으로 클램프한다.
+/// 선호 모니터 저장도 같이 갱신해 이후 자동 정렬·온보딩 오버레이·새 창 기본 위치가
+/// 같은 모니터를 따라가게 한다(메인 앱 창은 여기서 건드리지 않는다 — 위젯 전용 이동).
+#[tauri::command]
+fn move_widget_windows_to_monitor(
+    app: AppHandle,
+    monitor_state: tauri::State<'_, AppMonitorState>,
+    state: tauri::State<'_, WidgetState>,
+    input: MoveWidgetWindowsToMonitorInput,
+) -> Result<Vec<WidgetWindowState>, String> {
+    let requested_monitor_id = if input.monitor_id.trim().is_empty() {
+        PRIMARY_MONITOR_ID.to_string()
+    } else {
+        input.monitor_id
+    };
+    let (monitors, _primary) = list_monitors(&app)?;
+    let monitor_exists = requested_monitor_id == PRIMARY_MONITOR_ID
+        || monitors
+            .iter()
+            .enumerate()
+            .any(|(index, monitor)| monitor_id(monitor, index) == requested_monitor_id);
+    if !monitor_exists {
+        return Err(format!("unknown monitor id: {requested_monitor_id}"));
+    }
+    let Some((target_monitor, resolved_monitor_id)) =
+        resolve_monitor_with_id(&app, &requested_monitor_id)?
+    else {
+        return Err("no monitor available to move widget windows".to_string());
+    };
+
+    save_preferred_monitor_id(&app, &requested_monitor_id)?;
+    {
+        let mut guard = monitor_state
+            .lock()
+            .map_err(|_| "app monitor state lock failed".to_string())?;
+        guard.preferred_monitor_id = requested_monitor_id.clone();
+    }
+
+    let scale = target_monitor.scale_factor().max(0.5);
+    let (area_x, area_y, area_width, area_height) =
+        monitor_work_area_logical(Some(&target_monitor), scale);
+    // set_preferred_app_monitor와 같은 규칙: 주 모니터 선택은 None으로 저장해
+    // "주 모니터 따라가기" 의미를 유지한다(주 모니터가 바뀌어도 같이 따라간다).
+    let stored_monitor_id = if requested_monitor_id == PRIMARY_MONITOR_ID {
+        None
+    } else {
+        Some(resolved_monitor_id)
+    };
+
+    let moved: Vec<WidgetWindowState> = {
+        let mut guard = state
+            .lock()
+            .map_err(|_| "widget state lock failed".to_string())?;
+        for widget in guard.bubbles.values_mut() {
+            widget.monitor_id = stored_monitor_id.clone();
+            if widget_position_is_unset(&widget.position) {
+                // 저장 좌표가 없으면 widget_screen_position이 새 모니터 기준 기본 자리를 계산한다.
+                continue;
+            }
+            let size = widget_window_size(widget);
+            // 로컬 좌표는 유지(상대 배치 보존)하되, 새 모니터 작업 영역 밖이면 안으로 넣는다.
+            // 바는 "pill 일부는 항상 보이게" 규칙, 버블/메뉴는 창 전체가 들어오게 클램프.
+            let (x, y) = if widget.active_bubble == "bar" {
+                clamp_widget_local_position(
+                    widget,
+                    &size,
+                    area_x,
+                    area_y,
+                    area_width,
+                    area_height,
+                    widget.position.x as f64,
+                    widget.position.y as f64,
+                )
+            } else {
+                clamp_point_into_work_area(
+                    widget.position.x as f64,
+                    widget.position.y as f64,
+                    &size,
+                    area_x,
+                    area_y,
+                    area_width,
+                    area_height,
+                )
+            };
+            widget.position = WidgetWindowPosition {
+                x: x.round() as i32,
+                y: y.round() as i32,
+            };
+        }
+        guard.bubbles.values().cloned().collect()
+    };
+    persist_widget_window_state(&app, &state)?;
+
+    // 이미 떠 있는 창은 즉시 이동한다. macOS의 apply_widget_window_state는 OS 드래그
+    // 좌표를 신뢰해 위치를 다시 쓰지 않으므로(선호 모니터 변경이 화면에 반영되지 않던
+    // 원인), 여기서 직접 set_position으로 옮긴다.
+    for widget in &moved {
+        let label = widget_window_label(widget);
+        let Some(window) = app.get_webview_window(&label) else {
+            continue;
+        };
+        // 대상 모니터 원점 + 방금 클램프한 로컬 좌표로 전역 좌표를 직접 계산한다.
+        // widget_screen_position은 "창 중심이 실제로 놓인 모니터"를 다시 판정하는데
+        // 이동 직전 창은 아직 원래 모니터에 있어 그 재판정이 창을 도로 끌어와
+        // 모니터 경계에 붙여버렸다(이동이 경계까지만 가던 버그의 원인).
+        let position = if widget_position_is_unset(&widget.position) {
+            widget_screen_position(&app, &monitor_state, widget)?
+        } else {
+            let origin = target_monitor.position();
+            LogicalPosition::new(
+                origin.x as f64 / scale + widget.position.x as f64,
+                origin.y as f64 / scale + widget.position.y as f64,
+            )
+        };
+        // 이동 grace를 미리 열어 커서 폴러가 이동 중 클릭 통과를 켜지 않게 한다.
+        note_widget_window_moved(&label);
+        #[cfg(not(target_os = "macos"))]
+        with_widget_applied_window_state(&label, |applied| {
+            applied.position = Some((position.x.round() as i64, position.y.round() as i64));
+        });
+        window
+            .set_position(Position::Logical(position))
+            .map_err(|error| error.to_string())?;
+    }
+
+    Ok(moved)
+}
+
 #[tauri::command]
 fn set_widget_window_mode(
     app: AppHandle,
@@ -2537,11 +2924,12 @@ fn set_widget_window_mode(
     let widget = with_widget_state(&state, bubble_type, window_id, |widget| {
         apply_widget_window_mode_update(widget, mode, selected_room_id.clone());
     })?;
-    if widget.mode == "MINIMIZED" && !widget_keeps_webview_when_hidden(&widget) {
+    if widget.mode == "MINIMIZED" && widget_minimizes_to_bar(&widget) {
         ensure_widget_bar_window(&app, &monitor_state, &state)?;
     }
     persist_widget_window_state(&app, &state)?;
     let result = apply_widget_window_state(&app, &monitor_state, &widget)?;
+    emit_widget_window_state_changed(&app, &widget);
     // 모드 전환 뒤 바 창 상태(가시성)를 동기화한다. 바 크기는 고정이라 리사이즈는 없다.
     refresh_widget_bar_window(&app, &monitor_state, &state)?;
     Ok(result)
@@ -2554,34 +2942,43 @@ fn set_widget_window_position(
     state: tauri::State<'_, WidgetState>,
     input: WidgetWindowPositionInput,
 ) -> Result<WidgetWindowState, String> {
+    // 좌표는 "위젯이 지금 올라가 있는 모니터" 기준 로컬 논리 px로 해석한다.
+    // 예전처럼 무조건 선호 모니터 기준으로 해석하고 monitor_id를 선호 모니터로 다시
+    // 도장 찍으면, 다른 모니터로 옮겨 둔 위젯이 위치 지정 한 번에 선호 모니터로 끌려온다.
+    let snapshot = with_widget_state(
+        &state,
+        input.bubble_type.clone(),
+        input.window_id.clone(),
+        |_| {},
+    )?;
     let preferred_monitor_id = get_preferred_monitor_id(&monitor_state)?;
-    let monitor = resolve_monitor_with_id(&app, &preferred_monitor_id)?;
-    let scale = monitor
-        .as_ref()
-        .map(|(monitor, _)| monitor.scale_factor())
-        .unwrap_or(1.0)
-        .max(0.5);
-    let (work_area_x, work_area_y, work_area_width, work_area_height) =
-        monitor_work_area_logical(monitor.as_ref().map(|(monitor, _)| monitor), scale);
-    let next_monitor_id = monitor.as_ref().map(|(_, id)| id.clone());
+    let monitor = if let Some(widget_monitor_id) = snapshot.monitor_id.as_deref() {
+        resolve_monitor_with_id(&app, widget_monitor_id)?.or_else(|| {
+            resolve_monitor_with_id(&app, &preferred_monitor_id)
+                .ok()
+                .flatten()
+        })
+    } else {
+        resolve_monitor_with_id(&app, &preferred_monitor_id)?
+    };
+    let size = widget_window_size(&snapshot);
+    // 좌표가 다른 모니터를 가리키면 그 모니터 로컬로 다시 표현해 저장한다(모니터 간 이동 허용).
+    let (x, y, resolved_monitor) = clamp_widget_local_position_on_best_monitor(
+        &app,
+        &snapshot,
+        &size,
+        monitor.as_ref(),
+        input.x as f64,
+        input.y as f64,
+    );
+    let next_monitor_id = resolved_monitor.map(|(_, id)| id);
 
     let widget = with_widget_state(&state, input.bubble_type, input.window_id, |widget| {
-        let size = widget_window_size(widget);
-        let (x, y) = clamp_widget_local_position(
-            widget,
-            &size,
-            work_area_x,
-            work_area_y,
-            work_area_width,
-            work_area_height,
-            input.x as f64,
-            input.y as f64,
-        );
         widget.position = WidgetWindowPosition {
             x: x.round() as i32,
             y: y.round() as i32,
         };
-        widget.monitor_id = next_monitor_id;
+        widget.monitor_id = next_monitor_id.clone();
     })?;
     persist_widget_window_state(&app, &state)?;
     apply_widget_window_state(&app, &monitor_state, &widget)
@@ -2597,97 +2994,227 @@ fn drag_widget_bar_window(
     let label = window.label().to_string();
     let is_bar_or_menu = label.ends_with("-bar") || label.ends_with("-menu");
     if !is_widget_window_label(&label) || !is_bar_or_menu {
-        return Err("drag_widget_bar_window can only be called from the bar or menu widget".to_string());
+        return Err(
+            "drag_widget_bar_window can only be called from the bar or menu widget".to_string(),
+        );
     }
 
-    let scale = window
-        .scale_factor()
-        .map_err(|error| error.to_string())?
-        .max(0.5);
-    let cursor = window
-        .cursor_position()
-        .map_err(|error| error.to_string())?;
-    let monitor = monitor_nearest_physical_point(&app, cursor.x, cursor.y)?;
-    let (origin_x, origin_y, work_x, work_y, work_width, work_height) = if let Some((monitor, _)) =
-        monitor.as_ref()
+    #[cfg(target_os = "macos")]
     {
-        let origin = monitor.position();
-        let work_area = monitor.work_area();
-        let dock_guard = macos_dock_guard_physical(monitor, work_area.size.height as f64, scale);
-        (
-            origin.x as f64,
-            origin.y as f64,
-            work_area.position.x as f64,
-            work_area.position.y as f64,
-            work_area.size.width as f64,
-            (work_area.size.height as f64 - dock_guard).max(WIDGET_BAR_VISIBLE_HEIGHT * scale),
-        )
-    } else {
-        (
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            WIDGET_FALLBACK_MONITOR_WIDTH * scale,
-            WIDGET_FALLBACK_MONITOR_HEIGHT * scale,
-        )
-    };
+        let cursor_x = input
+            .cursor_x
+            .filter(|value| value.is_finite())
+            .ok_or_else(|| "missing widget bar logical cursor x".to_string())?;
+        let cursor_y = input
+            .cursor_y
+            .filter(|value| value.is_finite())
+            .ok_or_else(|| "missing widget bar logical cursor y".to_string())?;
+        let monitor = monitor_nearest_logical_point(&app, cursor_x, cursor_y)?;
+        let (origin_x, origin_y, work_x, work_y, work_width, work_height) =
+            if let Some((monitor, _)) = monitor.as_ref() {
+                let scale = monitor.scale_factor().max(0.5);
+                let origin = monitor.position();
+                let (work_x, work_y, work_width, work_height) =
+                    monitor_work_area_logical_global(monitor, scale);
+                (
+                    origin.x as f64 / scale,
+                    origin.y as f64 / scale,
+                    work_x,
+                    work_y,
+                    work_width,
+                    work_height,
+                )
+            } else {
+                (
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    WIDGET_FALLBACK_MONITOR_WIDTH,
+                    WIDGET_FALLBACK_MONITOR_HEIGHT,
+                )
+            };
 
-    let padding = WIDGET_BAR_ROOT_PADDING * scale;
-    let grab_x = input.grab_x * scale;
-    let grab_y = input.grab_y * scale;
-    let nav_width = input.nav_width * scale;
-    let nav_height = input.nav_height * scale;
-    let root_width = input.root_width * scale;
-    let root_height = input.root_height * scale;
+        let geometry = compute_widget_bar_drag_geometry(
+            &input,
+            cursor_x,
+            cursor_y,
+            1.0,
+            1.0,
+            work_x,
+            work_y,
+            work_width,
+            work_height,
+            input.placement.as_deref(),
+        );
+
+        note_widget_window_moved(&label);
+        window
+            .set_position(Position::Logical(LogicalPosition::new(
+                geometry.next_x,
+                geometry.next_y,
+            )))
+            .map_err(|error| error.to_string())?;
+
+        let widget = with_widget_state(
+            &state,
+            Some("bar".to_string()),
+            Some("bar".to_string()),
+            |widget| {
+                widget.position = WidgetWindowPosition {
+                    x: (geometry.next_x - origin_x).round() as i32,
+                    y: (geometry.next_y - origin_y).round() as i32,
+                };
+                widget.monitor_id = monitor.as_ref().map(|(_, id)| id.clone());
+            },
+        )?;
+        persist_widget_window_state(&app, &state)?;
+
+        return Ok(WidgetBarDragResult {
+            placement: geometry.placement,
+            state: widget,
+        });
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let window_scale = window
+            .scale_factor()
+            .map_err(|error| error.to_string())?
+            .max(0.5);
+        let cursor = window
+            .cursor_position()
+            .map_err(|error| error.to_string())?;
+        let monitor = monitor_nearest_physical_point(&app, cursor.x, cursor.y)?;
+        let scale = monitor
+            .as_ref()
+            .map(|(monitor, _)| monitor.scale_factor().max(0.5))
+            .unwrap_or(window_scale);
+        let (origin_x, origin_y, work_x, work_y, work_width, work_height) =
+            if let Some((monitor, _)) = monitor.as_ref() {
+                let origin = monitor.position();
+                let work_area = monitor.work_area();
+                let dock_guard =
+                    macos_dock_guard_physical(monitor, work_area.size.height as f64, scale);
+                (
+                    origin.x as f64,
+                    origin.y as f64,
+                    work_area.position.x as f64,
+                    work_area.position.y as f64,
+                    work_area.size.width as f64,
+                    (work_area.size.height as f64 - dock_guard)
+                        .max(WIDGET_BAR_VISIBLE_HEIGHT * scale),
+                )
+            } else {
+                (
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    WIDGET_FALLBACK_MONITOR_WIDTH * scale,
+                    WIDGET_FALLBACK_MONITOR_HEIGHT * scale,
+                )
+            };
+
+        let geometry = compute_widget_bar_drag_geometry(
+            &input,
+            cursor.x,
+            cursor.y,
+            window_scale,
+            scale,
+            work_x,
+            work_y,
+            work_width,
+            work_height,
+            input.placement.as_deref(),
+        );
+
+        note_widget_window_moved(&label);
+        window
+            .set_position(Position::Physical(PhysicalPosition::new(
+                geometry.next_x.round() as i32,
+                geometry.next_y.round() as i32,
+            )))
+            .map_err(|error| error.to_string())?;
+
+        let widget = with_widget_state(
+            &state,
+            Some("bar".to_string()),
+            Some("bar".to_string()),
+            |widget| {
+                widget.position = WidgetWindowPosition {
+                    x: ((geometry.next_x - origin_x) / scale).round() as i32,
+                    y: ((geometry.next_y - origin_y) / scale).round() as i32,
+                };
+                widget.monitor_id = monitor.as_ref().map(|(_, id)| id.clone());
+            },
+        )?;
+        persist_widget_window_state(&app, &state)?;
+
+        Ok(WidgetBarDragResult {
+            placement: geometry.placement,
+            state: widget,
+        })
+    }
+}
+
+struct WidgetBarDragGeometry {
+    next_x: f64,
+    next_y: f64,
+    placement: String,
+}
+
+fn compute_widget_bar_drag_geometry(
+    input: &WidgetBarDragInput,
+    cursor_x: f64,
+    cursor_y: f64,
+    _source_scale: f64,
+    target_scale: f64,
+    work_x: f64,
+    work_y: f64,
+    work_width: f64,
+    work_height: f64,
+    requested_placement: Option<&str>,
+) -> WidgetBarDragGeometry {
+    let target_scale = target_scale.max(0.5);
+    let padding = WIDGET_BAR_ROOT_PADDING * target_scale;
+    let grab_x = input.grab_x * target_scale;
+    let grab_y = input.grab_y * target_scale;
+    let nav_width = input.nav_width * target_scale;
+    let nav_height = input.nav_height * target_scale;
+    let root_width = input.root_width * target_scale;
+    let root_height = input.root_height * target_scale;
     let work_right = work_x + work_width;
     let work_bottom = work_y + work_height;
 
-    let visible_x = (cursor.x - grab_x)
+    let visible_x = (cursor_x - grab_x)
         .max(work_x + padding)
         .min((work_right - nav_width - padding).max(work_x + padding));
-    let visible_y = (cursor.y - grab_y)
+    let visible_y = (cursor_y - grab_y)
         .max(work_y + padding)
         .min((work_bottom - nav_height - padding).max(work_y + padding));
-    let placement = if visible_y < work_y + bar_preview_flip_threshold_physical(scale) {
-        "below"
-    } else {
-        "above"
+    let natural_placement =
+        if visible_y < work_y + bar_preview_flip_threshold_physical(target_scale) {
+            "below"
+        } else {
+            "above"
+        };
+    let placement = match requested_placement {
+        Some("above") => "above",
+        Some("below") => "below",
+        _ => natural_placement,
     };
     let offset_top = if placement == "below" {
         padding
     } else {
         root_height - nav_height - padding
     };
-    let next_x = visible_x + nav_width / 2.0 - root_width / 2.0;
-    let next_y = visible_y - offset_top;
 
-    note_widget_window_moved(&label);
-    window
-        .set_position(Position::Physical(PhysicalPosition::new(
-            next_x.round() as i32,
-            next_y.round() as i32,
-        )))
-        .map_err(|error| error.to_string())?;
-
-    let widget = with_widget_state(
-        &state,
-        Some("bar".to_string()),
-        Some("bar".to_string()),
-        |widget| {
-            widget.position = WidgetWindowPosition {
-                x: ((next_x - origin_x) / scale).round() as i32,
-                y: ((next_y - origin_y) / scale).round() as i32,
-            };
-            widget.monitor_id = monitor.as_ref().map(|(_, id)| id.clone());
-        },
-    )?;
-    persist_widget_window_state(&app, &state)?;
-
-    Ok(WidgetBarDragResult {
+    WidgetBarDragGeometry {
+        next_x: visible_x + nav_width / 2.0 - root_width / 2.0,
+        next_y: visible_y - offset_top,
         placement: placement.to_string(),
-        state: widget,
-    })
+    }
 }
 
 #[tauri::command]
@@ -2707,25 +3234,21 @@ fn set_widget_bar_preview_placement(
         return Err("widget bar preview placement must be above or below".to_string());
     }
 
-    let scale = window
+    let window_scale = window
         .scale_factor()
         .map_err(|error| error.to_string())?
         .max(0.5);
     let current_position = window.outer_position().map_err(|error| error.to_string())?;
-    let monitor = window
-        .current_monitor()
-        .map_err(|error| error.to_string())?
-        .map(|monitor| {
-            let (monitors, _primary) = list_monitors(&app)?;
-            let id = monitors
-                .iter()
-                .enumerate()
-                .find(|(_, candidate)| monitors_match(candidate, &monitor))
-                .map(|(index, candidate)| monitor_id(candidate, index))
-                .unwrap_or_else(|| PRIMARY_MONITOR_ID.to_string());
-            Ok::<(Monitor, String), String>((monitor, id))
-        })
-        .transpose()?;
+    let current_size = window.outer_size().map_err(|error| error.to_string())?;
+    let monitor = monitor_nearest_physical_point(
+        &app,
+        current_position.x as f64 + current_size.width as f64 / 2.0,
+        current_position.y as f64 + current_size.height as f64 / 2.0,
+    )?;
+    let scale = monitor
+        .as_ref()
+        .map(|(monitor, _)| monitor.scale_factor().max(0.5))
+        .unwrap_or(window_scale);
     let (origin_x, origin_y, work_y, work_height) = if let Some((monitor, _)) = monitor.as_ref() {
         let origin = monitor.position();
         let work_area = monitor.work_area();
@@ -2740,13 +3263,13 @@ fn set_widget_bar_preview_placement(
         (0.0, 0.0, 0.0, WIDGET_FALLBACK_MONITOR_HEIGHT * scale)
     };
 
-    let padding = WIDGET_BAR_ROOT_PADDING * scale;
-    let nav_height = input.nav_height * scale;
+    let padding = WIDGET_BAR_ROOT_PADDING * window_scale;
+    let nav_height = input.nav_height * window_scale;
     let work_bottom = work_y + work_height;
-    let visible_y = (current_position.y as f64 + input.current_offset_top * scale)
+    let visible_y = (current_position.y as f64 + input.current_offset_top * window_scale)
         .max(work_y + padding)
         .min((work_bottom - nav_height - padding).max(work_y + padding));
-    let next_y = visible_y - input.next_offset_top * scale;
+    let next_y = visible_y - input.next_offset_top * window_scale;
 
     note_widget_window_moved(&label);
     window
@@ -2911,12 +3434,15 @@ fn arrange_widget_windows(
         })
     });
 
-    // 정렬 프리셋: 격자(기본)/세로 한 열/가로 한 줄/계단식.
+    // 정렬 프리셋: 보드(블로그 위젯형)/격자(기본)/세로 한 열/가로 한 줄/계단식.
     let layout = input
         .as_ref()
         .and_then(|value| value.layout.as_deref())
         .unwrap_or("grid");
     let placements = match layout {
+        "board" => {
+            arrange_widget_board_placements(&targets, area_x, area_y, area_width, area_height)
+        }
         "column" => {
             arrange_widget_column_placements(&targets, area_x, area_y, area_width, area_height)
         }
@@ -3055,6 +3581,58 @@ fn arrange_widget_grid_placements(
     placements
 }
 
+/// 보드 정렬: 블로그 사이드바 위젯처럼 오른쪽 기준 2~3열 masonry로 배치한다.
+/// 서로 다른 높이의 버블도 가장 짧은 열로 들어가므로 겹치지 않고, 전체가 작업 영역 안에 남는다.
+fn arrange_widget_board_placements(
+    targets: &[WidgetWindowState],
+    area_x: f64,
+    area_y: f64,
+    area_width: f64,
+    area_height: f64,
+) -> Vec<(String, WidgetWindowPosition)> {
+    if targets.is_empty() {
+        return Vec::new();
+    }
+
+    let max_width = targets
+        .iter()
+        .map(|widget| widget_window_size(widget).width)
+        .fold(0.0_f64, f64::max)
+        .max(1.0);
+    let columns_that_fit = (((area_width - WIDGET_ARRANGE_GAP) / (max_width + WIDGET_ARRANGE_GAP))
+        .floor() as isize)
+        .max(1) as usize;
+    let column_count = columns_that_fit.min(3).min(targets.len()).max(1);
+    let right_edge = area_x + area_width - WIDGET_ARRANGE_GAP;
+    let mut column_y = vec![area_y + WIDGET_ARRANGE_GAP; column_count];
+    let mut placements: Vec<(String, WidgetWindowPosition)> = Vec::new();
+
+    for widget in targets {
+        let size = widget_window_size(widget);
+        let column_index = column_y
+            .iter()
+            .enumerate()
+            .min_by(|(_, left), (_, right)| left.total_cmp(right))
+            .map(|(index, _)| index)
+            .unwrap_or(0);
+        let x = right_edge - max_width - column_index as f64 * (max_width + WIDGET_ARRANGE_GAP);
+        let y = column_y[column_index];
+        let (x, y) =
+            clamp_point_into_work_area(x, y, &size, area_x, area_y, area_width, area_height);
+        placements.push((
+            widget_window_label(widget),
+            WidgetWindowPosition {
+                x: x.round() as i32,
+                y: y.round() as i32,
+            },
+        ));
+        column_y[column_index] =
+            (y + size.height + WIDGET_ARRANGE_GAP).min(area_y + area_height - WIDGET_ARRANGE_GAP);
+    }
+
+    placements
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ArrangeWidgetWindowsInput {
@@ -3083,7 +3661,6 @@ fn arrange_widget_column_placements(
         // 이 창을 넣으면 작업 영역 하단을 넘고, 열이 비어있지 않다면 다음 열(왼쪽)로 랩한다.
         if row_y + size.height > area_bottom && row_y > area_y + WIDGET_ARRANGE_GAP {
             column_right = column_x - WIDGET_ARRANGE_GAP;
-            column_x = column_right;
             column_width = 0.0;
             row_y = area_y + WIDGET_ARRANGE_GAP;
         }
@@ -3155,8 +3732,9 @@ fn arrange_widget_row_placements(
     placements
 }
 
-/// 계단식: 오른쪽 위에서 대각선으로 겹쳐 쌓는다(카드 덱 느낌). 대각선이 작업 영역 하단이나
-/// 좌측을 넘으려 하면 다시 우상단으로 되돌려(랩) 새 덱을 시작한다. 마지막에 클램프.
+/// 계단식: 오른쪽 위에서 왼쪽 아래로 한 칸씩 내려가는 계단 모양. 가로 간격을 창 폭 전체 +
+/// 여백으로 잡아 창끼리 절대 겹치지 않고, 세로 오프셋으로만 계단 느낌을 만든다.
+/// 한 벌(가로로 들어가는 개수)을 넘으면 아랫줄에 새 계단을 시작한다. 마지막에 클램프.
 fn arrange_widget_cascade_placements(
     targets: &[WidgetWindowState],
     area_x: f64,
@@ -3165,34 +3743,44 @@ fn arrange_widget_cascade_placements(
     area_height: f64,
 ) -> Vec<(String, WidgetWindowPosition)> {
     let mut placements: Vec<(String, WidgetWindowPosition)> = Vec::new();
-    let step = 36.0_f64;
-    let base_width = targets
+    if targets.is_empty() {
+        return placements;
+    }
+    let max_width = targets
         .iter()
         .map(|widget| widget_window_size(widget).width)
+        .fold(0.0_f64, f64::max)
+        .max(1.0);
+    let max_height = targets
+        .iter()
+        .map(|widget| widget_window_size(widget).height)
         .fold(0.0_f64, f64::max);
-    let base_x =
-        (area_x + area_width - WIDGET_ARRANGE_GAP - base_width).max(area_x + WIDGET_ARRANGE_GAP);
-    let base_y = area_y + WIDGET_ARRANGE_GAP;
-    let area_bottom = area_y + area_height - WIDGET_ARRANGE_GAP;
-    let mut deck = 0.0_f64;
-    for widget in targets {
+    let per_flight = (((area_width - WIDGET_ARRANGE_GAP) / (max_width + WIDGET_ARRANGE_GAP)).floor()
+        as isize)
+        .max(1) as usize;
+    // 세로 낙차는 작업 영역 높이 안에서만 — 낮은 화면에서는 계단을 완만하게 눕힌다.
+    let step_budget = (area_height - WIDGET_ARRANGE_GAP * 2.0 - max_height).max(0.0);
+    let step_y = if per_flight > 1 {
+        WIDGET_CASCADE_STEP_Y.min(step_budget / (per_flight - 1) as f64)
+    } else {
+        0.0
+    };
+    let flight_height = max_height + step_y * (per_flight - 1) as f64;
+
+    for (index, widget) in targets.iter().enumerate() {
         let size = widget_window_size(widget);
-        // 대각선 오프셋이 하단을 넘거나 좌측 여백을 침범하면 덱을 우상단으로 되감는다.
-        if deck > 0.0
-            && (base_y + deck + size.height > area_bottom
-                || base_x - deck < area_x + WIDGET_ARRANGE_GAP)
-        {
-            deck = 0.0;
-        }
-        let (x, y) = clamp_point_into_work_area(
-            base_x - deck,
-            base_y + deck,
-            &size,
-            area_x,
-            area_y,
-            area_width,
-            area_height,
-        );
+        let flight = index / per_flight;
+        let item = index % per_flight;
+        let x = area_x + area_width
+            - WIDGET_ARRANGE_GAP
+            - size.width
+            - item as f64 * (max_width + WIDGET_ARRANGE_GAP);
+        let y = area_y
+            + WIDGET_ARRANGE_GAP
+            + flight as f64 * (flight_height + WIDGET_ARRANGE_GAP)
+            + item as f64 * step_y;
+        let (x, y) =
+            clamp_point_into_work_area(x, y, &size, area_x, area_y, area_width, area_height);
         placements.push((
             widget_window_label(widget),
             WidgetWindowPosition {
@@ -3200,7 +3788,6 @@ fn arrange_widget_cascade_placements(
                 y: y.round() as i32,
             },
         ));
-        deck += step;
     }
     placements
 }
@@ -3809,14 +4396,7 @@ fn open_onboarding_overlay(
     app: AppHandle,
     monitor_state: tauri::State<'_, AppMonitorState>,
 ) -> Result<(), String> {
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = app;
-        let _ = monitor_state;
-        return Ok(());
-    }
-
-    #[cfg(target_os = "macos")]
+    // 윈도우에서도 동일하게 띄운다 — 배경이 반투명이라 전체 화면을 가리는 문제가 없다.
     {
         if let Some(window) = app.get_webview_window(ONBOARDING_OVERLAY_WINDOW_LABEL) {
             let _ = window.unminimize();
@@ -3858,13 +4438,6 @@ fn open_onboarding_overlay(
 
 #[tauri::command]
 fn close_onboarding_overlay(app: AppHandle) -> Result<(), String> {
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = app;
-        return Ok(());
-    }
-
-    #[cfg(target_os = "macos")]
     {
         let Some(window) = app.get_webview_window(ONBOARDING_OVERLAY_WINDOW_LABEL) else {
             return Ok(());
@@ -3912,6 +4485,56 @@ fn hide_main_window_to_tray(app: &AppHandle) -> Result<(), String> {
     };
 
     window.hide().map_err(|error| error.to_string())
+}
+
+/// 앱 아이콘의 읽지 않은 알림 배지 — macOS/리눅스는 숫자 배지, 윈도우는 작업표시줄 오버레이 점.
+/// 메인 창이 닫혀 있어도(위젯만 떠 있어도) 동작하도록 아무 창으로나 폴백한다.
+#[tauri::command]
+fn set_app_badge_count(app: AppHandle, count: i64) -> Result<(), String> {
+    let count = count.max(0);
+    let Some(window) = app
+        .get_webview_window(MAIN_WINDOW_LABEL)
+        .or_else(|| app.webview_windows().values().next().cloned())
+    else {
+        return Ok(());
+    };
+
+    #[cfg(target_os = "windows")]
+    {
+        if count > 0 {
+            let _ = window.set_overlay_icon(Some(badge_overlay_image()));
+        } else {
+            let _ = window.set_overlay_icon(None);
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = window.set_badge_count(if count > 0 { Some(count) } else { None });
+    }
+
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn badge_overlay_image() -> tauri::image::Image<'static> {
+    // 16x16 dust rose(#E89898) 원 — 에셋 파일 없이 메모리에서 그린다(디자인 토큰 색 준수).
+    const SIZE: i32 = 16;
+    let mut rgba = Vec::with_capacity((SIZE * SIZE * 4) as usize);
+    let center = (SIZE as f64 - 1.0) / 2.0;
+    let radius = SIZE as f64 / 2.0 - 1.0;
+    for y in 0..SIZE {
+        for x in 0..SIZE {
+            let dx = x as f64 - center;
+            let dy = y as f64 - center;
+            if (dx * dx + dy * dy).sqrt() <= radius {
+                rgba.extend_from_slice(&[0xE8, 0x98, 0x98, 0xFF]);
+            } else {
+                rgba.extend_from_slice(&[0, 0, 0, 0]);
+            }
+        }
+    }
+    tauri::image::Image::new_owned(rgba, SIZE as u32, SIZE as u32)
 }
 
 fn setup_main_tray(app: &tauri::App) -> Result<(), String> {
@@ -4097,6 +4720,9 @@ async fn open_widget_window(
     let widget = prepare_open_widget_window(&app, &state, input.unwrap_or_default())?;
     persist_widget_window_state(&app, &state)?;
     let result = schedule_widget_window_build_and_raise(&app, &monitor_state, &widget)?;
+    // 재사용 웹뷰(hide→show 복원)의 React 상태를 깨운다. 새로 빌드되는 창에는 리스너가
+    // 아직 없어 이벤트가 버려지지만, 그 경우 URL 쿼리 초기 동기화가 같은 일을 한다.
+    emit_widget_window_state_changed(&app, &widget);
     // 바에서 버블을 복원한 뒤 바 창 상태(가시성)를 동기화한다. 바 크기는 고정이라 리사이즈는 없다.
     refresh_widget_bar_window(&app, &monitor_state, &state)?;
     Ok(result)
@@ -4222,6 +4848,7 @@ async fn open_widget_windows(
                 )
             },
         )?;
+        emit_widget_window_state_changed(&app, widget);
         results.push(result);
     }
 
@@ -4243,27 +4870,22 @@ fn close_widget_window(
     app: AppHandle,
     monitor_state: tauri::State<'_, AppMonitorState>,
     state: tauri::State<'_, WidgetState>,
-    auth_state: tauri::State<'_, AuthenticatedSurfacesState>,
+    _auth_state: tauri::State<'_, AuthenticatedSurfacesState>,
     input: Option<WidgetWindowTargetInput>,
 ) -> Result<WidgetWindowState, String> {
     let bubble_type = input.as_ref().and_then(|value| value.bubble_type.clone());
     let window_id = input.and_then(|value| value.window_id);
     let widget = with_widget_state(&state, bubble_type, window_id, |widget| {
-        // macOS 메뉴바 테스트에서는 닫기(X)가 네이티브 웹뷰를 내려도 바 복원 항목에 남아야 한다.
-        // Windows는 기존 닫기 의미(DEFAULT + hidden)를 유지해 런처에서 다시 여는 흐름을 건드리지 않는다.
-        if cfg!(target_os = "macos") {
-            widget.mode = "MINIMIZED".to_string();
-        } else {
-            widget.mode = "DEFAULT".to_string();
-        }
+        // X는 "닫기"다. 실행 중인 타이머/뽀모도로 상태는 JS/Tauri pref에 남기되,
+        // 바 복원 칩에는 넣지 않는다. 바에 넣는 동작은 최소화(-)만 담당한다.
+        widget.mode = "DEFAULT".to_string();
         widget.click_through = false;
         widget.dock_orb_visible = false;
         widget.window_visible = false;
     })?;
-    if !widget_keeps_webview_when_hidden(&widget) && authenticated_surfaces_enabled(&auth_state)? {
-        ensure_widget_bar_window(&app, &monitor_state, &state)?;
-    }
     persist_widget_window_state(&app, &state)?;
+    emit_widget_window_state_changed(&app, &widget);
+    emit_widget_bar_items_changed(&app);
     if widget_keeps_webview_when_hidden(&widget) {
         apply_widget_window_state(&app, &monitor_state, &widget)
     } else {
@@ -4273,6 +4895,7 @@ fn close_widget_window(
             reset_widget_applied_window_state(&label);
             window.destroy().map_err(|error| error.to_string())?;
         }
+        refresh_widget_bar_window(&app, &monitor_state, &state)?;
         Ok(widget)
     }
 }
@@ -4300,7 +4923,7 @@ fn toggle_widget_window(
         widget.dock_orb_visible = false;
     })?;
     if !widget.window_visible
-        && !widget_keeps_webview_when_hidden(&widget)
+        && widget_minimizes_to_bar(&widget)
         && authenticated_surfaces_enabled(&auth_state)?
     {
         ensure_widget_bar_window(&app, &monitor_state, &state)?;
@@ -4312,6 +4935,7 @@ fn toggle_widget_window(
     } else {
         apply_widget_window_state(&app, &monitor_state, &widget)?
     };
+    emit_widget_window_state_changed(&app, &widget);
     // 토글 뒤 바 창 상태(가시성)를 동기화한다. 바 크기는 고정이라 리사이즈는 없다.
     refresh_widget_bar_window(&app, &monitor_state, &state)?;
     Ok(result)
@@ -4443,6 +5067,83 @@ mod tests {
     }
 
     #[test]
+    fn hidden_webview_is_kept_only_for_chrome_widgets() {
+        assert!(widget_keeps_webview_when_hidden(&widget(
+            "bar",
+            Some("bar"),
+            0,
+            0
+        )));
+        assert!(widget_keeps_webview_when_hidden(&widget(
+            "menu",
+            Some("menu"),
+            0,
+            0
+        )));
+        assert!(!widget_keeps_webview_when_hidden(&widget(
+            "todo",
+            Some("todo"),
+            0,
+            0
+        )));
+    }
+
+    #[test]
+    fn widget_bar_drag_uses_target_monitor_scale_for_grab_geometry_across_monitors() {
+        let input = WidgetBarDragInput {
+            cursor_x: None,
+            cursor_y: None,
+            grab_x: 100.0,
+            grab_y: 20.0,
+            nav_height: 64.0,
+            nav_width: 360.0,
+            placement: None,
+            root_height: 640.0,
+            root_width: 640.0,
+        };
+
+        let geometry = compute_widget_bar_drag_geometry(
+            &input, 2500.0, 800.0, 2.0, 1.0, 1440.0, 0.0, 1440.0, 900.0, None,
+        );
+
+        assert_eq!(geometry.placement, "above");
+        assert_eq!(geometry.next_x.round() as i32, 2260);
+        assert_ne!(geometry.next_x.round() as i32, 1872);
+        assert_eq!(geometry.next_y.round() as i32, 208);
+    }
+
+    #[test]
+    fn widget_bar_drag_keeps_requested_placement_during_drag() {
+        let input = WidgetBarDragInput {
+            cursor_x: None,
+            cursor_y: None,
+            grab_x: 100.0,
+            grab_y: 20.0,
+            nav_height: 64.0,
+            nav_width: 360.0,
+            placement: Some("above".to_string()),
+            root_height: 640.0,
+            root_width: 640.0,
+        };
+
+        let natural_below = compute_widget_bar_drag_geometry(
+            &input,
+            500.0,
+            40.0,
+            1.0,
+            1.0,
+            0.0,
+            0.0,
+            1440.0,
+            900.0,
+            input.placement.as_deref(),
+        );
+
+        assert_eq!(natural_below.placement, "above");
+        assert_eq!(natural_below.next_y.round() as i32, -552);
+    }
+
+    #[test]
     fn closed_widget_state_remains_restorable_from_bar() {
         let mut store = WidgetWindowStore::default();
         store.bubbles.insert(
@@ -4466,6 +5167,23 @@ mod tests {
 
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].active_bubble, "chat");
+    }
+
+    #[test]
+    fn closed_default_widget_is_removed_from_bar_items() {
+        let mut store = WidgetWindowStore::default();
+        store.bubbles.insert(
+            "timer".to_string(),
+            WidgetWindowState {
+                mode: "DEFAULT".to_string(),
+                window_visible: false,
+                ..widget("timer", Some("timer"), 0, 0)
+            },
+        );
+
+        let items = widget_bar_items_from_store(&store);
+
+        assert!(items.is_empty());
     }
 
     #[test]
@@ -4622,6 +5340,7 @@ pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
         .manage(Mutex::new(AppMonitorPreferenceStore::default()))
         .manage(Mutex::new(WidgetWindowStore::default()))
@@ -4689,6 +5408,7 @@ pub fn run() {
             get_tauri_google_authorization_url,
             get_widget_window_state,
             list_app_monitors,
+            move_widget_windows_to_monitor,
             notify_widget_drag_started,
             notify_widget_pointer_seen,
             open_external_url,
@@ -4707,6 +5427,7 @@ pub fn run() {
             set_widget_bar_preview_placement,
             open_onboarding_overlay,
             close_onboarding_overlay,
+            set_app_badge_count,
             set_preferred_app_monitor,
             set_widget_always_on_top,
             set_widget_click_through,
@@ -4744,6 +5465,7 @@ pub fn run() {
             local_files::get_local_file_analysis_status,
             local_files::stage_local_file_events_for_sync,
             local_files::mark_local_file_events_synced,
+            local_files::reconcile_local_files_with_server,
             local_files::stage_local_file_analysis_backfill,
             local_files::mark_local_file_analyses_sent,
             local_files::unwatch_all_managed_folders,
@@ -4820,6 +5542,48 @@ pub fn run() {
 #[cfg(test)]
 mod widget_runtime_tests {
     use super::*;
+
+    #[test]
+    fn bar_clamp_accepts_coordinates_inside_a_secondary_monitor_work_area() {
+        // 바 클램프는 "넘겨받은 모니터의 작업 영역" 안이면 좌표를 그대로 둬야 한다.
+        // (두 번째 모니터의 작업 영역이 넘어와도 원래 모니터로 되끌지 않는다 — 모니터 간 이동의 전제.)
+        let bar = default_widget_window_state("bar", Some("bar".to_string()));
+        let size = widget_window_size(&bar);
+        let (x, y) =
+            clamp_widget_local_position(&bar, &size, 0.0, 0.0, 2560.0, 1415.0, 960.0, 700.0);
+        assert_eq!((x, y), (960.0, 700.0));
+
+        // 작업 영역을 한참 벗어난 좌표는 pill 최소 가시폭(320px)이 남는 경계까지만 들어온다.
+        let (x, _) =
+            clamp_widget_local_position(&bar, &size, 0.0, 0.0, 2560.0, 1415.0, 9999.0, 700.0);
+        assert_eq!(x, 2560.0 - WIDGET_BAR_MIN_VISIBLE_WIDTH);
+
+        // 주 모니터 왼쪽에 놓인 모니터(음수 원점 작업 영역)도 그대로 지원한다.
+        let (x, _) =
+            clamp_widget_local_position(&bar, &size, -1920.0, 0.0, 1920.0, 1040.0, -30000.0, 200.0);
+        assert_eq!(x, -1920.0 - (size.width - WIDGET_BAR_MIN_VISIBLE_WIDTH));
+    }
+
+    #[test]
+    fn non_bar_widgets_keep_free_placement_in_local_clamp() {
+        // 버블 창은 반쯤 화면 밖 배치를 허용하므로 이 클램프가 좌표를 건드리면 안 된다.
+        let memo = default_widget_window_state("memo", Some("memo".to_string()));
+        let size = widget_window_size(&memo);
+        let (x, y) =
+            clamp_widget_local_position(&memo, &size, 0.0, 0.0, 800.0, 600.0, 4000.0, -500.0);
+        assert_eq!((x, y), (4000.0, -500.0));
+    }
+
+    #[test]
+    fn local_point_conversion_between_monitors_respects_origin_and_scale() {
+        // 1x 모니터(원점 0,0) 로컬 (2020,50) = 물리 (2020,50) → 2x 모니터(원점 1920,0) 로컬로.
+        let (x, y) = convert_local_point_between_monitors(2020.0, 50.0, 0, 0, 1.0, 1920, 0, 2.0);
+        assert_eq!((x, y), (50.0, 25.0));
+
+        // 역방향 환산도 물리 px 기준으로 원래 자리로 돌아온다.
+        let (x, y) = convert_local_point_between_monitors(50.0, 25.0, 1920, 0, 2.0, 0, 0, 1.0);
+        assert_eq!((x, y), (2020.0, 50.0));
+    }
 
     #[test]
     fn widget_room_context_updates_all_known_widgets_and_can_clear_room() {
@@ -5181,8 +5945,11 @@ mod widget_runtime_tests {
             .collect();
 
         let (area_x, area_y, area_w, area_h) = (0.0_f64, 0.0_f64, 1280.0_f64, 720.0_f64);
-        for layout in ["grid", "column", "row", "cascade"] {
+        for layout in ["board", "grid", "column", "row", "cascade"] {
             let placements = match layout {
+                "board" => {
+                    arrange_widget_board_placements(&targets, area_x, area_y, area_w, area_h)
+                }
                 "column" => {
                     arrange_widget_column_placements(&targets, area_x, area_y, area_w, area_h)
                 }
@@ -5217,6 +5984,91 @@ mod widget_runtime_tests {
                     y + size.height <= area_y + area_h + 1.0,
                     "layout {layout}: {label} bottom edge {} > area bottom",
                     y + size.height
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn board_layout_places_widgets_in_right_anchored_columns() {
+        let targets: Vec<WidgetWindowState> = ["todo", "agent", "schedule", "timer"]
+            .iter()
+            .map(|bubble| default_widget_window_state(bubble, Some((*bubble).to_string())))
+            .collect();
+
+        let placements = arrange_widget_board_placements(&targets, 0.0, 0.0, 1440.0, 900.0);
+        let positions: Vec<WidgetWindowPosition> = placements
+            .iter()
+            .map(|(_, position)| position.clone())
+            .collect();
+
+        assert_eq!(placements.len(), 4);
+        assert!(positions
+            .iter()
+            .all(|position| position.x > 0 && position.y >= 24));
+        assert!(
+            positions
+                .windows(2)
+                .any(|window| window[0].x != window[1].x || window[0].y != window[1].y),
+            "board layout should not stack every widget at the same point",
+        );
+    }
+
+    #[test]
+    fn cascade_layout_does_not_rewind_to_identical_positions() {
+        let targets: Vec<WidgetWindowState> = QA_ALL_WIDGET_BUBBLES
+            .iter()
+            .map(|bubble| default_widget_window_state(bubble, Some((*bubble).to_string())))
+            .collect();
+
+        let placements = arrange_widget_cascade_placements(&targets, 0.0, 0.0, 1440.0, 900.0);
+        let unique_positions: HashSet<(i32, i32)> = placements
+            .iter()
+            .map(|(_, position)| (position.x, position.y))
+            .collect();
+
+        assert_eq!(placements.len(), targets.len());
+        assert_eq!(
+            unique_positions.len(),
+            placements.len(),
+            "cascade layout should keep each widget visibly offset",
+        );
+    }
+
+    #[test]
+    fn cascade_layout_keeps_core_widgets_non_overlapping() {
+        // 시작 프리셋(카드 덱)이 여는 핵심 버블 수준에서는 계단식도 겹침이 전혀 없어야 한다.
+        let targets: Vec<WidgetWindowState> = ["todo", "agent", "schedule", "timer"]
+            .iter()
+            .map(|bubble| default_widget_window_state(bubble, Some((*bubble).to_string())))
+            .collect();
+
+        let placements = arrange_widget_cascade_placements(&targets, 0.0, 0.0, 1440.0, 900.0);
+        assert_eq!(placements.len(), targets.len());
+
+        let rects: Vec<(f64, f64, f64, f64)> = placements
+            .iter()
+            .zip(targets.iter())
+            .map(|((_, position), widget)| {
+                let size = widget_window_size(widget);
+                (
+                    f64::from(position.x),
+                    f64::from(position.y),
+                    size.width,
+                    size.height,
+                )
+            })
+            .collect();
+
+        for (index, left) in rects.iter().enumerate() {
+            for right in rects.iter().skip(index + 1) {
+                let separated = left.0 + left.2 <= right.0
+                    || right.0 + right.2 <= left.0
+                    || left.1 + left.3 <= right.1
+                    || right.1 + right.3 <= left.1;
+                assert!(
+                    separated,
+                    "cascade windows must not overlap: {left:?} vs {right:?}",
                 );
             }
         }

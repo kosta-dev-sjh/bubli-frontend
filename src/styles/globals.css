@@ -788,7 +788,7 @@ select {
   font-variant-numeric: tabular-nums;
 }
 .bubli-ring__label {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--ink-soft);
 }
 [data-theme="dark"] .bubli-ring__metric { color: #EAF0F8; }
@@ -857,15 +857,15 @@ select {
   top: -2px;
   right: -2px;
   z-index: 2;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
+  min-width: 20px; /* 숫자 14px이 잘리지 않게 뱃지 크기 보정 */
+  height: 20px;
+  padding: 0 5px;
   display: grid;
   place-items: center;
   border-radius: 999px;
   background: #F27195;
   color: #fff;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
 }
 
@@ -972,7 +972,7 @@ select {
 .bubli-widget__body { display: grid; gap: 2px; }
 .bubli-widget__item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid rgba(120, 150, 170, 0.13); font-size: 14px; }
 .bubli-widget__item:first-child { border-top: none; }
-.bubli-widget__item small { color: var(--text-3); font-size: 12px; }
+.bubli-widget__item small { color: var(--text-3); font-size: 14px; }
 .bubli-widget__cb { width: 18px; height: 18px; flex: 0 0 auto; border-radius: 6px; border: 1.6px solid rgba(140, 160, 185, 0.85); }
 .bubli-widget__cb--done { background: var(--bubble-blue); border-color: transparent; }
 .bubli-widget__timer { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; margin: 4px 0 0; }
@@ -1007,7 +1007,7 @@ select {
 .bubli-widget__ghost { display: flex; align-items: center; gap: 16px; }
 .bubli-widget__signal { display: flex; align-items: center; gap: 7px; font-size: 14px; color: var(--ink-soft); }
 .bubli-widget__signal .bubli-widget__through {
-  display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-3);
+  display: inline-flex; align-items: center; gap: 5px; font-size: 14px; color: var(--text-3);
 }
 
 /* Minimal — BubbleBar/DockOrb로 접힘, 떠 있는 작은 존재 */
@@ -1160,7 +1160,7 @@ select {
   color: var(--blue-ink);
   background: rgba(255, 255, 255, 0.46);
   box-shadow: var(--inner-highlight-light);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 850;
 }
 
@@ -1176,6 +1176,11 @@ select {
   justify-content: center;
   gap: 3px;
   min-height: 68px;
+  /* 긴 언어(EN/JA) 라벨이 필 자체를 레일 밖 오른쪽으로 밀어내지 않게 폭을 잠근다. */
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
   border: 1px solid transparent;
   border-radius: 18px;
   /* 활성 그라데이션 바와 라벨 사이 최소 5px 여백 확보 */
@@ -1195,21 +1200,18 @@ select {
 
 /* 아이콘 밑에 항상 보이는 내비 라벨 — 호버 툴팁을 대체한다. */
 .bubli-nav__label {
-  display: block;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   max-width: 100%;
-  height: 16px;
   overflow: hidden;
-  padding: 0 2px;
-  color: currentColor;
+  min-height: 17px; /* 글자 14px 한 줄 높이 보정 */
   font-size: 14px;
-  font-weight: 650;
-  letter-spacing: 0.01em;
-  line-height: 1.1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  opacity: 0;
-  transform: translateY(2px);
-  transition: opacity 160ms var(--ease-out), transform 160ms var(--ease-out);
+  font-weight: 740;
+  line-height: 1.15;
+  text-align: center;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 /* 메뉴는 아이콘 중심, 텍스트는 호버/포커스/활성일 때 아래에 나타난다. */
@@ -1279,7 +1281,7 @@ select {
   background:
     radial-gradient(circle at 30% 18%, rgba(255, 255, 255, 0.94), transparent 38%),
     linear-gradient(145deg, rgba(216, 240, 255, 0.78), rgba(230, 221, 248, 0.42));
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 900;
 }
 
@@ -1415,7 +1417,7 @@ select {
 .workspace-switcher__label {
   padding: 0 6px;
   color: color-mix(in srgb, var(--color-muted) 86%, var(--blue-ink) 14%);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 900;
 }
 
@@ -1461,7 +1463,7 @@ select {
   background:
     linear-gradient(145deg, rgba(216, 240, 255, 0.78), rgba(230, 221, 248, 0.46)),
     rgba(255, 255, 255, 0.76);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 920;
 }
 
@@ -1483,7 +1485,7 @@ select {
 .workspace-switcher__item small {
   overflow: hidden;
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 720;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1514,7 +1516,7 @@ select {
   display: grid;
   gap: 6px;
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 860;
 }
 
@@ -1539,7 +1541,7 @@ select {
 .workspace-switcher__file-hint {
   margin-top: -4px;
   color: rgba(90, 103, 114, 0.82);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 720;
   line-height: 1.45;
 }
@@ -1559,7 +1561,7 @@ select {
   color: var(--blue-ink);
   background: rgba(216, 240, 255, 0.42);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 820;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1721,7 +1723,7 @@ select {
   padding: 6px 7px;
   color: var(--color-muted);
   background: rgba(255, 255, 255, 0.42);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 820;
   line-height: 1;
 }
@@ -1939,7 +1941,7 @@ select {
   color: var(--blue-ink);
   background: rgba(255, 255, 255, 0.72);
   font: inherit;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 880;
   cursor: pointer;
   transition:
@@ -2018,7 +2020,7 @@ select {
 }
 
 .workspace-route__summary > div > span {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--ink-soft);
   background: none;
@@ -2033,7 +2035,7 @@ select {
   border-radius: 999px;
   background: var(--blue-ink);
   color: #fff;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
 }
 
@@ -2066,7 +2068,7 @@ select {
 
 .workspace-route__status-chip b {
   color: var(--ink-soft);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 780;
 }
 
@@ -2078,7 +2080,7 @@ select {
 
 .workspace-route__status-chip small {
   color: var(--ink-soft);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 760;
 }
 
@@ -3275,7 +3277,7 @@ select {
 
 .workspace-route__social-card--invite > small {
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 760;
   line-height: 1.45;
 }
@@ -3286,7 +3288,7 @@ select {
   align-items: center;
   gap: 6px;
   color: var(--blue-ink);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 900;
 }
 
@@ -3323,7 +3325,7 @@ select {
 .workspace-route__friend-result small,
 .workspace-route__voice-person small {
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 760;
 }
 
@@ -3341,7 +3343,7 @@ select {
 .workspace-route__social-note {
   margin: -4px 2px 0;
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 740;
   line-height: 1.45;
 }
@@ -3360,7 +3362,7 @@ select {
   color: var(--blue-ink);
   background: rgba(255, 255, 255, 0.74);
   font: inherit;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 880;
   cursor: pointer;
 }
@@ -3500,7 +3502,7 @@ button.workspace-route__friend-row:hover {
 
 .workspace-route__friend-row small {
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 720;
 }
 
@@ -3525,7 +3527,7 @@ button.workspace-route__friend-row:hover {
   color: var(--blue-ink);
   background: rgba(255, 255, 255, 0.7);
   font: inherit;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 860;
   cursor: pointer;
   transition:
@@ -3555,7 +3557,7 @@ button.workspace-route__friend-row:hover {
   padding: 0 10px;
   color: var(--blue-ink);
   background: rgba(255, 255, 255, 0.7);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 860;
 }
 
@@ -3590,7 +3592,7 @@ button.workspace-route__friend-row:hover {
 
 .workspace-route__request-group > span {
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 840;
 }
 
@@ -3631,7 +3633,7 @@ button.workspace-route__friend-row:hover {
 
 .workspace-route__friend-request small {
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 720;
 }
 
@@ -3646,7 +3648,7 @@ button.workspace-route__friend-row:hover {
   padding: 6px 9px;
   color: var(--blue-ink);
   background: rgba(255, 255, 255, 0.7);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 860;
   cursor: pointer;
 }
@@ -3661,7 +3663,7 @@ button.workspace-route__friend-row:hover {
   padding: 0 9px;
   color: var(--color-muted);
   background: rgba(255, 255, 255, 0.62);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 840;
 }
 
@@ -3711,7 +3713,7 @@ button.workspace-route__friend-row:hover {
 
 .workspace-route__group-name-field span {
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 820;
 }
 
@@ -3916,7 +3918,7 @@ button.workspace-route__friend-row:hover {
 
 /* 알림 텍스트 — 배지 아래 작게 */
 .workspace-route__voice-notice {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--color-muted);
   padding-left: 12px;
   line-height: 1.4;
@@ -3998,7 +4000,7 @@ button.workspace-route__friend-row:hover {
 
 .workspace-route__voice-people--inline .workspace-route__voice-person small {
   display: block;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--color-muted);
   white-space: nowrap;
 }
@@ -4106,7 +4108,7 @@ button.workspace-route__friend-row:hover {
 
 .workspace-route__message span {
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 760;
 }
 
@@ -4187,7 +4189,7 @@ button.workspace-route__friend-row:hover {
   transform: translateX(-50%);
   background: rgba(30, 30, 30, 0.82);
   color: #fff;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   padding: 3px 10px;
   border-radius: 6px;
@@ -4231,7 +4233,7 @@ button.workspace-route__friend-row:hover {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--ink);
   text-align: left;
@@ -4253,14 +4255,14 @@ button.workspace-route__friend-row:hover {
   padding: 8px 14px;
   background: rgba(60, 120, 210, 0.07);
   border-top: 1px solid rgba(60, 120, 210, 0.15);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .workspace-route__reply-preview span {
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--blue-ink);
   white-space: nowrap;
@@ -4273,7 +4275,7 @@ button.workspace-route__friend-row:hover {
   white-space: nowrap;
   text-overflow: ellipsis;
   color: var(--ink-soft);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
 }
 
@@ -4306,7 +4308,7 @@ button.workspace-route__friend-row:hover {
 
 .workspace-route__message-reply-quote strong,
 .workspace-route__message-reply-quote-name {
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 800;
   color: var(--blue-ink);
   overflow: hidden;
@@ -4316,7 +4318,7 @@ button.workspace-route__friend-row:hover {
 
 .workspace-route__message-reply-quote span,
 .workspace-route__message-reply-quote-text {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--ink-soft);
   overflow: hidden;
   white-space: nowrap;
@@ -7038,7 +7040,7 @@ button.workspace-route__friend-row:hover {
   padding: 5px 8px;
   color: var(--color-blue-deep);
   background: rgba(215, 234, 244, 0.52);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
   line-height: 1.2;
 }
@@ -8307,11 +8309,11 @@ button.workspace-route__friend-row:hover {
   padding: 13px;
   width: 240px;
 }
-.bubli-dash-palette__title { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--blue-ink); margin-bottom: 10px; }
+.bubli-dash-palette__title { font-size: 14px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--blue-ink); margin-bottom: 10px; }
 .bubli-dash-palette__hint {
   margin: -4px 0 10px;
   color: var(--text-3);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 650;
   line-height: 1.45;
 }
@@ -8391,7 +8393,7 @@ button.workspace-route__friend-row:hover {
 }
 .bubli-dash-palette__item .bubli-dash-tile__icon { width: 26px; height: 26px; }
 .bubli-dash-palette__item-title { font-size: 14px; font-weight: 600; }
-.bubli-dash-palette__item-desc { font-size: 12px; color: var(--text-3); }
+.bubli-dash-palette__item-desc { font-size: 14px; color: var(--text-3); }
 .bubli-dash-palette__empty { padding: 18px 8px; text-align: center; font-size: 14px; color: var(--text-3); }
 .bubli-dash-palette__drag-preview {
   display: inline-flex;
@@ -8461,7 +8463,7 @@ button.workspace-route__friend-row:hover {
   display: block;
   margin-bottom: 2px;
   color: var(--color-faint);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 780;
 }
 
@@ -10092,7 +10094,7 @@ html {
   overflow: hidden;
 }
 .landing-nav__links a {
-  font-size: clamp(12.5px, 1.05vw, 14px);
+  font-size: 14px;
   font-weight: 650;
   color: var(--color-muted);
   text-decoration: none;
@@ -10115,6 +10117,46 @@ html {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* 랜딩 언어 선택 — 회원 프로필 메뉴의 언어 줄과 같은 pill 세그먼트 톤. */
+.landing-nav__locale {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid rgba(213, 228, 240, 0.8);
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.landing-nav__locale-btn {
+  border: 0;
+  background: transparent;
+  padding: 4px 10px;
+  border-radius: 999px;
+  color: var(--ink-soft, #5a6772);
+  font-size: 14px;
+  font-weight: 740;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.landing-nav__locale-btn:hover {
+  color: var(--ink, #2c3540);
+}
+
+.landing-nav__locale-btn.is-active {
+  background: rgba(142, 205, 246, 0.28);
+  color: var(--blue-ink);
+}
+
+@media (max-width: 640px) {
+  /* 좁은 화면에서는 짧은 표기만으로 줄바꿈 없이 들어가게 한다. */
+  .landing-nav__locale-btn {
+    padding: 4px 7px;
+    font-size: 14px;
+  }
 }
 .landing-nav__user {
   display: inline-flex;
@@ -10416,7 +10458,7 @@ html {
   background: rgba(216, 240, 255, 0.62);
   border: 1px solid rgba(111, 184, 242, 0.24);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 820;
   transition:
     transform 0.3s var(--ease-out, ease),
@@ -11411,7 +11453,7 @@ html {
 .landing-app-preview__platforms-label {
   margin-right: 2px;
   color: var(--ink-soft);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
 }
 
@@ -13629,14 +13671,14 @@ html {
   gap: 8px;
   align-items: center;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 720;
   line-height: 1.35;
 }
 
 .tauri-sync__recent-row strong {
   color: var(--color-text);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 820;
 }
 
@@ -13912,11 +13954,12 @@ html {
 }
 
 .activity-detection__consent strong {
+  /* 앱 개수 숫자가 동의 상태 배지보다 크게 소리치지 않도록 톤을 낮춘다(40px -> 24px). */
   color: var(--color-blue-deep);
-  font-size: 40px;
-  font-weight: 900;
+  font-size: 24px;
+  font-weight: 800;
   letter-spacing: 0;
-  line-height: 1;
+  line-height: 1.1;
 }
 
 .activity-detection__consent span {
@@ -13938,7 +13981,7 @@ html {
   min-width: 0;
   overflow-wrap: anywhere;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 720;
   line-height: 1.35;
 }
@@ -14167,7 +14210,7 @@ html {
     padding: 5px 9px;
     color: var(--color-blue-deep);
     background: rgba(255, 255, 255, 0.62);
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 780;
     line-height: 1;
   }
@@ -15383,7 +15426,7 @@ html {
 }
 
 .widget-mode-card__cap span {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-faint, #98a5af);
 }
 
@@ -15540,7 +15583,7 @@ html {
 }
 
 .bubli-flow__hint {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-faint, #98a5af);
 }
 
@@ -16096,7 +16139,7 @@ html {
   background: rgba(216, 240, 255, 0.62);
   border: 1px solid rgba(111, 184, 242, 0.24);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 820;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
@@ -16717,21 +16760,23 @@ html {
     min-height: 540px;
   }
 
+  /* 워크스페이스 카드(끝 64%)와 위젯 묶음(시작 66%+)이 가로로 서로 침범하지 않게 폭을 맞춘다. */
   .public-orbit-preview__workspace {
     left: 8%;
     top: 30%;
-    width: 62%;
+    width: 56%;
   }
 
   .public-orbit-preview__widgets {
     right: 5%;
-    width: min(230px, 48%);
+    width: min(200px, 30%);
   }
 }
 
 @media (max-width: 640px) {
   .public-orbit-preview {
-    min-height: 430px;
+    /* 워크스페이스 카드(top 36% + 내용 높이)가 바닥을 뚫고 잘리지 않도록 여유를 준다. */
+    min-height: 520px;
     border-radius: 30px;
   }
 
@@ -16780,7 +16825,7 @@ html {
   .public-orbit-preview__workspace {
     left: 7%;
     right: 7%;
-    top: 39%;
+    top: 36%;
     width: auto;
     transform: none;
   }
@@ -16794,23 +16839,10 @@ html {
     padding: 10px;
   }
 
+  /* 모바일에서는 워크스페이스 카드가 세로 공간을 다 쓰므로 위젯 묶음은 숨긴다 —
+     같은 자리에 겹쳐 그려지던 문제의 직접 원인. */
   .public-orbit-preview__widgets {
-    left: 10%;
-    right: 10%;
-    bottom: 6%;
-    display: flex;
-    width: auto;
-  }
-
-  .public-orbit-preview__widgets article {
-    min-width: 0;
-    flex: 1;
-    padding: 10px;
-  }
-
-  .public-orbit-preview__widgets article:nth-child(2),
-  .public-orbit-preview__widgets article:nth-child(3) {
-    transform: none;
+    display: none;
   }
 }
 
@@ -17641,6 +17673,8 @@ html {
    ============================================================ */
 .public-home-flow--story {
   position: relative;
+  /* 트랙 높이 = 장면 수 기준: 패널 1뷰포트 + 장면 4개 x 40vh.
+     마지막 장면 뒤 잉여 스크롤이 40vh(1뷰포트 미만)로 끝나고 바로 고정이 풀린다. */
   min-height: 260vh;
   margin-top: clamp(26px, 5vw, 52px);
 }
@@ -17651,7 +17685,10 @@ html {
   right: 0;
   top: 96px;
   display: grid;
-  min-height: min(760px, calc(100dvh - 128px));
+  /* 760px 상한을 없애고 패널이 항상 뷰포트를 채우게 한다(위 96px + 아래 32px 여유).
+     상한이 있으면 높이 889px 이상 창에서 패널 아래로 빈 띠(뷰포트-856px)가 생기고,
+     장면이 끝난 뒤에도 그 잉여 트랙만큼 흰 공백을 지나야 다음 섹션이 나왔다. */
+  min-height: calc(100dvh - 128px);
   grid-template-columns: minmax(300px, 0.44fr) minmax(0, 0.56fr);
   gap: clamp(24px, 5vw, 72px);
   align-items: center;
@@ -17688,7 +17725,11 @@ html {
 .public-home-flow__veil {
   position: absolute;
   inset: 0;
+  /* 배경 영상 마스크: 카피가 앉는 왼쪽은 흰색을 진하게, 오른쪽으로 갈수록 투명하게.
+     맨 아래에는 흰색 세로 페이드를 한 겹 더 깔아 영상이 패널 하단 유리 테두리에서
+     뚝 끊기지 않고 자연스럽게 잦아들게 한다. */
   background:
+    linear-gradient(180deg, rgba(252, 253, 255, 0) 58%, rgba(252, 253, 255, 0.66) 100%),
     linear-gradient(90deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.62) 54%, rgba(247, 250, 253, 0.32) 100%),
     radial-gradient(ellipse 42% 38% at calc(14% + (var(--flow-progress) * 48%)) 76%, rgba(216, 240, 255, 0.52), transparent 72%);
   pointer-events: none;
@@ -17876,7 +17917,7 @@ html {
   border-left: 3px solid rgba(107, 143, 168, 0.28);
   padding-left: 14px;
   color: color-mix(in srgb, var(--color-muted) 84%, var(--blue-ink) 16%);
-  font-size: clamp(13px, 1.15vw, 15px);
+  font-size: clamp(14px, 1.15vw, 15px);
   font-weight: 760;
   line-height: 1.55;
 }
@@ -18497,6 +18538,67 @@ html {
   }
 }
 
+/* ============================================================
+   Public home flow sticky story — 작은 창 폴백
+   고정 패널(카피+그림)이 창 안에 다 들어가지 못하는 크기에서는
+   sticky를 풀고 일반 세로 흐름으로 보여준다. 고정된 채로 잘리면
+   그림 영역이 화면 밖에 남아 스크롤해도 백지처럼 보이기 때문이다.
+   기준값은 public-home-flow.tsx의 COMPACT_WINDOW_QUERY와 짝을 이룬다.
+   ============================================================ */
+@media (max-width: 960px) and (max-height: 820px), (min-width: 961px) and (max-height: 760px) {
+  .public-home-flow--story {
+    min-height: auto;
+  }
+
+  /* JS 상태 클래스가 어떤 값으로 남아 있어도 항상 문서 흐름에 둔다. */
+  .public-home-flow__sticky,
+  .public-home-flow__sticky.is-before,
+  .public-home-flow__sticky.is-fixed,
+  .public-home-flow__sticky.is-after,
+  .public-home-flow__sticky.is-static {
+    position: relative;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    left: auto;
+    z-index: auto;
+    min-height: auto;
+  }
+
+  /* 장면이 1단계로 고정되므로 4단계 목록을 아래에 그대로 펼쳐 내용을 전부 보여준다. */
+  .public-home-flow__scroll-track {
+    display: block;
+    position: relative;
+    inset: auto;
+    margin-top: 18px;
+    pointer-events: auto;
+  }
+
+  .public-home-flow--story .public-home-flow__steps {
+    display: grid;
+    position: relative;
+    inset: auto;
+    width: auto;
+    padding-bottom: 0;
+    opacity: 1;
+  }
+
+  .public-home-flow--story .public-home-flow__step {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* 스크롤 진행 막대는 고정 장면 전용이라 폴백에서는 숨긴다 — 단계 목록이 그 역할을 대신한다. */
+  .public-home-flow__story-trace {
+    display: none;
+  }
+
+  /* 그림 영역이 세로 흐름에서도 확실히 보이도록 창 높이에 맞춰 잡는다. */
+  .public-home-flow__story-visual {
+    min-height: clamp(240px, 38dvh, 420px);
+  }
+}
+
 /* 0005ec68 기준 다운로드 섹션 배치 복원 */
 .landing-download {
   max-width: none;
@@ -18987,7 +19089,7 @@ html {
   color: var(--color-muted);
   background: rgba(255, 255, 255, 0.5);
   box-shadow: var(--inner-highlight-light);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 860;
 }
 
@@ -19729,7 +19831,7 @@ html {
 
 .workspace-dashboard__todo-form label > span {
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 900;
 }
 
@@ -19806,7 +19908,7 @@ html {
 
 .workspace-dashboard__task-delete span {
   color: inherit;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 900;
   line-height: 1;
 }
@@ -20639,7 +20741,7 @@ html {
 .bubli-app-layout .workspace-dashboard__titlebar > span {
   min-height: 22px;
   padding-inline: 8px;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .bubli-app-layout .workspace-dashboard__canvas {
@@ -20657,7 +20759,7 @@ html {
 }
 
 .bubli-app-layout .workspace-switcher__head span {
-  font-size: 12px;
+  font-size: 14px;
 }
 
   .bubli-app-layout .workspace-switcher__add {
@@ -20916,7 +21018,7 @@ html {
 .desktop-widget__head span {
   width: fit-content;
   color: var(--blue-ink);
-  font-size: 12px;
+  font-size: 14px; /* 최소 폰트 14px 정책 */
   font-weight: 820;
   line-height: 1;
 }
@@ -20988,7 +21090,7 @@ html {
 .desktop-widget__active span,
 .desktop-widget__bubble-body span {
   color: var(--blue-ink);
-  font-size: 12px;
+  font-size: 14px; /* 최소 폰트 14px 정책 */
   font-weight: 800;
   line-height: 1;
 }
@@ -21151,7 +21253,7 @@ html {
   height: 30px;
   padding: 0 7px;
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 14px; /* 최소 폰트 14px 정책 */
 }
 
 .desktop-widget__modebar button[aria-pressed="true"] {
@@ -21290,7 +21392,7 @@ html {
   padding: 7px 8px;
   color: var(--color-muted);
   background: rgba(255, 255, 255, 0.56);
-  font-size: 12px;
+  font-size: 14px; /* 최소 폰트 14px 정책 */
   font-weight: 820;
 }
 
@@ -21300,7 +21402,7 @@ html {
   height: 24px;
   padding: 0 9px;
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 14px; /* 최소 폰트 14px 정책 */
 }
 
 .desktop-widget__body {
@@ -21350,7 +21452,7 @@ html {
 .desktop-widget__ring b,
 .desktop-widget__timer span {
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 14px; /* 최소 폰트 14px 정책 */
   font-weight: 780;
   line-height: 1.1;
 }
@@ -21452,7 +21554,7 @@ html {
   border-radius: 999px;
   color: var(--blue-ink);
   background: rgba(216, 240, 255, 0.72);
-  font-size: 12px;
+  font-size: 14px; /* 최소 폰트 14px 정책 */
   font-weight: 860;
 }
 
@@ -21479,7 +21581,7 @@ html {
 .desktop-widget__drop-panel span,
 .desktop-widget__memo-grid span {
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 14px; /* 최소 폰트 14px 정책 */
   font-weight: 720;
   line-height: 1.45;
 }
@@ -21544,7 +21646,7 @@ html {
   height: 32px;
   padding: 0 9px;
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 14px; /* 최소 폰트 14px 정책 */
 }
 
 .desktop-widget__memo-grid {
@@ -21613,7 +21715,7 @@ html {
 
 .desktop-widget__dock-orb b {
   color: var(--blue-ink);
-  font-size: 12px;
+  font-size: 14px; /* 최소 폰트 14px 정책 */
   font-weight: 860;
 }
 
@@ -21766,34 +21868,67 @@ body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main {
   overflow: hidden;
 }
 
-/* 콘텐츠 스크롤 영역 — 웹·하이브리드 공통. 얇고 은은한 브랜드 톤 스크롤바로 통일. */
+/* 콘텐츠 스크롤 영역 — 웹·하이브리드 공통. 스크롤바 모양은 아래 워크스페이스 공통 규칙 하나로 통일한다. */
 .bubli-app-layout .bubli-main-scroll {
   min-height: 0;
   overflow: auto;
   padding-bottom: clamp(22px, 3vw, 42px);
   scrollbar-gutter: stable;
+}
+
+/* 워크스페이스 전역 스크롤바 — 얇은(8px) 반투명 Rain Glass 톤(브랜드 진한색 #6B8FA8 계열).
+   :where()로 특이도를 0으로 낮춰서, 스크롤바를 일부러 숨기는 기존 규칙(.bubli-nav 등의
+   scrollbar-width: none)이 선언 순서와 무관하게 계속 이기게 한다.
+   랜딩(.landing-*, .public-*)과 데스크탑 위젯 표면은 .bubli-app-layout 밖이라 영향이 없다. */
+:where(.bubli-app-layout),
+:where(.bubli-app-layout) * {
+  scrollbar-color: rgba(107, 143, 168, 0.42) transparent;
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--blue-ink) 30%, transparent) transparent;
 }
 
-.bubli-app-layout .bubli-main-scroll::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+:where(.bubli-app-layout)::-webkit-scrollbar,
+:where(.bubli-app-layout) ::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
 }
 
-.bubli-app-layout .bubli-main-scroll::-webkit-scrollbar-track {
+:where(.bubli-app-layout)::-webkit-scrollbar-track,
+:where(.bubli-app-layout) ::-webkit-scrollbar-track,
+:where(.bubli-app-layout)::-webkit-scrollbar-corner,
+:where(.bubli-app-layout) ::-webkit-scrollbar-corner {
   background: transparent;
 }
 
-.bubli-app-layout .bubli-main-scroll::-webkit-scrollbar-thumb {
-  border: 3px solid transparent;
+/* 투명 테두리 + padding-box 클립: 8px 트랙 안에 4px 반투명 썸이 떠 있는 모양 */
+:where(.bubli-app-layout)::-webkit-scrollbar-thumb,
+:where(.bubli-app-layout) ::-webkit-scrollbar-thumb {
+  background: rgba(107, 143, 168, 0.42);
+  background-clip: padding-box;
+  border: 2px solid transparent;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--blue-ink) 30%, transparent);
+}
+
+:where(.bubli-app-layout)::-webkit-scrollbar-thumb:hover,
+:where(.bubli-app-layout) ::-webkit-scrollbar-thumb:hover {
+  background: rgba(107, 143, 168, 0.62);
   background-clip: padding-box;
 }
 
-.bubli-app-layout .bubli-main-scroll::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--blue-ink) 46%, transparent);
+/* 다크: 어두운 유리 위에서 보이도록 다크 헤어라인 계열(150,170,215)로 치환 */
+[data-theme="dark"] :where(.bubli-app-layout),
+[data-theme="dark"] :where(.bubli-app-layout) * {
+  scrollbar-color: rgba(150, 170, 215, 0.38) transparent;
+}
+
+[data-theme="dark"] :where(.bubli-app-layout)::-webkit-scrollbar-thumb,
+[data-theme="dark"] :where(.bubli-app-layout) ::-webkit-scrollbar-thumb {
+  background: rgba(150, 170, 215, 0.38);
+  background-clip: padding-box;
+}
+
+[data-theme="dark"] :where(.bubli-app-layout)::-webkit-scrollbar-thumb:hover,
+[data-theme="dark"] :where(.bubli-app-layout) ::-webkit-scrollbar-thumb:hover {
+  background: rgba(150, 170, 215, 0.56);
   background-clip: padding-box;
 }
 
@@ -21861,16 +21996,11 @@ body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main {
   z-index: 1;
 }
 
-/* 기능 카드 상단의 버블 악센트 */
+/* 기능 카드: 카드 안 버블 악센트는 제거했다 — 왜 섹션에서 같은 방울이 5번 반복돼 정리.
+   ::before 액센트 바가 카드 밖으로 새지 않도록 overflow만 유지한다. */
 .landing-feature-card {
   position: relative;
   overflow: hidden;
-}
-
-.landing-feature-card > .bubli-decor {
-  top: -18px;
-  right: -14px;
-  opacity: 0.34;
 }
 
 /* 다운로드 스테이지 안 배경 버블 */
@@ -22470,8 +22600,10 @@ body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main {
 
 /* ─── 페이지 요소 버블 등장 애니메이션 ─── */
 @keyframes elem-bubble-in {
-  from { opacity: 0; transform: translateY(18px) scale(0.94); }
-  to   { opacity: 1; transform: translateY(0)   scale(1);    }
+  /* scale은 유리 패널의 overflow hidden과 겹쳐 입장 순간 글자를 잘라 보이게 해서 뺐다.
+     떠오르는 이동(translateY)만 남겨 전환 모션은 유지한다(사용자 요청: 모션 살리기). */
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .workspace-route > *,
@@ -22610,7 +22742,7 @@ body[data-bubli-surface="hybrid-app"] .resource-workspace > * {
   border: 1px solid rgba(142, 205, 246, 0.35);
   border-radius: var(--radius-pill, 999px);
   padding: 3px 11px;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 800;
   color: var(--blue-ink);
   letter-spacing: 0.01em;
@@ -22708,7 +22840,7 @@ body[data-bubli-surface="hybrid-app"] .resource-workspace > * {
 }
 
 .voice-call-invite__hint {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 720;
   color: var(--ink-soft);
   text-align: center;
@@ -22809,13 +22941,13 @@ body[data-bubli-surface="hybrid-app"] .resource-workspace > * {
 }
 
 .message-toast__sender {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 900;
   color: var(--blue-ink);
 }
 
 .message-toast__text {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
   color: var(--ink);
   overflow: hidden;
@@ -22824,7 +22956,7 @@ body[data-bubli-surface="hybrid-app"] .resource-workspace > * {
 }
 
 .message-toast__view-detail {
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--blue-ink);
   opacity: 0.75;
@@ -22850,4 +22982,36 @@ body[data-bubli-surface="hybrid-app"] .resource-workspace > * {
 
 .message-toast__close:hover {
   background: rgba(190, 213, 230, 0.35);
+}
+
+/* ============================================================
+   Public landing — 한국어 줄바꿈 품질
+   단어 단위 줄바꿈(word-break: keep-all)은 body에서 이미 상속받는다.
+   여기서는 제목류에 text-wrap: balance(줄 길이를 고르게 나눔),
+   본문류에 text-wrap: pretty(마지막 줄에 한두 글자만 남는 것 방지)를 더한다.
+   미지원 브라우저는 이 속성을 무시하므로 무해하다.
+   ============================================================ */
+.landing-section__head h2,
+.landing-desktop__copy h2,
+.landing-download__head h2,
+.landing-feature-card h3,
+.landing-faq__item h3,
+.public-home-flow--story .public-home-flow__copy h2,
+.public-home-flow__story-card h3,
+.public-hero__copy h1 {
+  text-wrap: balance;
+}
+
+.landing-section__head p,
+.landing-desktop__copy p,
+.landing-desktop__list li,
+.landing-download__head p,
+.landing-feature-card p,
+.landing-faq__item p,
+.landing-footer__copy,
+.public-home-flow--story .public-home-flow__copy p,
+.public-home-flow__story-card p,
+.public-home-flow__step p,
+.public-hero__copy p {
+  text-wrap: pretty;
 }

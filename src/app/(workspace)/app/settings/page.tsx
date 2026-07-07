@@ -3,7 +3,7 @@
 import { Check, Copy } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 
 import { ThemeToggle } from "@/components/theme";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,6 @@ import { startGoogleCalendarConnect } from "@/features/calendar/api/googleCalend
 import { OPEN_TUTORIAL_EVENT, OPEN_WIDGET_TUTORIAL_EVENT } from "@/features/onboarding";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
-import { LocalBackupRecoveryPanel, LocalSyncOutboxPanel, TauriSyncStatusPanel } from "@/features/settings/components";
 import { isBackendWidgetBubbleType, widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { notifyUserUpdated } from "@/lib/data-changed";
@@ -38,6 +37,7 @@ import {
   restoreLocalSqliteBackup,
 } from "@/lib/local/local-cache-client";
 import {
+  deletePersonalFolderResourcesOnServer,
   getPersonalLocalFileAnalysisStatus,
   getPersonalManagedFolderIndexProgress,
   listPersonalManagedFolders,
@@ -308,6 +308,12 @@ export default function SettingsPage() {
   );
   // dev 이식: 관리 폴더별 인덱싱 진행률 캐시(로컬 폴더 감시 진행률).
   const [folderProgress, setFolderProgress] = useState<Record<string, ManagedFolderIndexProgressResult>>({});
+  // 폴더 해제는 2단계 확인으로 진행한다(계정 탈퇴와 같은 패턴) —
+  // 남는 것(자료보드의 업로드 자료)과 멈추는 것(로컬 감시·색인)을 먼저 알려주고 확인받는다.
+  const [confirmingRemoveFolderId, setConfirmingRemoveFolderId] = useState<string | null>(null);
+  // "서버에 올라간 이 폴더의 자료도 함께 삭제" 체크 — 기본은 꺼짐(자료 보존이 기본 정책).
+  const [removeServerResourcesToo, setRemoveServerResourcesToo] = useState(false);
+  const [removingFolderId, setRemovingFolderId] = useState<string | null>(null);
   const [copiedBubliId, setCopiedBubliId] = useState(false);
   const [withdrawConfirming, setWithdrawConfirming] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
@@ -890,28 +896,70 @@ export default function SettingsPage() {
     [refreshManagedFolderProgress, restoreManagedFolderWatchers, state, t, updateReadyState],
   );
 
+  // 폴더 연결 해제 정책:
+  // - 기본: 서버에 이미 올라간 자료는 자료보드에 그대로 남기고, 로컬 감시와 색인만 중단한다.
+  // - "함께 삭제" 선택 시: 이 폴더 출처로 업로드된 개인 자료를 서버에서 일괄 삭제한다(항목별 최선 노력).
   const removeManagedFolder = useCallback(
-    async (folder: ManagedFolderResponse) => {
+    async (folder: ManagedFolderResponse, options?: { deleteServerResources?: boolean }) => {
       const consentGranted = state.kind === "ready" ? Boolean(state.settings.privacy?.localFolderEnabled) : false;
-      const result = await removePersonalManagedFolder({ consentGranted, localFolderId: folder.id });
-      if (result.status !== "ready") {
-        setMessage({ text: localResultMessage(t, result), tone: "warning" });
-        return;
-      }
+      setRemovingFolderId(folder.id);
+      try {
+        const result = await removePersonalManagedFolder({ consentGranted, localFolderId: folder.id });
+        if (result.status !== "ready") {
+          setMessage({ text: localResultMessage(t, result), tone: "warning" });
+          return;
+        }
 
-      updateReadyState((ready) => ({
-        ...ready,
-        settings: {
-          ...ready.settings,
-          folders: ready.settings.folders.filter((item) => item.id !== folder.id),
-        },
-      }));
-      setFolderProgress((current) => {
-        const next = { ...current };
-        delete next[folder.id];
-        return next;
-      });
-      setMessage({ text: t("settings.msg.folderRemoved"), tone: "approved" });
+        updateReadyState((ready) => ({
+          ...ready,
+          settings: {
+            ...ready.settings,
+            folders: ready.settings.folders.filter((item) => item.id !== folder.id),
+          },
+        }));
+        setFolderProgress((current) => {
+          const next = { ...current };
+          delete next[folder.id];
+          return next;
+        });
+        setConfirmingRemoveFolderId(null);
+        setRemoveServerResourcesToo(false);
+
+        // 기본 동작 — 업로드된 자료는 자료보드에 남는다는 사실을 완료 메시지로 명시한다.
+        if (!options?.deleteServerResources) {
+          setMessage({ text: t("settings.msg.folderRemovedKeepUploads"), tone: "approved" });
+          return;
+        }
+
+        // 함께 삭제 — 폴더 경로 접두어로 이 폴더 출처의 개인 자료를 골라 서버에서 지운다.
+        if (!folder.localPath) {
+          setMessage({ text: t("settings.msg.folderRemovedDeleteUnavailable"), tone: "warning" });
+          return;
+        }
+
+        const cleanup = await deletePersonalFolderResourcesOnServer({ folderPath: folder.localPath });
+        if (cleanup.status !== "ready") {
+          setMessage({ text: localResultMessage(t, cleanup), tone: "warning" });
+          return;
+        }
+
+        setMessage(
+          cleanup.data.failedCount > 0
+            ? {
+                text: t("settings.msg.folderRemovedDeletePartial", {
+                  deleted: cleanup.data.deletedCount,
+                  failed: cleanup.data.failedCount,
+                }),
+                tone: "warning",
+              }
+            : {
+                text: t("settings.msg.folderRemovedDeleted", { deleted: cleanup.data.deletedCount }),
+                tone: "approved",
+              },
+        );
+      } finally {
+        setRemovingFolderId(null);
+      }
     },
     [state, t, updateReadyState],
   );
@@ -1515,7 +1563,10 @@ export default function SettingsPage() {
                     <p>{t("onboarding.settings.widgetReplayDesc")}</p>
                   </div>
                   <Button
-                    onClick={() => window.dispatchEvent(new Event(OPEN_WIDGET_TUTORIAL_EVENT))}
+                    onClick={() => {
+                      // 데스크탑에서는 전체화면 오버레이 창, 웹에서는 전체화면 모달로 열린다.
+                      window.dispatchEvent(new Event(OPEN_WIDGET_TUTORIAL_EVENT));
+                    }}
                     size="sm"
                     type="button"
                     variant="secondary"
@@ -1627,10 +1678,17 @@ export default function SettingsPage() {
                 {privacyRows.map((row) => {
                   // desktopOnly 행은 웹에서 상태만 보여주고 조작은 데스크톱 앱으로 안내한다.
                   const webLocked = Boolean(row.desktopOnly) && !desktopRuntime;
+                  const consented = Boolean(privacySettings[row.key]);
                   return (
                     <div className={styles.row} key={row.key}>
                       <div className={styles.rowText}>
-                        <strong>{t(row.titleKey)}</strong>
+                        <strong>
+                          {t(row.titleKey)}
+                          {/* 동의 상태를 글자로도 보여준다 — 웹에서는 토글이 잠겨 있어 배지가 유일한 상태 표시다. */}
+                          <span className={styles.consentBadge} data-on={consented ? "true" : "false"}>
+                            {consented ? t("settings.privacy.consented") : t("settings.privacy.consentNeeded")}
+                          </span>
+                        </strong>
                         <p>{t(row.descriptionKey)}</p>
                         {webLocked ? <p className={styles.desktopOnlyNote}>{t("settings.row.desktopOnlyNote")}</p> : null}
                       </div>
@@ -1747,10 +1805,17 @@ export default function SettingsPage() {
                 )}
 
                 <h3 className={styles.subhead}>{t("settings.desktop.folders")}</h3>
+                {/* 재연동 정책 안내 — 폴더는 각각 따로 색인되고, 다른 폴더로 바꿔도 올라간 자료는 남는다. */}
+                <p className={styles.sectionDesc}>{t("settings.folders.reconnectPolicy")}</p>
                 <div className={styles.rows}>
                   {managedFolders.length > 0 ? (
-                    managedFolders.map((folder) => (
-                      <div className={styles.row} key={folder.id}>
+                    managedFolders.map((folder) => {
+                      const confirmingRemove = confirmingRemoveFolderId === folder.id;
+                      const removing = removingFolderId === folder.id;
+
+                      return (
+                      <Fragment key={folder.id}>
+                      <div className={styles.row}>
                         <div className={styles.rowText}>
                           <strong>{folder.name}</strong>
                           <p>
@@ -1763,7 +1828,8 @@ export default function SettingsPage() {
                               : ""}
                           </p>
                         </div>
-                        {/* dev PR 213 이식: 폴더별 진행률/스캔/감시/아웃박스 액션 — desktop 탭은 데스크톱 런타임에서만 렌더링된다. */}
+                        {/* 폴더 행은 자주 쓰는 액션만 남긴다 — 감시는 동기화 토글에 따라 자동 복원되고
+                            아웃박스 확인은 아래 백업 단락의 공용 행에서 한다(버튼 6개 → 4개, 줄바꿈 밀림 방지). */}
                         <div className={styles.rowControl}>
                           <button
                             aria-checked={folder.syncEnabled}
@@ -1781,18 +1847,68 @@ export default function SettingsPage() {
                           <Button onClick={() => void scanManagedFolder(folder.id)} size="sm" type="button" variant="quiet">
                             {t("settings.folders.scan")}
                           </Button>
-                          <Button disabled={!folder.syncEnabled} onClick={() => void watchManagedFolder(folder.id)} size="sm" type="button" variant="quiet">
-                            {t("settings.folders.watch")}
-                          </Button>
-                          <Button disabled={!folder.syncEnabled} onClick={() => void checkSyncOutbox(folder.id)} size="sm" type="button" variant="quiet">
-                            {t("settings.backup.outbox")}
-                          </Button>
-                          <Button onClick={() => void removeManagedFolder(folder)} size="sm" type="button" variant="quiet">
+                          {/* 해제는 바로 실행하지 않고 아래 확인 상자를 먼저 연다(2단계 확인). */}
+                          <Button
+                            aria-expanded={confirmingRemove}
+                            disabled={removing}
+                            onClick={() => {
+                              setConfirmingRemoveFolderId(confirmingRemove ? null : folder.id);
+                              setRemoveServerResourcesToo(false);
+                            }}
+                            size="sm"
+                            type="button"
+                            variant="quiet"
+                          >
                             {t("settings.folders.disconnect")}
                           </Button>
                         </div>
                       </div>
-                    ))
+                      {confirmingRemove ? (
+                        <div
+                          aria-label={`${folder.name} ${t("settings.folders.disconnect")}`}
+                          className={styles.folderConfirm}
+                          role="group"
+                        >
+                          <p>{t("settings.folders.disconnectConfirmBody")}</p>
+                          <label className={styles.folderConfirmCheck}>
+                            <input
+                              checked={removeServerResourcesToo}
+                              disabled={removing}
+                              onChange={(event) => setRemoveServerResourcesToo(event.target.checked)}
+                              type="checkbox"
+                            />
+                            <span>{t("settings.folders.disconnectDeleteServer")}</span>
+                          </label>
+                          <div className={styles.folderConfirmActions}>
+                            <Button
+                              loading={removing}
+                              onClick={() =>
+                                void removeManagedFolder(folder, { deleteServerResources: removeServerResourcesToo })
+                              }
+                              size="sm"
+                              type="button"
+                              variant="primary"
+                            >
+                              {t("settings.folders.disconnectConfirm")}
+                            </Button>
+                            <Button
+                              disabled={removing}
+                              onClick={() => {
+                                setConfirmingRemoveFolderId(null);
+                                setRemoveServerResourcesToo(false);
+                              }}
+                              size="sm"
+                              type="button"
+                              variant="quiet"
+                            >
+                              {t("common.cancel")}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : null}
+                      </Fragment>
+                      );
+                    })
                   ) : (
                     <p className={styles.emptyRow}>{t("settings.folders.noFolder")}</p>
                   )}
@@ -1809,15 +1925,9 @@ export default function SettingsPage() {
                   </Button>
                 </div>
 
+                {/* 백업/동기화 상태판(중첩 히어로 패널 3종)은 걷어냈다 — 빈 상태에서 0건 스캐폴드가
+                    목업처럼 보였고, 아래 실제 동작 행 4개와 역할이 겹쳐 화면만 무겁게 했다. */}
                 <h3 className={styles.subhead}>{t("settings.backup.title")}</h3>
-                <div className={styles.embeddedPanelStack}>
-                  <TauriSyncStatusPanel />
-                  <LocalSyncOutboxPanel
-                    key={privacySettings.localFolderEnabled ? "local-folder-consented" : "local-folder-blocked"}
-                    initialConsentGranted={Boolean(privacySettings.localFolderEnabled)}
-                  />
-                  <LocalBackupRecoveryPanel />
-                </div>
                 <div className={styles.rows}>
                   <div className={styles.row}>
                     <div className={styles.rowText}>

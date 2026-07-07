@@ -12,12 +12,20 @@ import type { HomeRolePresetId } from "@/components/dashboard";
 const ONBOARDING_STORAGE_KEY = "bubli.onboarding.v1";
 
 export type OnboardingRole = HomeRolePresetId;
+export type DesktopWidgetStartupMode = "bar" | "board" | "cascade";
+export type DesktopWidgetStartupPreference = {
+  mode: DesktopWidgetStartupMode;
+  updatedAt: string;
+};
 
 export const ONBOARDING_ROLES: OnboardingRole[] = ["developer", "designer", "pm", "marketer", "writer", "etc"];
+export const DESKTOP_WIDGET_STARTUP_MODES: DesktopWidgetStartupMode[] = ["bar", "board", "cascade"];
 
 export type StoredOnboarding = {
   /** 직군 온보딩을 끝낸 시각(건너뛰기 포함). */
   completedAt: string;
+  /** 데스크톱 앱 첫 실행/다음 실행 때 위젯을 어떻게 펼칠지. */
+  desktopWidgetStartup: DesktopWidgetStartupPreference | null;
   /** 선택한 직군. 건너뛰었으면 null. */
   role: OnboardingRole | null;
   /** 회원사이트 튜토리얼(코치 마크)을 끝낸 시각. 아직이면 null. */
@@ -35,6 +43,20 @@ function isOnboardingRole(value: unknown): value is OnboardingRole {
   return typeof value === "string" && (ONBOARDING_ROLES as string[]).includes(value);
 }
 
+function isDesktopWidgetStartupMode(value: unknown): value is DesktopWidgetStartupMode {
+  return typeof value === "string" && (DESKTOP_WIDGET_STARTUP_MODES as string[]).includes(value);
+}
+
+function normalizeDesktopWidgetStartup(value: unknown): DesktopWidgetStartupPreference | null {
+  if (!value || typeof value !== "object") return null;
+  const parsed = value as Partial<DesktopWidgetStartupPreference>;
+  if (!isDesktopWidgetStartupMode(parsed.mode)) return null;
+  return {
+    mode: parsed.mode,
+    updatedAt: typeof parsed.updatedAt === "string" && parsed.updatedAt ? parsed.updatedAt : new Date().toISOString(),
+  };
+}
+
 export function readStoredOnboarding(): StoredOnboarding | null {
   if (!canUseStorage()) return null;
 
@@ -48,6 +70,7 @@ export function readStoredOnboarding(): StoredOnboarding | null {
 
     return {
       completedAt: parsed.completedAt,
+      desktopWidgetStartup: normalizeDesktopWidgetStartup(parsed.desktopWidgetStartup),
       role: isOnboardingRole(parsed.role) ? parsed.role : null,
       tutorialCompletedAt: typeof parsed.tutorialCompletedAt === "string" ? parsed.tutorialCompletedAt : null,
       widgetTutorialCompletedAt:
@@ -80,6 +103,7 @@ export function completeOnboarding(userId: string, role: OnboardingRole | null) 
   const same = stored?.userId === userId;
   writeStoredOnboarding({
     completedAt: new Date().toISOString(),
+    desktopWidgetStartup: stored?.userId === userId ? stored.desktopWidgetStartup : null,
     role,
     tutorialCompletedAt: same ? stored.tutorialCompletedAt : null,
     widgetTutorialCompletedAt: same ? stored.widgetTutorialCompletedAt : null,
@@ -93,6 +117,7 @@ export function completeTutorial(userId: string) {
   const same = stored?.userId === userId;
   writeStoredOnboarding({
     completedAt: same ? stored.completedAt : new Date().toISOString(),
+    desktopWidgetStartup: same ? stored.desktopWidgetStartup : null,
     role: same ? stored.role : null,
     tutorialCompletedAt: new Date().toISOString(),
     widgetTutorialCompletedAt: same ? stored.widgetTutorialCompletedAt : null,
@@ -106,9 +131,30 @@ export function completeWidgetTutorial(userId: string) {
   const same = stored?.userId === userId;
   writeStoredOnboarding({
     completedAt: same ? stored.completedAt : new Date().toISOString(),
+    desktopWidgetStartup: same ? stored.desktopWidgetStartup : null,
     role: same ? stored.role : null,
     tutorialCompletedAt: same ? stored.tutorialCompletedAt : null,
     widgetTutorialCompletedAt: new Date().toISOString(),
     userId,
   });
+}
+
+export function saveDesktopWidgetStartupPreference(userId: string, mode: DesktopWidgetStartupMode) {
+  const stored = readStoredOnboarding();
+  const same = stored?.userId === userId;
+  writeStoredOnboarding({
+    completedAt: same ? stored.completedAt : new Date().toISOString(),
+    desktopWidgetStartup: {
+      mode,
+      updatedAt: new Date().toISOString(),
+    },
+    role: same ? stored.role : null,
+    tutorialCompletedAt: same ? stored.tutorialCompletedAt : null,
+    widgetTutorialCompletedAt: same ? stored.widgetTutorialCompletedAt : null,
+    userId,
+  });
+}
+
+export function readDesktopWidgetStartupPreference(): DesktopWidgetStartupPreference {
+  return readStoredOnboarding()?.desktopWidgetStartup ?? { mode: "bar", updatedAt: new Date().toISOString() };
 }

@@ -342,6 +342,21 @@ pub struct LocalFileEventsMarkSyncedResult {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct LocalFilesServerReconcileInput {
+    /// 서버에 지금 존재하는 개인 자료 id 집합.
+    resource_ids: Vec<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFilesServerReconcileResult {
+    completed_at: String,
+    /// 서버 자료가 사라져 LOCAL_ONLY로 되돌린 로컬 인덱스 행 개수.
+    reset_count: i64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LocalFileAnalysisBackfillStageInput {
     limit: Option<i64>,
     max_attempts: Option<i64>,
@@ -4191,12 +4206,10 @@ fn mark_local_file_events_synced_for_conn(
         let normalized_status = result.status.to_ascii_uppercase();
         let failed = normalized_status == "FAILED";
         let skipped = normalized_status == "SKIPPED";
-        let skipped_delete = event_type == "DELETED" && skipped;
-        let event_status = if failed || skipped_delete {
-            "FAILED"
-        } else {
-            "SYNCED"
-        };
+        // 서버가 삭제 이벤트를 skipped(=skipped_delete)로 돌려주면 "서버에 대응 자료가 없다"는 뜻이다.
+        // 지워야 할 것이 이미 없으므로 성공 삭제와 동일하게 최종 완료 처리한다.
+        // (예전처럼 FAILED로 강등하면 같은 삭제 이벤트가 무한 재시도됐다.)
+        let event_status = if failed { "FAILED" } else { "SYNCED" };
         mark_local_file_event_outbox(&conn, &result.local_event_id, event_status, now)?;
         conn.execute(
             "UPDATE local_file_events SET status = ?2 WHERE id = ?1",
@@ -4217,17 +4230,8 @@ fn mark_local_file_events_synced_for_conn(
         }
 
         if let Some(local_file_id) = local_file_id {
-            if skipped_delete {
-                failed_count += 1;
-                conn.execute(
-                    "UPDATE local_files SET sync_status = 'FAILED', updated_at = ?2 WHERE id = ?1",
-                    params![local_file_id, now],
-                )
-                .map_err(|error| error.to_string())?;
-                continue;
-            }
-
             if event_type == "DELETED" {
+                // 성공 삭제와 skipped_delete 모두 로컬 인덱스 행을 정리해 삭제를 마무리한다.
                 delete_file_fts_index(&conn, &local_file_id)?;
                 conn.execute(
                     "DELETE FROM local_files WHERE id = ?1",
@@ -4279,6 +4283,62 @@ fn mark_local_file_events_synced_for_conn(
         completed_at: ms_to_iso(now),
         failed_count,
         synced_count,
+    })
+}
+
+/// 서버 개인 자료 목록과 로컬 인덱스를 맞추는 서버→앱 방향 조정.
+/// 서버에서 지워진 자료를 참조하던 local_files 행은 resource_id를 풀고 LOCAL_ONLY로 되돌린다.
+/// 로컬 파일 자체는 남겨서, 사용자가 원하면 다음 동기화 때 새 자료로 다시 올릴 수 있다.
+#[tauri::command]
+pub fn reconcile_local_files_with_server(
+    state: State<'_, Db>,
+    input: LocalFilesServerReconcileInput,
+) -> Result<LocalFilesServerReconcileResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    let now = now_ms();
+    reconcile_local_files_with_server_for_conn(&conn, input, now)
+}
+
+fn reconcile_local_files_with_server_for_conn(
+    conn: &Connection,
+    input: LocalFilesServerReconcileInput,
+    now: i64,
+) -> Result<LocalFilesServerReconcileResult, String> {
+    // SQL IN 절의 변수 개수 제한을 피하려고 서버 id 집합을 메모리에서 비교한다.
+    let server_ids: HashSet<String> = input.resource_ids.into_iter().collect();
+
+    let mut stale_local_file_ids: Vec<String> = Vec::new();
+    {
+        let mut stmt = conn
+            .prepare("SELECT id, resource_id FROM local_files WHERE resource_id IS NOT NULL")
+            .map_err(|error| error.to_string())?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .map_err(|error| error.to_string())?;
+        for row in rows {
+            let (local_file_id, resource_id) = row.map_err(|error| error.to_string())?;
+            if !server_ids.contains(&resource_id) {
+                stale_local_file_ids.push(local_file_id);
+            }
+        }
+    }
+
+    let mut reset_count = 0i64;
+    for local_file_id in stale_local_file_ids {
+        reset_count += conn
+            .execute(
+                "UPDATE local_files SET resource_id = NULL, sync_status = 'LOCAL_ONLY', updated_at = ?2 \
+                 WHERE id = ?1",
+                params![local_file_id, now],
+            )
+            .map_err(|error| error.to_string())? as i64;
+    }
+
+    Ok(LocalFilesServerReconcileResult {
+        completed_at: ms_to_iso(now),
+        reset_count,
     })
 }
 
@@ -5806,7 +5866,7 @@ mod tests {
     }
 
     #[test]
-    fn skipped_delete_result_keeps_local_file_for_retry() {
+    fn skipped_delete_result_completes_delete_and_removes_local_file() {
         let conn = test_connection();
         conn.execute(
             "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
@@ -5856,19 +5916,78 @@ mod tests {
                 |row| row.get(0),
             )
             .expect("read event status");
-        let file_sync_status: String = conn
-            .query_row(
-                "SELECT sync_status FROM local_files WHERE id = 'file-1'",
-                [],
-                |row| row.get(0),
-            )
-            .expect("read file sync status");
 
-        assert_eq!(result.synced_count, 0);
-        assert_eq!(result.failed_count, 1);
-        assert_eq!(local_file_count, 1);
-        assert_eq!(event_status, "FAILED");
-        assert_eq!(file_sync_status, "FAILED");
+        // skipped_delete는 "서버에 지울 자료가 없다"는 뜻이므로 성공 삭제와 동일하게
+        // 이벤트를 완료 처리하고 로컬 인덱스 행도 지운다(FAILED 강등 시 무한 재시도됐다).
+        assert_eq!(result.synced_count, 1);
+        assert_eq!(result.failed_count, 0);
+        assert_eq!(local_file_count, 0);
+        assert_eq!(event_status, "SYNCED");
+    }
+
+    #[test]
+    fn reconcile_resets_local_files_missing_on_server() {
+        let conn = test_connection();
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-1', 'Docs', '/tmp/docs', 'ACTIVE', 1, 1, 1)",
+            [],
+        )
+        .expect("insert managed folder");
+        // 서버에 아직 남아 있는 자료와 연결된 행.
+        conn.execute(
+            "INSERT INTO local_files \
+             (id, local_folder_id, file_name, local_path, resource_id, sync_status, updated_at) \
+             VALUES ('file-keep', 'folder-1', 'keep.md', '/tmp/docs/keep.md', 'res-keep', 'SYNCED', 1)",
+            [],
+        )
+        .expect("insert kept local file");
+        // 서버에서 지워진 자료를 여전히 참조하는 stale 행.
+        conn.execute(
+            "INSERT INTO local_files \
+             (id, local_folder_id, file_name, local_path, resource_id, sync_status, updated_at) \
+             VALUES ('file-stale', 'folder-1', 'stale.md', '/tmp/docs/stale.md', 'res-gone', 'SYNCED', 1)",
+            [],
+        )
+        .expect("insert stale local file");
+        // 애초에 서버 연결이 없는 로컬 전용 행은 건드리면 안 된다.
+        conn.execute(
+            "INSERT INTO local_files \
+             (id, local_folder_id, file_name, local_path, resource_id, sync_status, updated_at) \
+             VALUES ('file-local', 'folder-1', 'local.md', '/tmp/docs/local.md', NULL, 'LOCAL_ONLY', 1)",
+            [],
+        )
+        .expect("insert local-only file");
+
+        let result = reconcile_local_files_with_server_for_conn(
+            &conn,
+            LocalFilesServerReconcileInput {
+                resource_ids: vec!["res-keep".to_string()],
+            },
+            30,
+        )
+        .expect("reconcile local files");
+
+        let stale_row: (Option<String>, String, i64) = conn
+            .query_row(
+                "SELECT resource_id, sync_status, updated_at FROM local_files WHERE id = 'file-stale'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .expect("read stale row");
+        let kept_row: (Option<String>, String) = conn
+            .query_row(
+                "SELECT resource_id, sync_status FROM local_files WHERE id = 'file-keep'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("read kept row");
+
+        assert_eq!(result.reset_count, 1);
+        // stale 행은 연결이 풀리고 LOCAL_ONLY로 되돌아간다.
+        assert_eq!(stale_row, (None, "LOCAL_ONLY".to_string(), 30));
+        // 서버에 남아 있는 자료 연결은 그대로 유지된다.
+        assert_eq!(kept_row, (Some("res-keep".to_string()), "SYNCED".to_string()));
     }
 
     #[test]

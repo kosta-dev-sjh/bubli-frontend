@@ -22,6 +22,7 @@ import {
   MessageSquare,
   Mic,
   Minus,
+  Monitor,
   Pause,
   Pencil,
   Phone,
@@ -37,7 +38,6 @@ import {
   SmilePlus,
   Send,
   Sparkles,
-  Square,
   StickyNote,
   Timer,
   Trash2,
@@ -60,6 +60,7 @@ import { BubbleMark } from "@/components/bubbles";
 import { AgentCommandAutocomplete } from "@/features/communication/components/agent-command-autocomplete";
 import { stripAgentCommandPrefix } from "@/features/communication/lib/agent-commands";
 import { useAgentCommandAutocomplete } from "@/features/communication/lib/use-agent-command-autocomplete";
+import { timerApi } from "@/features/timer/api/timerApi";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
 import {
@@ -69,21 +70,37 @@ import {
   POMODORO_BREAK_MIN,
   POMODORO_FOCUS_MAX,
   POMODORO_FOCUS_MIN,
+  POMODORO_FOCUS_SECONDS,
+  readPersonalTimerState,
   readPomodoroState,
+  readWidgetWorkTimerSnapshot,
+  readWidgetTodoTab,
   readWidgetTimerKind,
   readWidgetTimerMode,
+  subscribePersonalTimerStateChange,
+  subscribePomodoroStateChange,
+  subscribeWidgetTimerKindChange,
+  subscribeWidgetTimerModeChange,
+  writePersonalTimerState,
   writePomodoroState,
+  writeWidgetTodoTab,
   writeWidgetTimerKind,
   writeWidgetTimerMode,
+  type PersonalTimerState,
   type PomodoroPhase,
   type PomodoroState,
+  type WidgetWorkTimerSnapshot,
+  type WidgetTodoTab,
   type WidgetTimerKind,
   type WidgetTimerMode,
 } from "@/lib/widget/widget-pref-client";
-import { autoSizeGhostWidgetWindow, isWidgetWindowDragLocked, readCurrentTauriWindowMonitorState, startWidgetWindowDragging, tauriCommands, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
+import { autoSizeGhostWidgetWindow, isWidgetWindowDragLocked, readCurrentTauriWindowMonitorState, startWidgetWindowDragging, tauriCommands, type AppMonitorInfo, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
+import { listenWidgetBarItemsChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import type { TimeLogResponse } from "@/types/api/timer";
 import type { FriendSearchApiResponse } from "@/types/api/friend";
 
+import { maybePlayPomodoroEndingSound, stopPomodoroEndingSound } from "@/lib/sound/pomodoro-sound";
 import styles from "./desktop-widget-bubble.module.css";
 
 // 버블별 셸 아이덴티티(헤더 밴드/아이콘 타일/CTA/칩이 같은 accent를 공유한다).
@@ -234,7 +251,7 @@ export type DesktopWidgetBubbleProps = {
   onPrimaryTimerAction?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onToggleAlwaysOnTop: () => void;
   onToggleVoiceMic?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
-  // 타이머 시작/종료 실패 안내(권한 없음·이미 실행 중 등). 타이머 바디 위에 잠깐 표시한다.
+  // 타이머 시작/일시정지/재개 실패 안내(권한 없음·이미 실행 중 등). 타이머 바디 위에 잠깐 표시한다.
   timerActionNotice?: string | null;
   presentation?: "preview" | "tauri";
   // Tauri 창 식별자(리사이즈 커맨드 타깃). 프리뷰에서는 불필요.
@@ -461,57 +478,6 @@ function ItemActions({
     </span>
   );
 }
-
-// 조용한 재조회 때 버블 데이터 참조가 유지되면(페이지의 deep-equal setState) 행 목록은
-// 리렌더하지 않는다 — 배경 갱신이 행 DOM을 다시 만들며 생기는 미세 깜빡임 방지.
-const ItemRows = memo(function ItemRows({
-  bubble,
-  onItemStateChange,
-  onOpenHandoff,
-}: {
-  bubble: WidgetPreviewBubble;
-  onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
-  onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
-}) {
-  const { t } = useI18n();
-  const openHandoff = (event: MouseEvent<HTMLAnchorElement>, item: WidgetPreviewItem) => {
-    if (!item.handoffUrl || !onOpenHandoff) return;
-
-    event.preventDefault();
-    void onOpenHandoff(item);
-  };
-
-  if (bubble.rows.length === 0) {
-    return <BubbleEmptyState bubble={bubble} />;
-  }
-
-  return (
-    <div className={styles.rowList}>
-      {bubble.rows.map((item) => (
-        <div className={styles.checkRow} key={item.id}>
-          <button
-            aria-label={t("widget.item.confirm")}
-            aria-pressed={item.checked ?? false}
-            className={styles.rowCheck}
-            onClick={() => onItemStateChange?.(item, "CONFIRMED")}
-            type="button"
-          >
-            <CheckCircle2 size={13} strokeWidth={2.4} />
-          </button>
-          {item.handoffUrl ? (
-            <a href={item.handoffUrl} onClick={(event) => openHandoff(event, item)} rel="noreferrer" target="_blank">
-              {item.label}
-            </a>
-          ) : (
-            <span>{item.label}</span>
-          )}
-          <b>{item.status}</b>
-          <ItemActions item={item} onItemStateChange={onItemStateChange} />
-        </div>
-      ))}
-    </div>
-  );
-});
 
 const agentReviewActions: Array<{
   action: AgentSuggestionReviewAction;
@@ -749,7 +715,7 @@ function TodoBody({
   const { t } = useI18n();
   const [draft, setDraft] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  // 활성 탭은 데이터 갱신에도 유지된다(컴포넌트가 계속 마운트되어 있음). 0=내 할 일, 1=프로젝트룸.
+  // 활성 탭은 데이터 갱신에도 유지되고, 접힌 바 칩도 같은 탭 기준으로 숫자를 보여준다.
   const [activeTab, setActiveTab] = useState(0);
 
   const view = bubble.todoView ?? { hasRoom: false, mine: bubble.rows, room: [] as WidgetPreviewItem[] };
@@ -777,8 +743,8 @@ function TodoBody({
   const mineOpen = view.mine.filter((item) => !item.checked).length;
   const roomOpen = view.room.filter((item) => !item.checked).length;
   const tabLabels = [
-    mineOpen ? `${t("widget.todo.tabMine")} ${mineOpen}` : t("widget.todo.tabMine"),
-    roomOpen ? `${t("widget.todo.tabRoom")} ${roomOpen}` : t("widget.todo.tabRoom"),
+    `${t("widget.todo.tabMine")} ${mineOpen}`,
+    `${t("widget.todo.tabRoom")} ${roomOpen}`,
   ];
   const emptyLabel =
     activeTab === 1
@@ -787,6 +753,26 @@ function TodoBody({
         : t("widget.todo.roomEmpty")
       : t("widget.empty.todo");
   const summaryTitle = activeTab === 1 ? view.roomName ?? t("widget.todo.tabRoom") : t("widget.todo.tabMine");
+
+  useEffect(() => {
+    let cancelled = false;
+    void readWidgetTodoTab(null).then((stored) => {
+      if (cancelled) return;
+      setActiveTab(stored === "room" && view.hasRoom ? 1 : 0);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [view.hasRoom]);
+
+  const changeTodoTab = useCallback(
+    (index: number) => {
+      const nextIndex = index === 1 && view.hasRoom ? 1 : 0;
+      setActiveTab(nextIndex);
+      void writeWidgetTodoTab(nextIndex === 1 ? "room" : "mine", null);
+    },
+    [view.hasRoom],
+  );
 
   const saveDraftTodo = async () => {
     const title = draft.trim();
@@ -809,7 +795,7 @@ function TodoBody({
       <SegmentedControl
         ariaLabel={t("widget.todo.tabsAria")}
         labels={tabLabels}
-        onChange={setActiveTab}
+        onChange={changeTodoTab}
         value={activeTab}
       />
       {/* 카운트 링은 활성 탭 기준: 숫자=미완료 개수(없으면 0), 원호=완료 비율. */}
@@ -1845,7 +1831,7 @@ function formatMinutesSeconds(totalSeconds: number): string {
   return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
 }
 
-function elapsedWidgetTimerLabel(item?: WidgetPreviewItem, fallback = "00:00") {
+function elapsedWidgetTimerLabel(item?: WidgetPreviewItem, fallback = "00:00", now = Date.now()) {
   if (!item) return fallback;
 
   const baseSeconds = item.timerDurationSeconds ?? 0;
@@ -1856,76 +1842,36 @@ function elapsedWidgetTimerLabel(item?: WidgetPreviewItem, fallback = "00:00") {
   const startedAt = new Date(item.timerLastStartedAt ?? item.timerStartedAt ?? "").getTime();
   if (Number.isNaN(startedAt)) return fallback;
 
-  const elapsedSeconds = Math.floor((Date.now() - startedAt) / 1000);
+  const elapsedSeconds = Math.floor((now - startedAt) / 1000);
   return formatMinutesSeconds(baseSeconds + Math.max(0, elapsedSeconds));
 }
 
-// 시계 모드: HH:MM:SS 라이브(1s 인터벌) + 날짜 한 줄. start/stop 컨트롤 없음.
+function timerRowFromTimeLog(timeLog: TimeLogResponse): WidgetPreviewItem {
+  return {
+    id: timeLog.id,
+    kind: "time",
+    label: timeLog.timerType === "WORK" ? "작업 타이머" : "일반 타이머",
+    status: timeLog.status,
+    timerDurationSeconds: timeLog.durationSeconds ?? null,
+    timerLastStartedAt: timeLog.lastStartedAt ?? null,
+    timerStartedAt: timeLog.startedAt,
+  };
+}
+
+function timerRowFromWorkSnapshot(snapshot: WidgetWorkTimerSnapshot): WidgetPreviewItem {
+  return {
+    id: snapshot.id,
+    kind: "time",
+    label: snapshot.timerType === "WORK" ? "작업 타이머" : "일반 타이머",
+    status: snapshot.status,
+    timerDurationSeconds: snapshot.durationSeconds ?? null,
+    timerLastStartedAt: snapshot.lastStartedAt ?? null,
+    timerStartedAt: snapshot.startedAt,
+  };
+}
+
+// 시계 모드: HH:MM:SS 라이브(1s 인터벌) + 날짜 한 줄. 타이머 컨트롤 없음.
 // reduced-motion과 무관하게 텍스트만 갱신하므로 애니메이션 정책의 영향을 받지 않는다.
-// 플립(스플릿-플랩) 시계 — 자리값이 바뀔 때만 위→아래로 접히는 카드 애니메이션.
-// reduced-motion이면 애니메이션 없이 숫자만 즉시 교체한다.
-function FlipDigit({ digit }: { digit: string }) {
-  const prefersReducedMotion = useReducedMotion();
-  const [current, setCurrent] = useState(digit);
-  const [previous, setPrevious] = useState(digit);
-  const [flipping, setFlipping] = useState(false);
-
-  // 렌더 중 prop 변화에 맞춰 상태를 조정 — effect에서 setState하면 불필요한 추가 렌더가
-  // 발생하므로(react-hooks/set-state-in-effect), React 공식 권장 패턴대로 렌더 본문에서 처리한다.
-  if (digit !== current) {
-    setPrevious(current);
-    setCurrent(digit);
-    setFlipping(true);
-  }
-
-  if (prefersReducedMotion) {
-    return (
-      <span className={styles.flipDigit}>
-        <span className={styles.flipStatic}>{digit}</span>
-      </span>
-    );
-  }
-
-  return (
-    <span className={styles.flipDigit}>
-      <span className={[styles.flipCard, styles.flipTop].join(" ")}>
-        <span className={styles.flipCardText}>{previous}</span>
-      </span>
-      <span className={[styles.flipCard, styles.flipBottom].join(" ")}>
-        <span className={styles.flipCardText}>{current}</span>
-      </span>
-      <span
-        className={[styles.flipper, flipping ? styles.isFlipping : ""].filter(Boolean).join(" ")}
-        onAnimationEnd={() => {
-          setFlipping(false);
-          setPrevious(digit);
-        }}
-      >
-        <span className={[styles.flipCard, styles.flipTop, styles.flipperTop].join(" ")}>
-          <span className={styles.flipCardText}>{previous}</span>
-        </span>
-        <span className={[styles.flipCard, styles.flipBottom, styles.flipperBottom].join(" ")}>
-          <span className={styles.flipCardText}>{current}</span>
-        </span>
-      </span>
-    </span>
-  );
-}
-
-function FlipTime({ value, className }: { value: string; className?: string }) {
-  return (
-    <span className={[styles.flipTime, className].filter(Boolean).join(" ")} aria-label={value}>
-      {value.split("").map((char, index) =>
-        char === ":" ? (
-          <span aria-hidden="true" className={styles.flipColon} key={`c-${index}`}>:</span>
-        ) : (
-          <FlipDigit digit={char} key={`d-${index}`} />
-        ),
-      )}
-    </span>
-  );
-}
-
 function ClockView() {
   const { locale } = useI18n();
   // 라이브 클라이언트 전용 위젯이라 lazy init으로 첫 값을 렌더 시 만든다(effect 내 동기 setState 회피).
@@ -1946,7 +1892,7 @@ function ClockView() {
   );
 }
 
-// 작업 모드: 서버 time_logs에 기록되는 작업 타이머(start/pause/resume/stop).
+// 작업 모드: 서버 time_logs에 누적되는 작업 타이머(start/pause/resume).
 // 현재 컨텍스트(개인=GENERAL / 룸=WORK)로 귀속되며 링에 서버 경과 지표를 표시한다.
 function WorkView({
   bubble,
@@ -1960,8 +1906,7 @@ function WorkView({
   const { t } = useI18n();
   const timerItem = bubble.rows[0];
   const timerStatus = timerItem?.status;
-  const canPause = timerStatus === "RUNNING";
-  const PrimaryIcon = timerStatus === "RUNNING" ? Square : Play;
+  const PrimaryIcon = timerStatus === "RUNNING" ? Pause : Play;
   // 실행 중 타이머는 위젯 스코프와 무관하게 노출되므로, 라벨은 위젯 스코프가 아니라 타이머 자신을 기준으로 한다.
   // 타이머 행이 있으면 그 행의 라벨(작업/일반)을, 다른 룸에 걸린 타이머면 그 룸 이름을 함께 보여 준다.
   const contextLabel = timerItem
@@ -1973,7 +1918,7 @@ function WorkView({
       : t("widget.timer.generalTimer");
   const primaryLabel =
     timerStatus === "RUNNING"
-      ? t("widget.timerAction.stop")
+      ? t("widget.timer.pause")
       : timerStatus === "PAUSED"
         ? t("widget.timerAction.resume")
         : t("widget.timerAction.start");
@@ -1998,23 +1943,23 @@ function WorkView({
       </div>
       <p className={styles.timerScopeNote}>{contextLabel}</p>
       {/* 타이머 카드에는 체크/고정/숨김 같은 항목 액션(ItemRows)을 두지 않는다 — 타이머엔 의미 없음. */}
-      <div className={canPause ? styles.timerActions : [styles.timerActions, styles.timerActionsSingle].join(" ")}>
+      <div className={[styles.timerActions, styles.timerActionsSingle].join(" ")}>
         <button
           aria-label={primaryLabel}
           className={styles.timerPrimary}
-          onClick={() => void onPrimaryTimerAction?.(bubble)}
-          title={timerStatus === "RUNNING" ? t("widget.timer.stopHint") : undefined}
+          onClick={() => {
+            if (timerStatus === "RUNNING") {
+              void onPauseTimer?.(bubble);
+              return;
+            }
+            void onPrimaryTimerAction?.(bubble);
+          }}
+          title={timerStatus === "RUNNING" ? t("widget.timer.pauseHint") : undefined}
           type="button"
         >
           <PrimaryIcon size={13} />
           {primaryLabel}
         </button>
-        {canPause ? (
-          <button className={styles.timerGhost} onClick={() => void onPauseTimer?.(bubble)} title={t("widget.timer.pauseHint")} type="button">
-            <Pause size={13} />
-            {t("widget.timer.pause")}
-          </button>
-        ) : null}
       </div>
     </>
   );
@@ -2022,46 +1967,9 @@ function WorkView({
 
 // 뽀모도로 모드: 로컬 전용 25/5 사이클. 서버 기록 없음. 진행 상태는 sqlite에 저장돼
 // 창을 닫아도 복원된다(집중↔휴식 자동전환, 사이클 카운트). 완료 시 goo 팝 신호를 재사용한다.
-// 집중/휴식 분 프리셋(집중·휴식). 선택 시 두 값을 함께 적용한다.
-const POMODORO_PRESETS: Array<{ breakMinutes: number; focusMinutes: number; labelKey: MessageKey }> = [
-  { breakMinutes: 5, focusMinutes: 25, labelKey: "widget.timer.pomodoroPreset25" },
-  { breakMinutes: 10, focusMinutes: 50, labelKey: "widget.timer.pomodoroPreset50" },
-  { breakMinutes: 3, focusMinutes: 15, labelKey: "widget.timer.pomodoroPreset15" },
-];
-
 // 집중/휴식 분을 직접 입력하는 필드 — 숫자만 허용, 범위로 클램프. +/− 스텝퍼와 함께 쓴다.
 // 진행 링 둘레(r=54): 2πr. strokeDashoffset = 둘레 × 경과비율(시간이 지날수록 링이 줄어든다).
 const POMODORO_RING_CIRCUMFERENCE = 2 * Math.PI * 54;
-
-// 작업/개인 카운트업 타이머용 원형 링 — 뽀모도로와 같은 디자인, 색만 다르게(파랑).
-// progress(0~1)는 현재 1분 내 진행(초/60)이라 매 분 한 바퀴 스윕한다.
-function TimerRing({ label, progress, time }: { label: string; progress: number; time: string }) {
-  const clamped = Math.max(0, Math.min(1, progress));
-  return (
-    <div className={[styles.pomodoroCircle, styles.timerRing].join(" ")}>
-      <svg className={styles.pomodoroSvg} viewBox="0 0 120 120" aria-hidden="true">
-        <circle className={styles.pomodoroTrack} cx="60" cy="60" r="54" />
-        <circle
-          className={styles.pomodoroProgress}
-          cx="60"
-          cy="60"
-          r="54"
-          style={{ strokeDasharray: POMODORO_RING_CIRCUMFERENCE, strokeDashoffset: POMODORO_RING_CIRCUMFERENCE * (1 - clamped) }}
-        />
-      </svg>
-      <div className={styles.pomodoroCircleContent}>
-        <strong>{time}</strong>
-        <span>{label}</span>
-      </div>
-    </div>
-  );
-}
-
-// "MM:SS"/"H:MM:SS" 문자열에서 총 초를 구해 현재 1분 내 진행률(0~1)을 만든다.
-function minuteProgressFromLabel(label: string): number {
-  const seconds = label.split(":").reduce((acc, part) => acc * 60 + (Number(part) || 0), 0);
-  return (seconds % 60) / 60;
-}
 
 function PomodoroMinuteField({
   ariaLabel,
@@ -2112,7 +2020,9 @@ function PomodoroMinuteField({
   );
 }
 
-function PomodoroView({ selectedRoomId }: { selectedRoomId: string | null }) {
+// 뽀모도로는 개인 전용 집중 타이머다 — 룸 컨텍스트가 바뀌거나 앱을 다시 켜도 이어지도록
+// 저장 칸을 항상 개인(personal)으로 고정한다. 룸별로 나누면 컨텍스트 전환 때 리셋처럼 보인다.
+function PomodoroView() {
   const { t } = useI18n();
   const prefersReducedMotion = useReducedMotion();
   const [state, setState] = useState<PomodoroState>(() => createIdlePomodoroState());
@@ -2126,7 +2036,7 @@ function PomodoroView({ selectedRoomId }: { selectedRoomId: string | null }) {
   // 재오픈 복원: 저장된 진행 상태를 읽어 실행 중이면 phaseEndsAt으로 남은 시간을 재계산한다.
   useEffect(() => {
     let cancelled = false;
-    void readPomodoroState(selectedRoomId).then((stored) => {
+    void readPomodoroState(null).then((stored) => {
       if (cancelled || !stored) return;
       setState(stored);
       if (stored.running && stored.phaseEndsAt) {
@@ -2138,15 +2048,12 @@ function PomodoroView({ selectedRoomId }: { selectedRoomId: string | null }) {
     return () => {
       cancelled = true;
     };
-  }, [selectedRoomId]);
+  }, []);
 
-  const persist = useCallback(
-    (next: PomodoroState) => {
-      setState(next);
-      void writePomodoroState(next, selectedRoomId);
-    },
-    [selectedRoomId],
-  );
+  const persist = useCallback((next: PomodoroState) => {
+    setState(next);
+    void writePomodoroState(next, null);
+  }, []);
 
   // 실행 중 1s 틱 — phaseEndsAt에 도달하면 페이즈 자동 전환(집중→휴식은 사이클 +1).
   useEffect(() => {
@@ -2154,12 +2061,21 @@ function PomodoroView({ selectedRoomId }: { selectedRoomId: string | null }) {
 
     const tick = () => {
       const current = stateRef.current;
-      if (!current.running || !current.phaseEndsAt) return;
+      if (!current.running || !current.phaseEndsAt) {
+        stopPomodoroEndingSound();
+        return;
+      }
       const left = Math.round((current.phaseEndsAt - Date.now()) / 1000);
       if (left > 0) {
         setRemaining(left);
+        // 알림음은 바 웹뷰가 단독으로 담당한다. 열린 타이머 웹뷰가 직접 재생하면
+        // 최소화 시 웹뷰가 내려가면서 소리가 끊기고, 바/재오픈 쪽에서 같은 cue가 중복 재생될 수 있다.
+        if (current.phase !== "focus") {
+          stopPomodoroEndingSound();
+        }
         return;
       }
+      stopPomodoroEndingSound();
       // 페이즈 종료 → 자동 전환.
       const nextPhase: PomodoroPhase = current.phase === "focus" ? "break" : "focus";
       const nextCycles = current.phase === "focus" ? current.cyclesCompleted + 1 : current.cyclesCompleted;
@@ -2167,6 +2083,7 @@ function PomodoroView({ selectedRoomId }: { selectedRoomId: string | null }) {
       const next: PomodoroState = {
         ...current,
         cyclesCompleted: nextCycles,
+        endingSoundCueKey: null,
         phase: nextPhase,
         phaseEndsAt: Date.now() + nextDuration * 1000,
         remainingSeconds: null,
@@ -2186,6 +2103,7 @@ function PomodoroView({ selectedRoomId }: { selectedRoomId: string | null }) {
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", onVisible);
     return () => {
+      stopPomodoroEndingSound();
       window.clearInterval(intervalId);
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
@@ -2195,16 +2113,18 @@ function PomodoroView({ selectedRoomId }: { selectedRoomId: string | null }) {
   const start = () => {
     const duration = phaseDurationSeconds(state.phase, state.focusMinutes, state.breakMinutes);
     const base = remaining > 0 && remaining < duration ? remaining : duration;
-    persist({ ...state, phaseEndsAt: Date.now() + base * 1000, remainingSeconds: null, running: true });
+    persist({ ...state, endingSoundCueKey: null, phaseEndsAt: Date.now() + base * 1000, remainingSeconds: null, running: true });
     setRemaining(base);
   };
 
   const pause = () => {
+    stopPomodoroEndingSound();
     persist({ ...state, phaseEndsAt: null, remainingSeconds: remaining, running: false });
   };
 
   const reset = () => {
     // 초기화는 진행/사이클만 비우고 사용자가 설정한 집중/휴식 분은 보존한다.
+    stopPomodoroEndingSound();
     const idle = createIdlePomodoroState(state.focusMinutes, state.breakMinutes);
     persist(idle);
     setRemaining(idle.remainingSeconds ?? state.focusMinutes * 60);
@@ -2215,14 +2135,14 @@ function PomodoroView({ selectedRoomId }: { selectedRoomId: string | null }) {
     if (state.running) return;
     const focus = Math.min(POMODORO_FOCUS_MAX, Math.max(POMODORO_FOCUS_MIN, Math.round(focusMinutes)));
     const brk = Math.min(POMODORO_BREAK_MAX, Math.max(POMODORO_BREAK_MIN, Math.round(breakMinutes)));
-    const next: PomodoroState = { ...state, focusMinutes: focus, breakMinutes: brk };
+    const next: PomodoroState = { ...state, endingSoundCueKey: null, focusMinutes: focus, breakMinutes: brk };
     persist(next);
     setRemaining(phaseDurationSeconds(next.phase, focus, brk));
   };
 
   const totalPhase = phaseDurationSeconds(state.phase, state.focusMinutes, state.breakMinutes);
   const settingsDisabled = state.running;
-  const progress = totalPhase > 0 ? 1 - remaining / totalPhase : 0;
+  const progress = Math.max(0, Math.min(1, totalPhase > 0 ? 1 - remaining / totalPhase : 0));
   const phaseClass = state.phase === "focus" ? styles.pomodoroFocus : styles.pomodoroBreak;
   const phaseLabel = state.phase === "focus" ? t("widget.timer.pomodoroFocus") : t("widget.timer.pomodoroBreak");
 
@@ -2296,24 +2216,42 @@ function PomodoroView({ selectedRoomId }: { selectedRoomId: string | null }) {
   );
 }
 
-// 개인 모드: 어디에도 저장하지 않는 로컬 임시 스톱워치(잠깐 쓰는 용도).
-// 서버/sqlite 모두 미기록 — 창을 닫으면 사라진다. 화면은 딱 시작/정지/초기화만.
+function personalTimerElapsedSeconds(state: PersonalTimerState | null, now = Date.now()) {
+  if (!state) return 0;
+  if (state.running && state.startedAt) {
+    return state.elapsedSeconds + Math.max(0, Math.floor((now - state.startedAt) / 1000));
+  }
+  return state.elapsedSeconds;
+}
+
+// 개인 모드: 서버에는 기록하지 않는 로컬 스톱워치. 창을 접어도 바 칩이 같은 숫자를 보여야 하므로
+// 시작/일시정지/초기화 시 Tauri pref에 startedAt+elapsedSeconds만 저장한다.
 function PersonalTimerView() {
   const { t } = useI18n();
-  const [elapsed, setElapsed] = useState<number>(0);
-  const [running, setRunning] = useState<boolean>(false);
-  const startedAtRef = useRef<number | null>(null);
-  const baseRef = useRef<number>(0);
+  const [state, setState] = useState<PersonalTimerState>({ elapsedSeconds: 0, running: false, startedAt: null });
+  const [now, setNow] = useState<number>(() => Date.now());
+
+  const elapsed = personalTimerElapsedSeconds(state, now);
+  const running = state.running;
+
+  useEffect(() => {
+    let cancelled = false;
+    void readPersonalTimerState(null).then((stored) => {
+      if (!cancelled && stored) setState(stored);
+    });
+    const unsubscribe = subscribePersonalTimerStateChange((stored) => {
+      setState(stored);
+      setNow(Date.now());
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     if (!running) return;
-
-    startedAtRef.current = Date.now();
-    const tick = () => {
-      const startedAt = startedAtRef.current;
-      if (startedAt == null) return;
-      setElapsed(baseRef.current + Math.floor((Date.now() - startedAt) / 1000));
-    };
+    const tick = () => setNow(Date.now());
     tick();
     const intervalId = window.setInterval(tick, 250);
     return () => window.clearInterval(intervalId);
@@ -2321,19 +2259,21 @@ function PersonalTimerView() {
 
   const toggle = () => {
     if (running) {
-      // 정지: 누적 경과를 확정한다.
-      baseRef.current = elapsed;
-      startedAtRef.current = null;
-      setRunning(false);
+      const next: PersonalTimerState = { elapsedSeconds: elapsed, running: false, startedAt: null };
+      setState(next);
+      void writePersonalTimerState(next, null);
     } else {
-      setRunning(true);
+      const next: PersonalTimerState = { elapsedSeconds: elapsed, running: true, startedAt: Date.now() };
+      setState(next);
+      setNow(Date.now());
+      void writePersonalTimerState(next, null);
     }
   };
   const reset = () => {
-    setRunning(false);
-    startedAtRef.current = null;
-    baseRef.current = 0;
-    setElapsed(0);
+    const next: PersonalTimerState = { elapsedSeconds: 0, running: false, startedAt: null };
+    setState(next);
+    setNow(Date.now());
+    void writePersonalTimerState(next, null);
   };
 
   return (
@@ -2380,35 +2320,36 @@ function TimerBody({
   // 룸이 있으면 작업, 없으면 개인이 기본. 사용자가 자유롭게 전환할 수 있다(강제 고정 없음).
   const [timerKind, setTimerKind] = useState<WidgetTimerKind>(selectedRoomId ? "work" : "personal");
 
-  // 선택 모드/종류 복원(재오픈).
+  // 선택 모드/종류 복원(재오픈). 탭 선택 기억은 룸과 무관하게 개인(personal) 칸 하나만 쓴다 —
+  // 룸별로 나누면 룸 전환/재시작 때 탭이 리셋된 것처럼 보인다(뽀모도로 유지 문제와 같은 뿌리).
   useEffect(() => {
     let cancelled = false;
-    void readWidgetTimerMode(selectedRoomId).then((stored) => {
+    void readWidgetTimerMode(null).then((stored) => {
       if (cancelled) return;
       if (stored) {
         setMode(stored);
         onTimerModeChange?.(stored);
       }
     });
-    void readWidgetTimerKind(selectedRoomId).then((stored) => {
+    void readWidgetTimerKind(null).then((stored) => {
       if (cancelled) return;
       if (stored) setTimerKind(stored);
     });
     return () => {
       cancelled = true;
     };
-  }, [onTimerModeChange, selectedRoomId]);
+  }, [onTimerModeChange]);
 
   const changeMode = (index: number) => {
     const next = TIMER_MODE_ORDER[index] ?? "work";
     setMode(next);
     onTimerModeChange?.(next);
-    void writeWidgetTimerMode(next, selectedRoomId);
+    void writeWidgetTimerMode(next, null);
   };
   const changeTimerKind = (index: number) => {
     const next: WidgetTimerKind = index === 1 ? "personal" : "work";
     setTimerKind(next);
-    void writeWidgetTimerKind(next, selectedRoomId);
+    void writeWidgetTimerKind(next, null);
   };
   const displayedMode: WidgetTimerMode = mode;
   // 사용자의 선택을 그대로 따른다 — 서버 타이머가 돌아도 개인 탭으로 자유롭게 전환된다(튕김 없음).
@@ -2455,7 +2396,7 @@ function TimerBody({
         </div>
       </div>
       <div style={{ display: displayedMode === "pomodoro" ? "contents" : "none" }}>
-        <PomodoroView selectedRoomId={selectedRoomId} />
+        <PomodoroView />
       </div>
     </div>
   );
@@ -2703,6 +2644,17 @@ function toDatetimeLocalValue(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+function toTimeInputValue(date: Date): string {
+  const pad = (value: number) => `${value}`.padStart(2, "0");
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function parseScheduleDraftDate(value: string): Date {
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) return parsed;
+  return new Date(defaultScheduleStartLocal());
+}
+
 // 기본 일정 시작 = 지금에서 다음 30분 단위로 올림(제목만 입력하고 바로 추가할 때의 기본값).
 function defaultScheduleStartLocal(): string {
   const next = new Date();
@@ -2784,12 +2736,15 @@ function ScheduleBody({
   const [submitting, setSubmitting] = useState(false);
   // 일정 추가 시작 시각(날짜+시간). 투두처럼 제목만 받던 걸 바꿔, 언제인지 직접 고르게 한다.
   const [draftAt, setDraftAt] = useState<string>(() => defaultScheduleStartLocal());
+  const [pickerOpen, setPickerOpen] = useState(false);
   // 좁은 위젯에서는 목록(제목·시간이 다 보임)이 기본이어야 일정이 바로 보인다. 월/주/WBS는 탭으로 전환.
   // (월간 기본은 오늘 일정이 없으면 빈 달력처럼 보여 "일정이 안 뜬다"는 인상을 줬다.)
   const [view, setView] = useState<ScheduleView>("list");
   const today = useMemo(() => schedStartOfDay(new Date()), []);
   const [anchor, setAnchor] = useState<Date>(() => schedStartOfDay(new Date()));
   const [selectedDay, setSelectedDay] = useState<Date>(() => schedStartOfDay(new Date()));
+  const draftDate = useMemo(() => parseScheduleDraftDate(draftAt), [draftAt]);
+  const [pickerAnchor, setPickerAnchor] = useState<Date>(() => schedStartOfMonth(parseScheduleDraftDate(defaultScheduleStartLocal())));
 
   const events = useMemo(() => {
     return bubble.rows
@@ -2811,6 +2766,7 @@ function ScheduleBody({
       await onCreateSchedule(bubble, title, startsAt);
       setDraft("");
       setDraftAt(defaultScheduleStartLocal());
+      setPickerOpen(false);
     } finally {
       setSubmitting(false);
     }
@@ -2838,6 +2794,41 @@ function ScheduleBody({
     setSelectedDay(now);
   };
 
+  const toggleSchedulePicker = () => {
+    if (!pickerOpen) setPickerAnchor(schedStartOfMonth(draftDate));
+    setPickerOpen((current) => !current);
+  };
+
+  const stepPickerMonth = (direction: 1 | -1) => {
+    setPickerAnchor((prev) => {
+      const next = new Date(prev);
+      next.setMonth(next.getMonth() + direction);
+      return schedStartOfMonth(next);
+    });
+  };
+
+  const chooseDraftDay = (day: Date) => {
+    const next = new Date(day);
+    next.setHours(draftDate.getHours(), draftDate.getMinutes(), 0, 0);
+    setDraftAt(toDatetimeLocalValue(next));
+  };
+
+  const changeDraftTime = (value: string) => {
+    const [hourRaw, minuteRaw] = value.split(":");
+    const hour = Number.parseInt(hourRaw ?? "", 10);
+    const minute = Number.parseInt(minuteRaw ?? "", 10);
+    if (!Number.isFinite(hour) || !Number.isFinite(minute)) return;
+    const next = new Date(draftDate);
+    next.setHours(Math.max(0, Math.min(23, hour)), Math.max(0, Math.min(59, minute)), 0, 0);
+    setDraftAt(toDatetimeLocalValue(next));
+  };
+
+  const pickerMonthLabel = new Intl.DateTimeFormat(localeTag, { month: "long", year: "numeric" }).format(pickerAnchor);
+  const pickerGridStart = schedStartOfWeek(schedStartOfMonth(pickerAnchor));
+  const pickerCells = Array.from({ length: 42 }, (_, index) => schedAddDays(pickerGridStart, index));
+  const draftDateLabel = new Intl.DateTimeFormat(localeTag, { day: "numeric", month: "short", weekday: "short" }).format(draftDate);
+  const draftTimeLabel = new Intl.DateTimeFormat(localeTag, { hour: "2-digit", minute: "2-digit" }).format(draftDate);
+
   // 한 줄 아젠다 행(제목 + 시간칩 + 액션) — 목록/주간/월간 아젠다가 공유한다.
   const renderEventRow = (item: WidgetPreviewItem) => (
     <div className={styles.timelineRow} key={item.id}>
@@ -2849,7 +2840,7 @@ function ScheduleBody({
         <span>{item.label}</span>
       )}
       <b>{item.status}</b>
-      <ItemActions item={item} onItemStateChange={onItemStateChange} />
+      <ItemActions item={item} onItemStateChange={onItemStateChange} showConfirm={false} showPin={false} />
     </div>
   );
 
@@ -3027,7 +3018,7 @@ function ScheduleBody({
               <strong>{nextItem.label}</strong>
             )}
           </div>
-          <ItemActions item={nextItem} onItemStateChange={onItemStateChange} />
+          <ItemActions item={nextItem} onItemStateChange={onItemStateChange} showConfirm={false} showPin={false} />
         </div>
         {restItems.length > 0 ? <div className={styles.rowList}>{restItems.map((item) => renderEventRow(item))}</div> : null}
       </>
@@ -3049,34 +3040,87 @@ function ScheduleBody({
         {view === "list" ? renderList() : null}
       </div>
       <form
-        className={styles.input}
-        style={{ flexWrap: "wrap" }}
+        className={styles.scheduleComposer}
         onSubmit={(event) => {
           event.preventDefault();
           void saveDraftSchedule();
         }}
       >
-        <Plus size={14} strokeWidth={2} />
-        <input
-          aria-label={t("widget.schedule.quickAdd")}
-          disabled={submitting}
-          maxLength={200}
-          onChange={(event) => setDraft(event.target.value)}
-          placeholder={bubble.inputPlaceholder ? t(bubble.inputPlaceholder as MessageKey) : t("widget.schedule.prompt")}
-          style={{ flex: "1 1 110px", minWidth: 0 }}
-          value={draft}
-        />
-        {/* 일정은 "언제"가 핵심 — 투두식 제목만 받지 않고 시작 날짜·시간을 직접 고른다. */}
-        <input
-          aria-label={t("widget.schedule.quickAdd")}
-          disabled={submitting}
-          onChange={(event) => setDraftAt(event.target.value)}
-          style={{ flex: "1 1 150px", minWidth: 0 }}
-          type="datetime-local"
-          value={draftAt}
-        />
-        <button aria-label={t("widget.schedule.quickAdd")} disabled={submitting || !draft.trim()} type="submit">
-          <Plus size={13} strokeWidth={2.1} />
+        <label className={styles.scheduleTitleField}>
+          <Plus size={14} strokeWidth={2} aria-hidden="true" />
+          <input
+            aria-label={t("widget.schedule.quickAdd")}
+            disabled={submitting}
+            maxLength={200}
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder={bubble.inputPlaceholder ? t(bubble.inputPlaceholder as MessageKey) : t("widget.schedule.prompt")}
+            value={draft}
+          />
+        </label>
+        <div className={styles.schedulePickerWrap}>
+          <button
+            aria-expanded={pickerOpen}
+            className={styles.scheduleWhenButton}
+            disabled={submitting}
+            onClick={toggleSchedulePicker}
+            type="button"
+          >
+            <Clock3 size={14} strokeWidth={2} aria-hidden="true" />
+            <span>
+              <b>{draftDateLabel}</b>
+              <small>{draftTimeLabel}</small>
+            </span>
+          </button>
+          {pickerOpen ? (
+            <div className={styles.schedulePickerPanel} data-bubli-interactive="true">
+              <div className={styles.schedulePickerHead}>
+                <button aria-label={t("widget.schedule.prevPeriod")} onClick={() => stepPickerMonth(-1)} type="button">
+                  <ChevronLeft size={15} strokeWidth={2.2} />
+                </button>
+                <strong>{pickerMonthLabel}</strong>
+                <button aria-label={t("widget.schedule.nextPeriod")} onClick={() => stepPickerMonth(1)} type="button">
+                  <ChevronRight size={15} strokeWidth={2.2} />
+                </button>
+              </div>
+              <div aria-hidden="true" className={styles.schedulePickerWeekdays}>
+                {weekdayLabels.map((label, index) => (
+                  <span key={`${label}-${index}`}>{label}</span>
+                ))}
+              </div>
+              <div className={styles.schedulePickerGrid}>
+                {pickerCells.map((day) => {
+                  const outside = day.getMonth() !== pickerAnchor.getMonth();
+                  const className = [
+                    styles.schedulePickerDay,
+                    outside ? styles.schedulePickerDayOutside : "",
+                    schedSameDay(day, today) ? styles.schedulePickerDayToday : "",
+                    schedSameDay(day, draftDate) ? styles.schedulePickerDaySelected : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ");
+                  return (
+                    <button
+                      aria-label={new Intl.DateTimeFormat(localeTag, { dateStyle: "medium" }).format(day)}
+                      className={className}
+                      key={day.toISOString()}
+                      onClick={() => chooseDraftDay(day)}
+                      type="button"
+                    >
+                      {day.getDate()}
+                    </button>
+                  );
+                })}
+              </div>
+              <label className={styles.scheduleTimeField}>
+                <Clock3 size={14} strokeWidth={2} aria-hidden="true" />
+                <input disabled={submitting} onChange={(event) => changeDraftTime(event.target.value)} type="time" value={toTimeInputValue(draftDate)} />
+              </label>
+            </div>
+          ) : null}
+        </div>
+        <button className={styles.scheduleSubmit} disabled={submitting || !draft.trim()} type="submit">
+          <Plus size={13} strokeWidth={2.1} aria-hidden="true" />
+          <span>{t("widget.schedule.quickAdd")}</span>
         </button>
       </form>
     </div>
@@ -3479,31 +3523,32 @@ function GhostClock() {
 }
 
 // 고스트 뽀모도로 — 뽀모도로 탭을 쓰던 사용자는 고스트에서도 뽀모도로 남은 시간/페이즈를 본다.
-function GhostPomodoro({ roomId }: { roomId: string | null }) {
+// PomodoroView와 같은 이유로 저장 칸은 항상 개인(personal) 고정이다.
+function GhostPomodoro() {
   const { t } = useI18n();
   const [state, setState] = useState<PomodoroState | null>(null);
-  const [remaining, setRemaining] = useState<number>(0);
+  // 저장 상태를 읽기 전에는 숫자를 그리지 않는다(null) — 00:00으로 "리셋된 것처럼" 보이는 문제 방지.
+  const [remaining, setRemaining] = useState<number | null>(null);
   // 최신 state를 ref로 들고 있어 tick 클로저가 낡은 값을 읽지 않게 한다(고스트 정지 버그 방지).
   const stateRef = useRef<PomodoroState | null>(null);
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
 
-  const persist = useCallback(
-    (next: PomodoroState) => {
-      setState(next);
-      void writePomodoroState(next, roomId);
-    },
-    [roomId],
-  );
+  const persist = useCallback((next: PomodoroState) => {
+    setState(next);
+    void writePomodoroState(next, null);
+  }, []);
 
   // 최초 + 창 포커스/가시성 복귀 시 저장된 뽀모도로 상태를 다시 읽어 고스트가 최신을 반영하게 한다
   // (초기 읽기 레이스나 다른 표면에서의 변경으로 고스트가 멈춰 보이는 문제 방지).
   useEffect(() => {
     let cancelled = false;
     const load = () => {
-      void readPomodoroState(roomId).then((stored) => {
-        if (!cancelled) setState(stored);
+      void readPomodoroState(null).then((stored) => {
+        // 아직 한 번도 시작하지 않았으면(저장 없음) 기본 뷰와 똑같이 대기 상태(25:00)를 보여준다.
+        // null로 두면 아래 tick이 영영 건너뛰어 00:00에 멈춰 보인다.
+        if (!cancelled) setState(stored ?? createIdlePomodoroState());
       });
     };
     load();
@@ -3517,7 +3562,7 @@ function GhostPomodoro({ roomId }: { roomId: string | null }) {
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
     };
-  }, [roomId]);
+  }, []);
 
   // 고스트에서도 뽀모도로가 계속 진행/자동전환되도록 PomodoroView와 동일한 벽시계 기반 틱을 돌린다.
   // phaseEndsAt(타임스탬프) 기준이라 탭 전환·백그라운드 스로틀에도 복귀 시 정확히 복구된다.
@@ -3526,14 +3571,21 @@ function GhostPomodoro({ roomId }: { roomId: string | null }) {
       const current = stateRef.current;
       if (!current) return;
       if (!current.running || !current.phaseEndsAt) {
+        stopPomodoroEndingSound();
         setRemaining(current.remainingSeconds ?? phaseDurationSeconds(current.phase, current.focusMinutes, current.breakMinutes));
         return;
       }
       const left = Math.round((current.phaseEndsAt - Date.now()) / 1000);
       if (left > 0) {
         setRemaining(left);
+        // 고스트는 시간 표시와 자동전환만 담당한다. 알림음은 열린 PomodoroView 또는 접힌 바가 담당해
+        // 창을 접었다 펼 때 같은 phase에서 소리가 겹치지 않게 한다.
+        if (current.phase !== "focus") {
+          stopPomodoroEndingSound();
+        }
         return;
       }
+      stopPomodoroEndingSound();
       const nextPhase: PomodoroPhase = current.phase === "focus" ? "break" : "focus";
       const nextCycles = current.phase === "focus" ? current.cyclesCompleted + 1 : current.cyclesCompleted;
       const nextDuration = phaseDurationSeconds(nextPhase, current.focusMinutes, current.breakMinutes);
@@ -3556,16 +3608,19 @@ function GhostPomodoro({ roomId }: { roomId: string | null }) {
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", onVisible);
     return () => {
+      stopPomodoroEndingSound();
       window.clearInterval(intervalId);
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
     };
-  }, [persist]);
+    // state를 의존성에 넣어 저장 상태가 로드되는 즉시 재계산한다 — 다음 1초 틱을 기다리며
+    // 00:00이 잠깐 보이던 문제 방지(고스트 전환 시 시간 유지).
+  }, [persist, state]);
 
   const label = (state?.phase ?? "focus") === "focus" ? t("widget.timer.pomodoroFocus") : t("widget.timer.pomodoroBreak");
   return (
     <div className={styles.ghostSignal} role="timer" aria-live="off">
-      <span className={styles.ghostMetric}>{formatMinutesSeconds(remaining)}</span>
+      <span className={styles.ghostMetric}>{remaining === null ? "--:--" : formatMinutesSeconds(remaining)}</span>
       <small className={styles.ghostSub}>{label}</small>
     </div>
   );
@@ -3584,28 +3639,29 @@ function GhostSignal({
   const isTimer = bubbleType === "timer";
   const [timerMode, setTimerMode] = useState<WidgetTimerMode | null>(null);
   const [pomodoroRunning, setPomodoroRunning] = useState(false);
-  const roomId = bubble.roomId?.trim() || null;
   const resolvedTimerMode = timerModeOverride ?? timerMode;
 
   // 타이머 버블이면 마지막으로 고른 탭(시계/타이머/뽀모도로)을 읽어 고스트에 반영한다.
+  // 탭 기억은 TimerBody와 같은 개인(personal) 칸을 읽는다.
   useEffect(() => {
     if (!isTimer || timerModeOverride) return;
     let cancelled = false;
-    void readWidgetTimerMode(roomId).then((stored) => {
+    void readWidgetTimerMode(null).then((stored) => {
       if (!cancelled) setTimerMode(stored);
     });
     return () => {
       cancelled = true;
     };
-  }, [isTimer, roomId, timerModeOverride]);
+  }, [isTimer, timerModeOverride]);
 
   // 뽀모도로가 실제로 돌고 있는지 저장 상태에서 확인한다. 돌고 있으면 탭 상태와 무관하게
   // 고스트에서도 그 카운트다운 숫자를 보여준다("고스트에서 뽀모도로 숫자가 안 보인다" 방지).
+  // 뽀모도로 저장 칸은 룸과 무관하게 항상 개인(personal)이다.
   useEffect(() => {
     if (!isTimer) return;
     let cancelled = false;
     const check = () => {
-      void readPomodoroState(roomId).then((stored) => {
+      void readPomodoroState(null).then((stored) => {
         if (!cancelled) setPomodoroRunning(Boolean(stored?.running));
       });
     };
@@ -3620,11 +3676,11 @@ function GhostSignal({
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
     };
-  }, [isTimer, roomId]);
+  }, [isTimer]);
 
   // 선택한 탭을 그대로 반영하되, 뽀모도로가 돌고 있으면 우선 뽀모도로 카운트다운을 보여준다.
   if (isTimer && (resolvedTimerMode === "pomodoro" || pomodoroRunning)) {
-    return <GhostPomodoro roomId={roomId} />;
+    return <GhostPomodoro />;
   }
   if (isTimer && resolvedTimerMode === "clock") {
     return <GhostClock />;
@@ -3991,8 +4047,9 @@ const BAR_PREVIEW_POPOVER_ID = "bubli-bar-preview";
 // 메뉴 패널·hover 프리뷰·goo 팝이 떠 있는 동안에는 페이드를 아예 정지한다.
 const BAR_IDLE_FADE_MS = 8000;
 
-// 접힌 칩은 전부 바에 노출한다 — "+N" 접기·잘림 없음. 칩이 아이콘 전용 36px 타일이라
-// 최악 조합(7개 + 타이머 시간 텍스트)도 Rust WIDGET_BAR_WIDTH(640 고정)를 넘지 않는다.
+// 접힌 칩은 전부 바에 노출한다 — "+N" 접기·잘림 없음. 칩은 36px 타일 + 인라인 라벨
+// (타이머 mm:ss, 투두/일정/메모 카운트)인데, 최악 조합(7개 전부 + "99+" 라벨 + 타이머 12:34)도
+// 약 580px로 Rust WIDGET_BAR_WIDTH(640 고정)를 넘지 않는다.
 // 알림 버블 칩은 바 맨 왼쪽의 고정 알림 칩과 완전히 중복(같은 종·같은 카운트)이라 제외하고,
 // 알림 버블 복원은 Bubli 메뉴의 바로가기 그리드가 담당한다.
 function collectBarFoldedItems(minimizedItems: WidgetWindowState[]) {
@@ -4010,17 +4067,374 @@ function collectBarFoldedItems(minimizedItems: WidgetWindowState[]) {
 }
 
 // 아이콘 전용 칩의 카운트 배지(16px, 우상단). 0/비숫자면 배지를 그리지 않는다.
+// 로딩("...")·오류("!") 스캐폴드 문자열도 NaN이라 자연히 걸러진다.
 function barChipBadge(metric: string) {
   const count = Number.parseInt(metric, 10);
   if (!Number.isFinite(count) || count <= 0) return null;
   return count > 99 ? "99+" : String(count);
 }
 
+// 카운트를 "99+" 상한 문자열로 바꾼다. 투두/일정/메모는 실제 0도 사용자가 확인해야 하므로 표시한다.
+function formatChipCount(count: number, showZero = false): string | null {
+  if (!Number.isFinite(count) || count < 0) return null;
+  if (count === 0) return showZero ? "0" : null;
+  return count > 99 ? "99+" : String(count);
+}
+
+// 오늘과 겹치는 일정 수 — 일정 칩 인라인 카운트는 14일 창 전체가 아니라 "오늘 N"만 센다.
+// (일정 버블의 metric은 "14:00"·"종일" 같은 첫 일정 시각 문자열이라, parseInt로 배지를 만들면
+// 시(hour)가 카운트처럼 보이는 버그가 있었다. 카운트는 rows의 원본 시각에서 직접 센다.)
+function countTodaySchedules(rows: WidgetPreviewItem[]): number {
+  const now = new Date();
+  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const dayEnd = dayStart + 24 * 60 * 60 * 1000;
+  return rows.filter((row) => {
+    if (!row.startsAt) return false;
+    const start = new Date(row.startsAt).getTime();
+    if (Number.isNaN(start)) return false;
+    const endRaw = row.endsAt ? new Date(row.endsAt).getTime() : start;
+    const end = Number.isNaN(endRaw) ? start : endRaw;
+    return start < dayEnd && end >= dayStart;
+  }).length;
+}
+
+function todoRowsForBarTab(bubble: WidgetPreviewBubble, todoTab: WidgetTodoTab): WidgetPreviewItem[] {
+  const view = bubble.todoView;
+  if (!view) return bubble.rows;
+  if (todoTab === "room" && view.hasRoom) return view.room;
+  return view.mine;
+}
+
+function countOpenRows(rows: WidgetPreviewItem[]): number {
+  return rows.filter((row) => !row.checked).length;
+}
+
+// 투두/일정/메모 칩의 아이콘 옆 인라인 카운트(14px 텍스트).
+// 타이머는 라이브 라벨(useBarTimerLive)이 따로 담당하고, 소통/에이전트/초안은 코너 배지를 유지한다.
+function barChipInlineCount(bubbleType: WidgetBubbleType, bubble: WidgetPreviewBubble, todoTab: WidgetTodoTab): string | null {
+  if (bubbleType === "todo") {
+    // 남은 할 일 수는 선택된 투두 탭의 행 데이터에서 직접 센다. 0개도 실제 상태라 바에 표시한다.
+    return formatChipCount(countOpenRows(todoRowsForBarTab(bubble, todoTab)), true);
+  }
+  if (bubbleType === "memo") {
+    return formatChipCount(bubble.rows.length, true) ?? barChipBadge(bubble.metric);
+  }
+  if (bubbleType === "schedule") return formatChipCount(countTodaySchedules(bubble.rows), true);
+  return null;
+}
+
+// 바 타이머 칩과 hover 팝오버가 공유하는 라이브 스냅샷.
+type BarTimerSnapshot = {
+  // 칩에 그대로 붙는 라이브 라벨. 우선순위: 뽀모도로 남은 mm:ss > 서버 타이머 경과 > 시계 HH:MM.
+  live: { kind: "clock" | "pomodoro" | "work"; label: string } | null;
+  // 마지막 틱의 벽시계(ms). 렌더 중 Date.now() 호출 금지(react-hooks/purity)라 틱이 채워준다.
+  now: number | null;
+  personalTimer: PersonalTimerState | null;
+  pomodoro: PomodoroState | null;
+  timerKind: WidgetTimerKind | null;
+  timerMode: WidgetTimerMode | null;
+  timerRow: WidgetPreviewItem | undefined;
+};
+
+const emptyBarTimerSnapshot: BarTimerSnapshot = {
+  live: null,
+  now: null,
+  personalTimer: null,
+  pomodoro: null,
+  timerKind: null,
+  timerMode: null,
+  timerRow: undefined,
+};
+
+function useBarTodoTab(enabled: boolean): WidgetTodoTab {
+  const [todoTab, setTodoTab] = useState<WidgetTodoTab>("mine");
+
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    const load = () => {
+      void readWidgetTodoTab(null).then((stored) => {
+        if (!cancelled && stored) setTodoTab(stored);
+      });
+    };
+    load();
+    let unlistenBarItemsChanged: (() => void) | null = null;
+    void listenWidgetBarItemsChanged(load).then((nextUnlisten) => {
+      if (cancelled) {
+        nextUnlisten();
+        return;
+      }
+      unlistenBarItemsChanged = nextUnlisten;
+    });
+    const intervalId = window.setInterval(load, 1000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") load();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      cancelled = true;
+      unlistenBarItemsChanged?.();
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [enabled]);
+
+  return todoTab;
+}
+
+// 타이머 버블이 바에 접혀 있는 동안의 라이브 타이머 상태.
+// - 뽀모도로는 GhostPomodoro와 같은 벽시계(phaseEndsAt) 기반 1초 틱으로 남은 시간을 계산하고,
+//   타이머 창이 닫혀 있어도(=바에만 접혀 있어도) 페이즈 자동 전환·사이클 카운트·임박 알림음을 이어간다.
+//   칩은 타이머 버블이 최소화됐을 때만 뜨므로, 열린 타이머 창과 전환 저장이 겹칠 일이 없다.
+// - 서버 작업 타이머는 timerLastStartedAt 기준으로 경과를 재계산해 폴링 주기와 무관하게 흐른다.
+// - 저장 상태(뽀모도로·탭 모드)는 1초 주기 + 창 포커스 복귀 때 다시 읽어 접힌 바가 선택 탭을 따라잡는다.
+function useBarTimerLive(enabled: boolean, timerBubble: WidgetPreviewBubble | undefined): BarTimerSnapshot {
+  const [personalTimer, setPersonalTimer] = useState<PersonalTimerState | null>(null);
+  const [pomodoro, setPomodoro] = useState<PomodoroState | null>(null);
+  const [recoveredWorkTimerRow, setRecoveredWorkTimerRow] = useState<WidgetPreviewItem | null>(null);
+  const [snapshotWorkTimerRow, setSnapshotWorkTimerRow] = useState<WidgetPreviewItem | null>(null);
+  const [timerKind, setTimerKind] = useState<WidgetTimerKind | null>(null);
+  const [timerMode, setTimerMode] = useState<WidgetTimerMode | null>(null);
+  // 1초 틱이 채우는 벽시계(ms). 렌더는 이 값으로만 시간을 계산한다(렌더 중 Date.now() 금지).
+  const [liveNow, setLiveNow] = useState<number>(() => Date.now());
+  const pomodoroRef = useRef<PomodoroState | null>(null);
+  useEffect(() => {
+    pomodoroRef.current = pomodoro;
+  }, [pomodoro]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    const load = () => {
+      void readPersonalTimerState(null).then((stored) => {
+        if (!cancelled) setPersonalTimer(stored);
+      });
+      void readPomodoroState(null).then((stored) => {
+        if (!cancelled) setPomodoro(stored);
+      });
+      void readWidgetTimerKind(null).then((stored) => {
+        if (!cancelled) setTimerKind(stored);
+      });
+      void readWidgetTimerMode(null).then((stored) => {
+        if (!cancelled) setTimerMode(stored);
+      });
+      void readWidgetWorkTimerSnapshot(null).then((stored) => {
+        if (!cancelled) setSnapshotWorkTimerRow(stored ? timerRowFromWorkSnapshot(stored) : null);
+      });
+      setLiveNow(Date.now());
+    };
+    load();
+    let unlistenBarItemsChanged: (() => void) | null = null;
+    void listenWidgetBarItemsChanged(load).then((nextUnlisten) => {
+      if (cancelled) {
+        nextUnlisten();
+        return;
+      }
+      unlistenBarItemsChanged = nextUnlisten;
+    });
+    const intervalId = window.setInterval(load, 1000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") load();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      cancelled = true;
+      unlistenBarItemsChanged?.();
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [enabled]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const unsubscribeMode = subscribeWidgetTimerModeChange((stored) => {
+      setTimerMode(stored);
+      setLiveNow(Date.now());
+    });
+    const unsubscribeKind = subscribeWidgetTimerKindChange((stored) => {
+      setTimerKind(stored);
+      setLiveNow(Date.now());
+    });
+    const unsubscribePersonalTimer = subscribePersonalTimerStateChange((stored) => {
+      setPersonalTimer(stored);
+      setLiveNow(Date.now());
+    });
+    const unsubscribePomodoro = subscribePomodoroStateChange((stored) => {
+      pomodoroRef.current = stored;
+      setPomodoro(stored);
+      setLiveNow(Date.now());
+    });
+    return () => {
+      unsubscribeMode();
+      unsubscribeKind();
+      unsubscribePersonalTimer();
+      unsubscribePomodoro();
+    };
+  }, [enabled]);
+
+  useEffect(() => {
+    const wantsWorkTimer = (timerMode ?? "work") === "work" && (timerKind ?? "work") === "work";
+    if (!enabled || !wantsWorkTimer || !isTauriRuntime()) {
+      return;
+    }
+
+    let cancelled = false;
+    let inFlight = false;
+
+    const refreshRecoveredWorkTimer = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const recovery = await tauriCommands.recoverTimerState().catch(() => null);
+        if (cancelled) return;
+        if (!recovery?.recoveryRequired || !recovery.serverTimeLogId) {
+          setRecoveredWorkTimerRow(null);
+          return;
+        }
+
+        const timeLog = await timerApi.heartbeat(recovery.serverTimeLogId).catch(() => null);
+        if (cancelled) return;
+        setRecoveredWorkTimerRow(timeLog && timeLog.status !== "ENDED" ? timerRowFromTimeLog(timeLog) : null);
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    void refreshRecoveredWorkTimer();
+    const intervalId = window.setInterval(refreshRecoveredWorkTimer, 15_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refreshRecoveredWorkTimer();
+    };
+    const onFocus = () => {
+      void refreshRecoveredWorkTimer();
+    };
+    let unlistenBarItemsChanged: (() => void) | null = null;
+    void listenWidgetBarItemsChanged(refreshRecoveredWorkTimer).then((nextUnlisten) => {
+      if (cancelled) {
+        nextUnlisten();
+        return;
+      }
+      unlistenBarItemsChanged = nextUnlisten;
+    });
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      cancelled = true;
+      unlistenBarItemsChanged?.();
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [enabled, timerKind, timerMode]);
+
+  const timerRow = timerBubble?.rows.find((row) => row.kind === "time");
+  const workTimerRow = timerRow ?? recoveredWorkTimerRow ?? snapshotWorkTimerRow ?? undefined;
+  // 타이머 칩에는 어떤 상태든 항상 시간이 떠야 한다(사용자 요구: 아이콘만 금지) —
+  // 뽀모도로/서버 타이머가 없으면 현재 시각 폴백을 그리므로 enabled면 무조건 1초 틱.
+  const needsTick = enabled;
+
+  useEffect(() => {
+    if (!needsTick) return;
+    const tick = () => {
+      const current = pomodoroRef.current;
+      if (current?.running && current.phaseEndsAt) {
+        const left = Math.round((current.phaseEndsAt - Date.now()) / 1000);
+        if (left > 0) {
+          // 집중 마무리 임박(남은 60초) 알림음 — 페이즈당 1회(PomodoroView/고스트와 큐 키 공유).
+          if (current.phase === "focus") {
+            if (current.endingSoundCueKey !== current.phaseEndsAt) {
+              void maybePlayPomodoroEndingSound(left, current.phaseEndsAt, {
+                onPlayed: () => {
+                  const latest = pomodoroRef.current;
+                  if (!latest || latest.phaseEndsAt !== current.phaseEndsAt) return;
+                  const next = { ...latest, endingSoundCueKey: current.phaseEndsAt };
+                  pomodoroRef.current = next;
+                  setPomodoro(next);
+                  void writePomodoroState(next, null);
+                },
+              });
+            }
+          } else {
+            stopPomodoroEndingSound();
+          }
+        } else {
+          stopPomodoroEndingSound();
+          // 페이즈 종료 → 자동 전환 저장. 타이머 창이 닫혀 있어도 바가 사이클을 이어간다.
+          const nextPhase: PomodoroPhase = current.phase === "focus" ? "break" : "focus";
+          const nextDuration = phaseDurationSeconds(nextPhase, current.focusMinutes, current.breakMinutes);
+          const next: PomodoroState = {
+            ...current,
+            cyclesCompleted: current.phase === "focus" ? current.cyclesCompleted + 1 : current.cyclesCompleted,
+            endingSoundCueKey: null,
+            phase: nextPhase,
+            phaseEndsAt: Date.now() + nextDuration * 1000,
+            remainingSeconds: null,
+            running: true,
+          };
+          pomodoroRef.current = next;
+          setPomodoro(next);
+          void writePomodoroState(next, null);
+        }
+      } else {
+        stopPomodoroEndingSound();
+      }
+      setLiveNow(Date.now());
+    };
+    tick();
+    const intervalId = window.setInterval(tick, 1000);
+    // 백그라운드 스로틀로 멈춰 보이지 않게 포커스/가시성 복귀 시 즉시 재계산한다.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [needsTick]);
+
+  if (!enabled) return emptyBarTimerSnapshot;
+
+  const selectedMode: WidgetTimerMode = timerMode ?? "work";
+  let live: BarTimerSnapshot["live"] = null;
+  if (selectedMode === "clock") {
+    live = { kind: "clock", label: formatClock(new Date(liveNow)) };
+  } else if (selectedMode === "pomodoro") {
+    const phaseTotal = pomodoro
+      ? phaseDurationSeconds(pomodoro.phase, pomodoro.focusMinutes, pomodoro.breakMinutes)
+      : POMODORO_FOCUS_SECONDS;
+    const left =
+      pomodoro?.running && pomodoro.phaseEndsAt
+        ? Math.max(0, Math.round((pomodoro.phaseEndsAt - liveNow) / 1000))
+        : (pomodoro?.remainingSeconds ?? phaseTotal);
+    live = { kind: "pomodoro", label: formatMinutesSeconds(left) };
+  } else if ((timerKind ?? "work") === "personal") {
+    live = { kind: "work", label: formatMinutesSeconds(personalTimerElapsedSeconds(personalTimer, liveNow)) };
+  } else if (workTimerRow && workTimerRow.status === "RUNNING") {
+    live = { kind: "work", label: elapsedWidgetTimerLabel(workTimerRow, "00:00", liveNow) };
+  } else if (workTimerRow && workTimerRow.status === "PAUSED") {
+    live = { kind: "work", label: formatMinutesSeconds(workTimerRow.timerDurationSeconds ?? 0) };
+  } else {
+    live = { kind: "work", label: "00:00" };
+  }
+  return { live, now: liveNow, personalTimer, pomodoro, timerKind, timerMode, timerRow: workTimerRow };
+}
+
 // Bubli 메뉴 패널 본문: 바와 메뉴 오브가 공유하는 동일한 바로가기 레이아웃.
 // 버블 바로가기 그리드 + 자동 정렬/룸 전환/메인 앱/설정/종료 + 오늘 사용 요약 한 줄.
 export type WidgetMenuContentProps = {
   hasRoomContext?: boolean;
+  // 연결된 모니터 목록(2대 이상일 때만 "모니터로 이동" 섹션을 그린다).
+  monitors?: AppMonitorInfo[];
   onArrangeBubbles?: (layout?: WidgetArrangeLayout) => void;
+  // 선택한 모니터로 바 + 열린 버블 창을 통째로 옮긴다(Rust move_widget_windows_to_monitor).
+  onMoveToMonitor?: (monitorId: string) => void;
   onOpenBubble?: (bubbleType: WidgetBubbleType) => void;
   onOpenMainApp?: () => void;
   onOpenSettings?: () => void;
@@ -4029,8 +4443,9 @@ export type WidgetMenuContentProps = {
   usageSummary?: string | null;
 };
 
-// 자동 정렬 프리셋: 격자(기본)/세로 한 열/가로 한 줄/계단식.
+// 자동 정렬 프리셋: 보드(블로그 위젯형)/격자/세로 한 열/가로 한 줄/계단식.
 const arrangePresets: { labelKey: MessageKey; layout: WidgetArrangeLayout }[] = [
+  { labelKey: "widget.menu.arrangeBoard", layout: "board" },
   { labelKey: "widget.menu.arrangeGrid", layout: "grid" },
   { labelKey: "widget.menu.arrangeColumn", layout: "column" },
   { labelKey: "widget.menu.arrangeRow", layout: "row" },
@@ -4039,7 +4454,9 @@ const arrangePresets: { labelKey: MessageKey; layout: WidgetArrangeLayout }[] = 
 
 export function WidgetMenuPanelContent({
   hasRoomContext = false,
+  monitors,
   onArrangeBubbles,
+  onMoveToMonitor,
   onOpenBubble,
   onOpenMainApp,
   onOpenSettings,
@@ -4133,6 +4550,38 @@ export function WidgetMenuPanelContent({
           ))}
         </div>
       </div>
+      {/* 모니터로 이동 — 멀티 모니터에서만 노출. 바 + 열린 버블 창을 상대 배치 그대로
+          선택한 모니터로 옮긴다(자동 정렬과 별개 — 위치를 다시 짜지 않는다). */}
+      {monitors && monitors.length > 1 && onMoveToMonitor ? (
+        <div className={styles.menuArrange} role="group" aria-label={t("widget.menu.moveMonitor")}>
+          <span className={styles.menuArrangeLabel}>
+            <Monitor size={13} strokeWidth={2.1} aria-hidden="true" />
+            {t("widget.menu.moveMonitor")}
+          </span>
+          {/* 사용자 요청: 칩 나열 대신 셀렉트박스로 모니터를 골라 이동한다.
+              고르는 즉시 이동하고 다시 안내 문구로 되돌린다(이동 "동작" 선택이라 상태 유지 없음). */}
+          <select
+            aria-label={t("widget.menu.moveMonitor")}
+            className={styles.menuMonitorSelect}
+            onChange={(event) => {
+              const monitorId = event.target.value;
+              if (monitorId) onMoveToMonitor(monitorId);
+              event.target.value = "";
+            }}
+            value=""
+          >
+            <option disabled value="">
+              {t("widget.menu.moveMonitorPlaceholder")}
+            </option>
+            {monitors.map((monitor, index) => (
+              <option key={monitor.id} value={monitor.id}>
+                {t("widget.menu.monitorItem", { index: index + 1 })}
+                {monitor.isPrimary ? ` (${t("widget.menu.monitorPrimary")})` : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
       <div className={styles.menuActions}>
         {actionItems.map(({ Icon, label, onSelect }) => (
           <button
@@ -4193,10 +4642,12 @@ const BarChipButton = memo(function BarChipButton({
   bubbleType,
   chipEnterExit,
   describedBy,
+  liveTimerLabel = null,
   onHidePreview,
   onRestoreBubble,
   onShowPreview,
   ref,
+  todoTab,
   whileHover,
   whileTap,
 }: {
@@ -4204,28 +4655,40 @@ const BarChipButton = memo(function BarChipButton({
   bubbleType: WidgetBubbleType;
   chipEnterExit: BarChipEnterExit;
   describedBy?: string;
+  // 타이머 칩 전용 라이브 라벨(뽀모도로 남은 mm:ss/서버 경과/현재 시각). 바가 1초 틱으로 내려준다.
+  liveTimerLabel?: string | null;
   onHidePreview: (target: WidgetBubbleType) => void;
   onRestoreBubble: (bubbleType: WidgetBubbleType) => void;
   onShowPreview: (target: WidgetBubbleType) => void;
   ref?: Ref<HTMLButtonElement>;
+  todoTab: WidgetTodoTab;
   whileHover?: typeof chipWhileHoverPreset;
   whileTap?: typeof chipWhileTapPreset;
 }) {
   const { t } = useI18n();
   const meta = getBubbleMeta(bubbleType);
   const Icon = meta.Icon;
-  // 칩은 아이콘 전용 36px 타일 + 우상단 16px 카운트 배지(>0일 때만).
-  // 타이머만 배지 대신 컴팩트 시간 텍스트를 보여준다. 전체 라벨은 aria/hover 팝오버 담당.
+  // 칩은 36px 아이콘 타일이 기본. 위젯을 안 열어도 내용이 읽히도록
+  // 타이머=라이브 시간, 투두·일정·메모=카운트를 아이콘 옆 14px 텍스트로 붙인다
+  // (투두·일정·메모의 0은 실제 상태라 그대로 표시).
+  // 소통·에이전트·초안 버블은 기존 우상단 카운트 배지를 유지한다.
   const isTimerChip = bubbleType === "timer";
-  const badge = isTimerChip ? null : barChipBadge(bubble.metric);
+  const inlineLabel = isTimerChip ? liveTimerLabel : barChipInlineCount(bubbleType, bubble, todoTab);
+  const badge = isTimerChip || inlineLabel !== null ? null : barChipBadge(bubble.metric);
+  // 스크린리더 라벨도 눈에 보이는 라이브 값과 같은 내용으로 맞춘다.
+  const ariaLabel =
+    isTimerChip && liveTimerLabel
+      ? t("widget.timer.count", { value: liveTimerLabel })
+      : bubbleType === "schedule" && inlineLabel
+        ? t("widget.bar.todaySchedule", { count: inlineLabel })
+        : t(bubble.compactLabel as MessageKey);
 
   return (
     <motion.button
-      layout
       {...chipEnterExit}
       aria-describedby={describedBy}
-      aria-label={t(bubble.compactLabel as MessageKey)}
-      className={[styles.barChip, isTimerChip ? styles.barTimerChip : "", accentClassNames[meta.accent]]
+      aria-label={ariaLabel}
+      className={[styles.barChip, inlineLabel !== null ? styles.barLabelChip : "", accentClassNames[meta.accent]]
         .filter(Boolean)
         .join(" ")}
       onBlur={() => onHidePreview(bubbleType)}
@@ -4240,7 +4703,7 @@ const BarChipButton = memo(function BarChipButton({
       whileTap={whileTap}
     >
       <Icon size={15} strokeWidth={2.1} aria-hidden="true" />
-      {isTimerChip ? <b className={styles.chipTime}>{bubble.metric}</b> : null}
+      {inlineLabel !== null ? <b className={styles.chipInlineLabel}>{inlineLabel}</b> : null}
       {badge ? (
         <i className={styles.chipBadge} aria-hidden="true">
           {badge}
@@ -4256,8 +4719,10 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   bubbleDataByType,
   hasRoomContext = false,
   minimizedItems,
+  monitors,
   notificationSignal = widgetNotificationSignal,
   onArrangeBubbles,
+  onMoveToMonitor,
   onOpenMainApp,
   onOpenSettings,
   onQuit,
@@ -4268,8 +4733,11 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   bubbleDataByType?: Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>;
   hasRoomContext?: boolean;
   minimizedItems: WidgetWindowState[];
+  // Bubli 메뉴의 "모니터로 이동" 섹션용 — page.tsx가 list_app_monitors로 채워 내려준다.
+  monitors?: AppMonitorInfo[];
   notificationSignal?: WidgetNotificationSignal;
   onArrangeBubbles?: (layout?: WidgetArrangeLayout) => void;
+  onMoveToMonitor?: (monitorId: string) => void;
   onOpenMainApp?: () => void;
   onOpenSettings?: () => void;
   onQuit?: () => void;
@@ -4277,7 +4745,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   onToggleRoomContext?: () => void;
   usageSummary?: string | null;
 }) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const hoverCapable = useHoverCapablePointer();
   const prefersReducedMotion = useReducedMotion();
   // 접힌 칩에 hover/포커스하면 pill 위 투명 영역에 요약 팝오버를 띄운다.
@@ -4286,6 +4754,12 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   // 알림 버블 칩만 제외(고정 알림 칩과 중복)하고 접힌 칩은 전부 노출한다.
   // 4초 폴링이 같은 목록을 유지하면(참조 동일) 필터 결과도 재사용한다.
   const visibleItems = useMemo(() => collectBarFoldedItems(minimizedItems), [minimizedItems]);
+
+  // 바 웹뷰는 뽀모도로 종료음의 단독 소유자다. 타이머 칩이 접혀 있지 않아도 1초 틱을 유지해야
+  // 열린 타이머 창을 최소화하는 순간 오디오 소유자가 같이 죽지 않고, 같은 cue가 중복 재생되지 않는다.
+  const todoFolded = visibleItems.some((item) => item.activeBubble === "todo");
+  const barTimer = useBarTimerLive(true, bubbleDataByType?.timer);
+  const barTodoTab = useBarTodoTab(todoFolded);
 
   // 알림 구이(gooey) 팝: 미확인 알림 수가 "증가"할 때만 알림 칩에서 제목 버블이 솟는다.
   // 첫 데이터 수신(baseline)은 팝하지 않고, 3초 유지 후 칩으로 다시 흡수된다.
@@ -4439,8 +4913,13 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
     async (
       grab: { x: number; y: number },
       metrics: { rootHeight: number; rootWidth: number; navHeight: number; navWidth: number },
+      _cursor: { x: number; y: number },
     ) => {
       const result = await tauriCommands.dragWidgetBarWindow({
+        // macOS needs WebView's global logical coordinates; Windows ignores these and
+        // uses the native physical cursor from Tauri.
+        cursorX: _cursor.x,
+        cursorY: _cursor.y,
         grabX: grab.x,
         grabY: grab.y,
         navHeight: metrics.navHeight,
@@ -4448,7 +4927,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
         rootHeight: metrics.rootHeight,
         rootWidth: metrics.rootWidth,
       });
-      setBarPreviewPlacement((current) => (current === result.placement ? current : result.placement));
+      setBarPreviewPlacement(result.placement);
     },
     [],
   );
@@ -4493,6 +4972,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
         window.removeEventListener("pointermove", onPointerMove);
         window.removeEventListener("pointerup", cleanup);
         window.removeEventListener("pointercancel", cleanup);
+        if (dragStarted) void syncBarPreviewPlacement();
         try {
           navElement.releasePointerCapture(pointerId);
         } catch {
@@ -4509,7 +4989,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
             if (disposed || !latestCursor) return;
             try {
               void tauriCommands.notifyWidgetDragStarted().catch(() => undefined);
-              await moveBarToCursor({ x: grabX, y: grabY }, metrics);
+              await moveBarToCursor({ x: grabX, y: grabY }, metrics, latestCursor);
             } catch {
               cleanup();
             }
@@ -4533,7 +5013,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
       window.addEventListener("pointerup", cleanup, { once: true });
       window.addEventListener("pointercancel", cleanup, { once: true });
     },
-    [moveBarToCursor],
+    [moveBarToCursor, syncBarPreviewPlacement],
   );
 
   const handleBarClickCapture = useCallback((event: MouseEvent<HTMLElement>) => {
@@ -4584,7 +5064,71 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
     }
     const bubble = bubbleDataByType?.[previewTarget] ?? getWidgetPreviewBubble(previewTarget);
     const meta = getBubbleMeta(previewTarget);
-    return {
+    // 타이머 팝오버는 선택된 탭의 요약만 한 번 보여준다. clock/pomodoro/work 값을 섞으면
+    // 접힌 바에서 같은 숫자가 헤더와 행에 중복되고, clock인데 "타이머"로 보이는 문제가 생긴다.
+	    if (previewTarget === "timer") {
+      if (barTimer.live?.kind === "clock") {
+        const now = new Date(barTimer.now ?? 0);
+        return {
+          accent: meta.accent,
+          headline: formatClock(now),
+          Icon: Clock3,
+          label: t("widget.timer.tabClock"),
+          rows: [],
+          sub: new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", weekday: "short", year: "numeric" }).format(now),
+          truncated: false,
+        };
+      }
+
+      if (barTimer.live?.kind === "pomodoro") {
+        const pomodoro = barTimer.pomodoro;
+        const phaseLabel =
+          (pomodoro?.phase ?? "focus") === "focus" ? t("widget.timer.pomodoroFocus") : t("widget.timer.pomodoroBreak");
+        return {
+          accent: meta.accent,
+          headline: barTimer.live.label,
+          Icon: Timer,
+          label: t("widget.timer.tabPomodoro"),
+          rows: [],
+          sub: `${phaseLabel} · ${t("widget.timer.pomodoroCycles", { value: pomodoro?.cyclesCompleted ?? 0 })}${
+            pomodoro && !pomodoro.running ? ` · ${t("widget.timer.pause")}` : ""
+          }`,
+          truncated: false,
+        };
+      }
+
+      const timerIsPersonal = (barTimer.timerKind ?? "work") === "personal";
+      const timerRow = timerIsPersonal ? null : barTimer.timerRow;
+      const timerSub = timerIsPersonal
+        ? (barTimer.personalTimer?.running ? t("widget.timer.recording") : t("widget.timer.kindPersonal"))
+        : timerRow
+          ? [timerRow.label, timerRow.roomName].filter(Boolean).join(" · ")
+          : t("widget.timer.noneRunning");
+	      return {
+	        accent: meta.accent,
+	        headline: barTimer.live?.label ?? "00:00",
+        Icon: Timer,
+        label: t("widget.timer.tabTimer"),
+        rows: [],
+        sub: timerSub,
+        truncated: false,
+      };
+	    }
+	    if (previewTarget === "todo") {
+	      const rows = todoRowsForBarTab(bubble, barTodoTab);
+	      const openCount = countOpenRows(rows);
+	      const todoView = bubble.todoView;
+	      return {
+	        accent: meta.accent,
+	        headline: t("widget.todo.remainSummary", { open: openCount, done: rows.length - openCount }),
+	        Icon: meta.Icon,
+	        label: t(meta.label),
+	        rows: rows.slice(0, 3),
+	        sub: barTodoTab === "room" && todoView?.hasRoom ? (todoView.roomName ?? t("widget.todo.tabRoom")) : t("widget.todo.tabMine"),
+	        truncated: rows.length > 3,
+	      };
+	    }
+	    return {
       accent: meta.accent,
       headline: t(bubble.compactLabel as MessageKey),
       Icon: meta.Icon,
@@ -4593,7 +5137,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
       sub: t(bubble.notificationLabel as MessageKey),
       truncated: bubble.rows.length > 3,
     };
-  }, [bubbleDataByType, notificationSignal, previewTarget, t]);
+	  }, [barTimer, barTodoTab, bubbleDataByType, locale, notificationSignal, previewTarget, t]);
   const PreviewIcon = preview?.Icon;
 
   // 팝오버 등장: 칩(아래 중앙)을 앵커로 스프링 스케일 인 — reduced-motion은 페이드만.
@@ -4608,7 +5152,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   const gooExit = prefersReducedMotion ? gooExitReduced : gooExitFull;
 
   // 바 창은 pill 하나만 시각적으로 유지한다(접힘 상시 미리보기 카드 없음).
-  // 창 너비는 Rust(WIDGET_BAR_WIDTH)가 640 고정이고 칩이 아이콘 전용 36px 타일이라
+  // 창 너비는 Rust(WIDGET_BAR_WIDTH)가 640 고정이고, 인라인 라벨(타이머 시간·카운트)을 붙여도
   // 접힌 칩 전부(알림 버블 제외 최대 7개)가 어떤 조합에서도 창을 넘지 않는다 — "+N" 없음.
   // pill 위 투명 영역에는 hover 팝오버와 Bubli 메뉴 morph 패널이 뜬다(absolute라 pill이 밀리지 않는다).
   // 창 높이는 Rust WIDGET_BAR_HEIGHT(640)가 패널(≈532px)과 hover preview 여유를 수용한다.
@@ -4639,7 +5183,9 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
               <div className={styles.barMenuInner}>
                 <WidgetMenuPanelContent
                   hasRoomContext={hasRoomContext}
+                  monitors={monitors}
                   onArrangeBubbles={onArrangeBubbles}
+                  onMoveToMonitor={onMoveToMonitor}
                   onOpenBubble={openBubbleFromMenu}
                   onOpenMainApp={onOpenMainApp}
                   onOpenSettings={onOpenSettings}
@@ -4729,10 +5275,13 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
                 ) : null}
               </AnimatePresence>
             </span>
+            {/* 알림 칩도 코너 배지 대신 아이콘 옆 14px 안읽음 카운트를 붙인다(0이면 아이콘만). */}
             <motion.button
               aria-describedby={previewTarget === "notice" ? BAR_PREVIEW_POPOVER_ID : undefined}
               aria-label={t(notificationSignal.notificationLabel as MessageKey)}
-              className={[styles.barChip, accentClassNames.lilac].join(" ")}
+              className={[styles.barChip, barChipBadge(notificationSignal.metric) ? styles.barLabelChip : "", accentClassNames.lilac]
+                .filter(Boolean)
+                .join(" ")}
               onBlur={() => hidePreview("notice")}
               onFocus={() => showPreview("notice")}
               onMouseEnter={() => showPreview("notice")}
@@ -4744,9 +5293,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
             >
               <Bell size={15} strokeWidth={2.1} aria-hidden="true" />
               {barChipBadge(notificationSignal.metric) ? (
-                <i className={styles.chipBadge} aria-hidden="true">
-                  {barChipBadge(notificationSignal.metric)}
-                </i>
+                <b className={styles.chipInlineLabel}>{barChipBadge(notificationSignal.metric)}</b>
               ) : null}
             </motion.button>
             <AnimatePresence>
@@ -4790,7 +5337,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
             <BubbleMark aria-hidden="true" className={styles.menuOrbMark} />
           </motion.button>
           <span className={styles.barDivider} aria-hidden="true" data-bubli-interactive="true" />
-          <AnimatePresence initial={false} mode="popLayout">
+          <AnimatePresence initial={false}>
             {visibleItems.map((item) => {
               const bubbleType = item.activeBubble as WidgetBubbleType;
               return (
@@ -4800,12 +5347,15 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
                   chipEnterExit={chipEnterExit}
                   describedBy={previewTarget === bubbleType ? BAR_PREVIEW_POPOVER_ID : undefined}
                   key={bubbleType}
-                  onHidePreview={hidePreview}
-                  onRestoreBubble={onRestoreBubble}
-                  onShowPreview={showPreview}
-                  whileHover={chipWhileHover}
-                  whileTap={chipWhileTap}
-                />
+                  // 타이머 칩만 라이브 라벨이 1초 틱으로 갱신된다(다른 칩은 항상 null — memo 유지).
+                  liveTimerLabel={bubbleType === "timer" ? (barTimer.live?.label ?? null) : null}
+	                  onHidePreview={hidePreview}
+	                  onRestoreBubble={onRestoreBubble}
+	                  onShowPreview={showPreview}
+	                  todoTab={barTodoTab}
+	                  whileHover={chipWhileHover}
+	                  whileTap={chipWhileTap}
+	                />
               );
             })}
           </AnimatePresence>

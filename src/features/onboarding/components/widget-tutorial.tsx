@@ -11,8 +11,10 @@ import { type MessageKey, useI18n } from "@/lib/i18n";
 
 import styles from "./widget-tutorial.module.css";
 
+export type WidgetTutorialSceneKind = "welcome" | "bubble" | "bar" | "room" | "modes" | "ready";
+
 type WidgetTutorialStep = {
-  scene: "welcome" | "bubble" | "bar" | "room" | "modes" | "ready";
+  scene: WidgetTutorialSceneKind;
   title: MessageKey;
   body: MessageKey;
 };
@@ -66,6 +68,7 @@ export function WidgetTutorial({ onClose }: WidgetTutorialProps) {
 
   return (
     <div className={styles.overlay} role="dialog" aria-modal="true" aria-label={t("widgetTutorial.aria")}>
+      <WidgetTutorialSceneDefs />
       <div aria-hidden className={styles.orbA} />
       <div aria-hidden className={styles.orbB} />
 
@@ -85,7 +88,7 @@ export function WidgetTutorial({ onClose }: WidgetTutorialProps) {
           transition={transition}
         >
           <div className={styles.scene}>
-            <Scene scene={step.scene} />
+            <WidgetTutorialScene scene={step.scene} />
           </div>
           <div className={styles.copy}>
             <h1 className={styles.title}>{t(step.title)}</h1>
@@ -119,8 +122,25 @@ export function WidgetTutorial({ onClose }: WidgetTutorialProps) {
 }
 
 // ---------- 인라인 SVG 장면(브랜드 유리 톤, currentColor·stroke 기반) ----------
+// 데스크탑 온보딩 오버레이(desktop-widget/onboarding)도 같은 장면을 그대로 가져다 쓴다.
 
-function Scene({ scene }: { scene: WidgetTutorialStep["scene"] }) {
+// 방울(SVG)에 실제 그라데이션을 주기 위한 공용 defs — 문서 전역 id라 모든 장면 SVG가 참조한다.
+// 장면을 쓰는 화면은 이 defs를 문서에 한 번 포함해야 한다.
+export function WidgetTutorialSceneDefs() {
+  return (
+    <svg aria-hidden width="0" height="0" style={{ position: "absolute" }}>
+      <defs>
+        <radialGradient id="bubli-tut-bubble" cx="34%" cy="30%" r="72%">
+          <stop offset="0%" stopColor="rgba(255,255,255,0.96)" />
+          <stop offset="52%" stopColor="rgba(200,231,250,0.62)" />
+          <stop offset="100%" stopColor="rgba(158,216,255,0.28)" />
+        </radialGradient>
+      </defs>
+    </svg>
+  );
+}
+
+export function WidgetTutorialScene({ scene }: { scene: WidgetTutorialSceneKind }) {
   if (scene === "welcome") return <SceneWelcome />;
   if (scene === "bubble") return <SceneBubble />;
   if (scene === "bar") return <SceneBar />;

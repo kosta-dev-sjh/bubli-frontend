@@ -722,8 +722,13 @@ assertContains(
 );
 assertContains(
   tauriLib,
-  /fn close_widget_window[\s\S]*if cfg!\(target_os = "macos"\) \{[\s\S]*widget\.mode = "MINIMIZED"\.to_string\(\);[\s\S]*\} else \{[\s\S]*widget\.mode = "DEFAULT"\.to_string\(\);/,
-  "Desktop widget close must keep the macOS restore-bar behavior separate from the existing Windows close behavior.",
+  /fn close_widget_window[\s\S]*widget\.mode = "DEFAULT"\.to_string\(\);[\s\S]*widget\.dock_orb_visible = false;[\s\S]*widget\.window_visible = false;[\s\S]*emit_widget_bar_items_changed\(&app\);/,
+  "Desktop widget close must remove the bubble from restore bar items while keeping runtime state persisted.",
+);
+assertNotContains(
+  tauriLib,
+  /fn close_widget_window[\s\S]*widget\.mode = "MINIMIZED"\.to_string\(\);/,
+  "Desktop widget close must not convert closed bubbles into minimized restore-bar items.",
 );
 assertContains(
   tauriDevtoolsGuard,
@@ -758,18 +763,18 @@ assertContains(
 );
 assertContains(
   firstRunController,
-  /import \{ isMacTauriRuntime \} from "@\/lib\/tauri\/platform";/,
-  "Desktop onboarding overlay must stay macOS-only so Windows widget windows are not covered by the full-monitor overlay.",
+  /import \{ isTauriRuntime \} from "@\/lib\/tauri\/is-tauri";/,
+  "Desktop onboarding overlay must gate on the Tauri runtime (any desktop OS); the translucent scrim no longer covers Windows widget windows opaquely.",
 );
 assertContains(
   firstRunController,
-  /const openWidgetTutorial = useCallback\(\(\) => \{[\s\S]*if \(isMacTauriRuntime\(\)\) \{[\s\S]*tauriCommands\.openOnboardingOverlay\(\)[\s\S]*\}[\s\S]*setPhase\("widget"\);/,
-  "First-run onboarding must open the native full-monitor overlay only inside the macOS-only guard; non-macOS must fall back to the in-app widget tutorial.",
+  /const openWidgetTutorial = useCallback\(\(\) => \{[\s\S]*if \(isTauriRuntime\(\)\) \{[\s\S]*tauriCommands\.openOnboardingOverlay\(\)[\s\S]*\}[\s\S]*setPhase\("widget"\);/,
+  "First-run onboarding must open the native full-monitor overlay only inside the Tauri runtime guard; non-Tauri web must fall back to the in-app widget tutorial.",
 );
 assertContains(
   firstRunController,
   /if \(phase === "widget"\) \{[\s\S]*<WidgetTutorial/,
-  "Windows Tauri and web must render the in-app WidgetTutorial modal instead of opening the macOS desktop onboarding overlay.",
+  "Web (non-Tauri) must still render the in-app WidgetTutorial modal instead of the desktop onboarding overlay window.",
 );
 assertContains(
   runtimeSmokeRunner,
@@ -1058,8 +1063,8 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /closeWidgetWindow\(\{ bubbleType: "chat", windowId: "chat" \}\)[\s\S]*post-login relaunch setup closed one bubble widget[\s\S]*if \(isMacRuntime\(\)\) \{[\s\S]*getWidgetBarItems\(\)[\s\S]*macOS closed chat widget remains restorable from the bar[\s\S]*openWidgetWindow\(\{[\s\S]*bubbleType: "chat"[\s\S]*macOS closed chat widget restored from the bar with project room context[\s\S]*closed chat widget reopened with project room context/,
-  "TauriRuntimeSmokeRunner must prove macOS close leaves a bar restore item while Windows can keep the existing reopen flow.",
+  /closeWidgetWindow\(\{ bubbleType: "chat", windowId: "chat" \}\)[\s\S]*post-login relaunch setup closed one bubble widget[\s\S]*getWidgetBarItems\(\)[\s\S]*closed chat widget is removed from the bar restore items[\s\S]*openWidgetWindow\(\{[\s\S]*bubbleType: "chat"[\s\S]*closed chat widget reopened with project room context/,
+  "TauriRuntimeSmokeRunner must prove close removes the bar restore item while reopening keeps project room context.",
 );
 assertContains(
   runtimeSmokeRunner,
@@ -1344,21 +1349,21 @@ assertContains(
   "loginStartupBarWindow",
   "Login startup windows must include the Bubli bar.",
 );
-assertContains(
+assertNotContains(
   startupWindows,
   /loginStartupMenuWindow/,
-  "Login startup windows must open the standalone orb menu window (coexists with the inline bar menu; reinstated after #429).",
+  "Login startup windows must not open the standalone orb menu automatically; the bar is the only first-launch surface.",
 );
-assertContains(
+assertNotContains(
   startupWindows,
   /bubbleType:\s*"todo"[\s\S]*windowId:\s*"todo"/,
-  "Login startup windows must include the primary TODO bubble.",
+  "Login startup windows must not fan out the TODO bubble automatically; it should be restored from the bar.",
 );
 for (const required of ["agent", "alert", "chat", "memo", "schedule", "timer"]) {
-  assertContains(
+  assertNotContains(
     startupWindows,
     new RegExp(`bubbleType:\\s*"${required}"[\\s\\S]*windowId:\\s*"${required}"`),
-    `Login startup windows must include the ${required} bubble so authenticated Tauri launches restore all widget surfaces.`,
+    `Login startup windows must not fan out the ${required} bubble automatically; it should be restored from the bar.`,
   );
 }
 assertNotContains(
@@ -1369,23 +1374,43 @@ assertNotContains(
 
 assertContains(
   surfaces,
-  /return \[loginStartupBarWindow, \.\.\.startupBubbles\];/,
-  "resolveLoginStartupWindows must pair the bar with every enabled startup bubble.",
+  /readDesktopWidgetStartupPreference/,
+  "resolveLoginStartupWindows must read the user's desktop widget startup preference from onboarding storage.",
 );
 assertContains(
   surfaces,
-  /if \(startupBubbles\.length === 0\) return loginStartupWindows;/,
-  "Tauri login must open the default widget set when a real account has no enabled widget settings yet.",
+  /preference\.mode === "board"[\s\S]*desktopWidgetBoardWindows/,
+  "Board startup preference must open the curated blog-board widget set.",
 );
 assertContains(
   surfaces,
-  /for \(const setting of settings\)[\s\S]*enabledByBubble\.set\(localType, setting\);[\s\S]*const startupBubbles: WidgetWindowOpenInput\[\] = \[loginStartupMenuWindow\];[\s\S]*for \(const bubble of sortedStartupBubbles\)[\s\S]*mode: setting\?\.enabled \? getVisibleLoginStartupModeFromSetting\(setting\) : "DEFAULT"/,
-  "Tauri login startup seeds the orb menu plus every expected bubble, while preserving visible prefs only for enabled backend settings.",
+  /preference\.mode === "cascade"[\s\S]*desktopWidgetCascadeWindows/,
+  "Cascade startup preference must open only a compact core widget set.",
 );
 assertContains(
   surfaces,
-  /function getVisibleLoginStartupModeFromSetting\(setting: WidgetBubbleSettingResponse\): WidgetWindowMode[\s\S]*Login startup opens enabled widgets visibly[\s\S]*if \(setting\.ghostMode\) return "GHOST"[\s\S]*mode: setting\?\.enabled \? getVisibleLoginStartupModeFromSetting\(setting\) : "DEFAULT"/,
-  "Tauri login startup must intentionally open all expected widgets visibly while preserving ghost/translucent modes only for enabled settings.",
+  /return loginStartupWindows;/,
+  "The default startup preference must keep first launch to the Bubli bar only.",
+);
+assertNotContains(
+  surfaces,
+  /function getVisibleLoginStartupModeFromSetting|const startupBubbles: WidgetWindowOpenInput\[\] = \[loginStartupMenuWindow\]/,
+  "Tauri login startup must not preserve visible bubble fan-out logic after the bar-only first-launch policy.",
+);
+assertContains(
+  surfaces,
+  /seedWidgetBarItems\(\{ selectedRoomId \}\)/,
+  "Tauri login startup must still seed every restore item into the bar.",
+);
+assertContains(
+  surfaces,
+  /startupPreference\.mode === "board"[\s\S]*arrangeWidgetWindows\(\{ layout: "board" \}\)/,
+  "Board startup preference must arrange opened widgets with the board layout.",
+);
+assertContains(
+  surfaces,
+  /startupPreference\.mode === "cascade"[\s\S]*arrangeWidgetWindows\(\{ layout: "cascade" \}\)/,
+  "Cascade startup preference must arrange opened widgets with the cascade layout.",
 );
 assertContains(
   surfaces,
@@ -1455,17 +1480,17 @@ assertContains(
 assertContains(
   surfaces,
   /openWidgetWindowWithRetry\(barWindow, selectedRoomId, shouldContinueLaunch\)[\s\S]*if \(generation !== launchGeneration\) \{[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*return;[\s\S]*openWidgetWindowsWithRetry\(bubbleWindows, selectedRoomId, shouldContinueLaunch\)/,
-  "launchTauriAuthenticatedSurfaces must cancel cleanly after opening the bar and before opening bubble windows.",
+  "launchTauriAuthenticatedSurfaces must cancel cleanly after opening the bar and before processing optional startup windows.",
 );
 assertContains(
   surfaces,
   /openWidgetWindowsWithRetry\(bubbleWindows, selectedRoomId, shouldContinueLaunch\)/,
-  "launchTauriAuthenticatedSurfaces must open authenticated bubble windows through the batch IPC retry path.",
+  "launchTauriAuthenticatedSurfaces must keep the optional batch IPC path available for non-default startup windows.",
 );
 assertContains(
   surfaces,
   /openWidgetWindowsWithRetry\(bubbleWindows, selectedRoomId, shouldContinueLaunch\)[\s\S]*if \(generation !== launchGeneration\) \{[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*return;[\s\S]*if \(openedWindows\.length < startupWindows\.length\)/,
-  "launchTauriAuthenticatedSurfaces must cancel cleanly after bubble window attempts and before marking the launch active.",
+  "launchTauriAuthenticatedSurfaces must cancel cleanly after optional startup window attempts and before marking the launch active.",
 );
 assertContains(
   surfaces,

@@ -1,4 +1,4 @@
-// 대시보드(개인 홈, 카드 보드, 하루정리, 카드 보관함, 위젯 카탈로그) 네임스페이스.
+// 대시보드(개인 홈, 카드 보드, 하루 정리, 카드 보관함, 위젯 카탈로그) 네임스페이스.
 const ko = {
   // 공통/포맷
   "dashboard.common.dueUndecided": "마감 미정",
@@ -249,12 +249,12 @@ const ko = {
   "dashboard.view.noti2": "에이전트가 하루 정리를 마쳤어요",
   "dashboard.view.noti3": "메모 '컬러 톤' 업데이트됨",
 
-  // 하루정리 패널
-  "dashboard.daily.aria": "하루정리",
-  "dashboard.daily.kicker": "하루정리",
+  // 하루 정리 패널
+  "dashboard.daily.aria": "하루 정리",
+  "dashboard.daily.kicker": "하루 정리",
   "dashboard.daily.heroTitle": "확정된 기록과 기기 안 요약을 모아, 사용자가 확인한 결과만 저장합니다",
   "dashboard.daily.heroBody":
-    "완료한 일, 작업시간, 일정, 알림, 작업 활동, 개인 에이전트 요약을 근거로 정리 초안을 만듭니다. 승인된 결과만 하루정리에 남습니다.",
+    "완료한 일, 작업시간, 일정, 알림, 작업 활동, 개인 에이전트 요약을 근거로 정리 초안을 만듭니다. 승인된 결과만 하루 정리에 남습니다.",
   "dashboard.daily.reviewWaiting": "검토 대기",
   "dashboard.daily.readiness": "오늘 정리 준비도",
   "dashboard.daily.draftTitle": "정리 초안",
@@ -409,7 +409,7 @@ const ko = {
   "dashboard.overview.summaryTimerDesc": "타이머 원본 기준",
   "dashboard.overview.policyTitle": "데이터 기준",
   "dashboard.overview.policy1": "TODO, 일정, 알림, 작업 시간은 확정된 기준 데이터를 바탕으로 보여줍니다.",
-  "dashboard.overview.policy2": "작업 시간과 활동 기록은 기준 데이터로 모으고, 사용자가 승인한 하루정리만 저장합니다.",
+  "dashboard.overview.policy2": "작업 시간과 활동 기록은 기준 데이터로 모으고, 사용자가 승인한 하루 정리만 저장합니다.",
 } as const;
 
 type Key = keyof typeof ko;

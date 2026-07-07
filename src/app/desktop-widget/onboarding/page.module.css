@@ -1,0 +1,238 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  /* 튜토리얼 창은 Tauri transparent 창이라 이 스크림의 알파가 곧 "뒤 화면 투과율"이다.
+     단계별로 실제 위젯 창을 데려와 보여주는 흐름이므로, 위젯과 데스크탑이 또렷이 비치도록
+     짙은 차광(0.72) 대신 옅은 반투명(0.34)으로 낮춘다.
+     backdrop-filter는 쓰지 않는다 — 투명 창 뒤 데스크탑에는 OS별로 블러가 일관되게 걸리지 않는다. */
+  background: rgba(10, 18, 28, 0.34);
+}
+
+.card {
+  width: min(680px, calc(100vw - 48px));
+  padding: 26px 24px 24px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  /* 스크림이 옅어진 만큼 카드는 거의 불투명하게 유지해 설명 글의 가독성을 지킨다. */
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 20px 52px -32px rgba(3, 9, 20, 0.55);
+  outline: none;
+}
+
+.gemRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.gem {
+  color: var(--bubble-blue);
+}
+
+.progress {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(32, 42, 68, 0.82);
+  letter-spacing: 0.02em;
+  flex: 1;
+  text-align: center;
+}
+
+.skip {
+  border: 0;
+  background: transparent;
+  color: rgba(56, 65, 86, 0.88);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 10px;
+}
+
+.skip:hover {
+  color: rgba(8, 42, 95, 0.96);
+  background: rgba(59, 125, 203, 0.1);
+}
+
+.scene {
+  display: flex;
+  justify-content: center;
+  margin: 2px 0 14px;
+}
+
+.scene svg {
+  width: min(340px, 72%);
+  height: auto;
+}
+
+.title {
+  margin: 0 0 10px;
+  font-size: 24px;
+  font-weight: 760;
+  color: var(--ink);
+  line-height: 1.35;
+}
+
+.body {
+  margin: 0;
+  color: rgba(27, 39, 57, 0.86);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.choiceGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.choiceCard {
+  display: grid;
+  grid-template-rows: 70px auto 1fr;
+  gap: 8px;
+  min-height: 178px;
+  padding: 12px;
+  border: 1px solid rgba(104, 140, 173, 0.26);
+  border-radius: 18px;
+  background: rgba(248, 252, 255, 0.82);
+  color: rgba(27, 39, 57, 0.9);
+  text-align: left;
+  cursor: pointer;
+}
+
+.choiceCard:hover,
+.choiceCard[data-selected="true"] {
+  border-color: rgba(66, 154, 222, 0.72);
+  background: rgba(232, 246, 255, 0.92);
+  box-shadow: 0 14px 32px -24px rgba(14, 71, 122, 0.55);
+}
+
+.choiceCard:focus-visible {
+  outline: 3px solid rgba(66, 154, 222, 0.28);
+  outline-offset: 2px;
+}
+
+.choiceCard strong {
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.choiceCard span:not(.choicePreview) {
+  color: rgba(56, 67, 84, 0.78);
+  font-size: 13px;
+  line-height: 1.38;
+}
+
+.choicePreview {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 70px;
+  overflow: hidden;
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(236, 247, 255, 0.6)),
+    rgba(226, 240, 250, 0.72);
+}
+
+.choicePreview i {
+  position: absolute;
+  display: block;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(122, 174, 214, 0.48);
+  box-shadow: 0 8px 18px -14px rgba(17, 71, 112, 0.55);
+}
+
+.choicePreview[data-mode="bar"] i:nth-child(1) {
+  left: 22%;
+  right: 22%;
+  bottom: 12px;
+  height: 18px;
+  border-radius: 999px;
+}
+
+.choicePreview[data-mode="bar"] i:nth-child(2),
+.choicePreview[data-mode="bar"] i:nth-child(3) {
+  display: none;
+}
+
+.choicePreview[data-mode="board"] i:nth-child(1) {
+  top: 10px;
+  right: 10px;
+  width: 42%;
+  height: 24px;
+}
+
+.choicePreview[data-mode="board"] i:nth-child(2) {
+  top: 40px;
+  right: 10px;
+  width: 42%;
+  height: 20px;
+}
+
+.choicePreview[data-mode="board"] i:nth-child(3) {
+  top: 18px;
+  left: 12px;
+  width: 34%;
+  height: 32px;
+}
+
+.choicePreview[data-mode="cascade"] i:nth-child(1) {
+  top: 12px;
+  right: 22px;
+  width: 46px;
+  height: 32px;
+}
+
+.choicePreview[data-mode="cascade"] i:nth-child(2) {
+  top: 20px;
+  right: 34px;
+  width: 46px;
+  height: 32px;
+}
+
+.choicePreview[data-mode="cascade"] i:nth-child(3) {
+  top: 28px;
+  right: 46px;
+  width: 46px;
+  height: 32px;
+}
+
+.footer {
+  margin-top: 24px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    transition: none !important;
+  }
+}
+
+@media (max-width: 680px) {
+  .choiceGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .choiceCard {
+    grid-template-columns: 96px 1fr;
+    grid-template-rows: auto auto;
+    min-height: 116px;
+  }
+
+  .choicePreview {
+    grid-row: 1 / span 2;
+  }
+}

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve as resolvePath } from "node:path";
 
 const COMMAND = process.argv[2] ?? "seed";
-const API_BASE_URL = stripTrailingSlash(process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080");
+const API_BASE_URL = stripTrailingSlash(process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8080");
 const JWT_SECRET = (process.env.JWT_SECRET ?? "local-development-jwt-secret-key-32-bytes-minimum").trim();
 const ACCESS_TOKEN_EXPIRE_SECONDS = Number(process.env.BUBLI_DEV_ACCESS_TOKEN_EXPIRE_SECONDS ?? 60 * 60);
 

@@ -4,7 +4,8 @@
 // 회원사이트 튜토리얼과 위젯 튜토리얼을 완전히 분리해 각각 독립적으로 한 번 자동 노출하고,
 // 설정 > 표시에서 각각 따로 다시 볼 수 있다.
 //   1) 직군 온보딩(1회) → 2) 회원사이트 튜토리얼(코치 마크) → 3) 위젯 튜토리얼(전체화면)
-// 위젯 튜토리얼은 데스크탑(mac-Tauri)에서는 전용 전체화면 창, 웹에서는 전체화면 모달로 뜬다.
+// 위젯 튜토리얼은 데스크탑(Tauri, mac/윈도우 공통)에서는 전용 전체화면 창, 웹에서는 전체화면 모달로 뜬다.
+// 오버레이 스크림이 반투명이라 윈도우에서도 위젯 창을 가리지 않으므로 더 이상 mac 전용으로 막지 않는다.
 // /desktop-widget 표면은 AppShell을 쓰지 않으므로 여기서 자동으로 제외된다.
 
 import dynamic from "next/dynamic";
@@ -18,7 +19,7 @@ import {
   readStoredOnboarding,
 } from "@/features/onboarding/lib/onboarding-storage";
 import { tauriCommands } from "@/lib/tauri/commands";
-import { isMacTauriRuntime } from "@/lib/tauri/platform";
+import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import type { AuthUser } from "@/types/api/auth";
 
 import type { RoleOnboardingResult } from "./role-onboarding-overlay";
@@ -43,9 +44,9 @@ type FirstRunControllerProps = {
 export function FirstRunController({ user }: FirstRunControllerProps) {
   const [phase, setPhase] = useState<FirstRunPhase>("idle");
 
-  // 위젯 튜토리얼 열기 — 데스크탑(mac-Tauri)은 전용 전체화면 창, 웹은 모달.
+  // 위젯 튜토리얼 열기 — 데스크탑(Tauri, mac/윈도우)은 전용 전체화면 창, 웹은 모달.
   const openWidgetTutorial = useCallback(() => {
-    if (isMacTauriRuntime()) {
+    if (isTauriRuntime()) {
       void tauriCommands.openOnboardingOverlay();
       setPhase("idle");
       return;

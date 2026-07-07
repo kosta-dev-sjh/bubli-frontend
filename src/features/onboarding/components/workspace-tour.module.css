@@ -46,13 +46,31 @@
   border: 1px solid rgba(255, 255, 255, 0.85);
   border-radius: 20px;
   padding: 16px 18px;
+  /* 온보딩 오버레이/위젯 튜토리얼과 같은 Sky Opal 브랜드 톤: 스카이+라일락 이중 그라데이션. */
   background:
-    radial-gradient(ellipse 76% 46% at 10% 0%, rgba(216, 240, 255, 0.5), transparent 70%),
+    radial-gradient(ellipse 82% 48% at 8% -6%, rgba(216, 240, 255, 0.62), transparent 66%),
+    radial-gradient(ellipse 70% 46% at 104% 8%, rgba(230, 221, 248, 0.4), transparent 70%),
     rgba(255, 255, 255, 0.97);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.96),
     0 24px 58px -38px rgba(21, 34, 48, 0.65);
   outline: none;
+}
+
+/* 브랜드 방울 — 카드 우상단에 살짝 걸치는 유리 버블(장식). 다른 튜토리얼과 톤을 맞춘다. */
+.tooltip::before {
+  content: "";
+  position: absolute;
+  top: -22px;
+  left: 16px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.96), rgba(158, 216, 255, 0.42) 58%, rgba(158, 216, 255, 0) 80%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 8px 18px -10px rgba(47, 124, 193, 0.45);
+  pointer-events: none;
 }
 
 .tooltipHead {
@@ -145,11 +163,19 @@
 :global([data-theme="dark"]) .tooltip {
   border-color: rgba(150, 170, 215, 0.16);
   background:
-    radial-gradient(ellipse 76% 46% at 10% 0%, rgba(158, 216, 255, 0.07), transparent 70%),
+    radial-gradient(ellipse 82% 48% at 8% -6%, rgba(158, 216, 255, 0.09), transparent 66%),
+    radial-gradient(ellipse 70% 46% at 104% 8%, rgba(200, 190, 240, 0.07), transparent 70%),
     rgba(24, 33, 52, 0.97);
   box-shadow:
     inset 0 1px 0 rgba(180, 205, 240, 0.1),
     0 24px 58px -32px rgba(0, 0, 0, 0.8);
+}
+
+:global([data-theme="dark"]) .tooltip::before {
+  background: radial-gradient(circle at 32% 28%, rgba(210, 232, 250, 0.7), rgba(120, 170, 220, 0.28) 58%, rgba(120, 170, 220, 0) 80%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 8px 18px -10px rgba(0, 0, 0, 0.6);
 }
 
 :global([data-theme="dark"]) .tooltipTitle {

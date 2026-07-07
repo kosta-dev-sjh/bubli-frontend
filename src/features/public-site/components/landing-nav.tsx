@@ -5,9 +5,12 @@ import { useEffect, useState } from "react";
 
 import { siteConfig } from "@/config/site";
 import { useLiveAuthUser } from "@/features/auth/hooks/use-live-auth-user";
-import { useI18n } from "@/lib/i18n";
-import type { MessageKey } from "@/lib/i18n";
+import { LOCALES, useI18n } from "@/lib/i18n";
+import type { Locale, MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+
+// 랜딩에서 고른 언어는 locale provider 저장소에 남아 로그인 후 회원 화면에도 그대로 이어진다.
+const localeLabels: Record<Locale, string> = { en: "EN", ja: "日本語", ko: "한국어" };
 
 // 메뉴는 별도 페이지가 아니라 같은 페이지 섹션으로 가는 앵커.
 const navLinks: { href: string; id: string; labelKey: MessageKey }[] = [
@@ -18,7 +21,7 @@ const navLinks: { href: string; id: string; labelKey: MessageKey }[] = [
 ];
 
 export function LandingNav() {
-  const { t } = useI18n();
+  const { locale, setLocale, t } = useI18n();
   const authUser = useLiveAuthUser();
   const [activeSection, setActiveSection] = useState("hero");
   const [scrolled, setScrolled] = useState(false);
@@ -70,6 +73,20 @@ export function LandingNav() {
           ))}
         </nav>
         <div className="landing-nav__cta">
+          <div aria-label={t("public.nav.languageAria")} className="landing-nav__locale" role="group">
+            {LOCALES.map((option) => (
+              <button
+                aria-pressed={locale === option}
+                className={cn("landing-nav__locale-btn", locale === option && "is-active")}
+                key={option}
+                lang={option}
+                onClick={() => setLocale(option)}
+                type="button"
+              >
+                {localeLabels[option]}
+              </button>
+            ))}
+          </div>
           {authUser ? (
             <>
               <span aria-label={t("public.session.userAria", { name: authUser.name })} className="landing-nav__user">

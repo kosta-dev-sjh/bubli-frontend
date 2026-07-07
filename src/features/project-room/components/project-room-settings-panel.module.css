@@ -218,7 +218,7 @@
 
 .memberName small {
   color: var(--settings-muted);
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.4;
 }
 
@@ -339,7 +339,7 @@
   border: 1px solid rgba(111, 184, 242, 0.28);
   border-radius: 999px;
   color: var(--settings-ink);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 650;
   line-height: 1.4;
   padding: 3px 9px;

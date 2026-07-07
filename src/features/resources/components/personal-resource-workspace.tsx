@@ -26,6 +26,7 @@ import {
   syncPersonalLocalFileEventsToServer,
   watchPersonalManagedFolder,
 } from "@/lib/local/managed-folder-client";
+import { notifyManagedFolderConsentChanged } from "@/lib/local/managed-folder-auto-sync";
 import { listenManagedFolderWatchEvents } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { cn } from "@/lib/utils";
@@ -180,11 +181,12 @@ export function PersonalResourceWorkspace() {
     return () => window.removeEventListener(PERSONAL_RESOURCES_CHANGED_EVENT, handlePersonalResourcesChanged);
   }, [loadResources]);
 
-  // 데스크톱 위젯/다른 탭에서 올라온 자료를 포커스 복귀 시 재검증한다(loadResources는 목록을 유지한 채 갱신).
+  // 데스크톱 위젯/로컬 폴더 조정 등 다른 표면이 쏘는 resource 변경 신호와
+  // 포커스 복귀 시 재검증한다(loadResources는 목록을 유지한 채 갱신).
   const revalidateResources = useCallback(() => {
     void loadResources();
   }, [loadResources]);
-  useDataRefresh({ domains: [], onRefresh: revalidateResources });
+  useDataRefresh({ domains: ["resource"], onRefresh: revalidateResources });
 
   const resources = useMemo(() => (state.kind === "ready" ? state.resources : EMPTY_RESOURCES), [state]);
   const generatedDocuments = useMemo(() => (state.kind === "ready" ? state.generatedDocuments : []), [state]);
@@ -440,10 +442,23 @@ export function PersonalResourceWorkspace() {
     setLocalFolderAction("select");
     setLocalFolderMessage(null);
     try {
-      const result = await selectPersonalManagedFolder({ consentGranted: localFolderConsent });
+      // 설정 화면과 동일한 정책: "폴더 선택" 클릭 자체가 로컬 폴더 사용 동의 행위다.
+      // 동의가 아직 없어도 선택 창을 막지 않고, 선택이 끝나면 동의를 서버에 자동 기록한다.
+      const alreadyConsented = localFolderConsent;
+      const result = await selectPersonalManagedFolder({ consentGranted: true });
       if (result.status !== "ready") {
         setLocalFolderMessage(result.message ?? t("settings.msg.selectFolderFirst"));
         return;
+      }
+
+      if (!alreadyConsented) {
+        try {
+          await settingsApi.updatePrivacyConsents({ localFolderEnabled: true });
+          setLocalFolderConsent(true);
+          notifyManagedFolderConsentChanged(true);
+        } catch {
+          // 동의 기록이 실패해도 이번 연결 흐름은 이어간다. 다음 로드에서 다시 시도된다.
+        }
       }
 
       setLocalFolders((current) => [
@@ -460,7 +475,7 @@ export function PersonalResourceWorkspace() {
       ]);
 
       const scanResult = await scanPersonalManagedFolder({
-        consentGranted: localFolderConsent,
+        consentGranted: true,
         localFolderId: result.data.localFolderId,
       });
       if (scanResult.status !== "ready") {
@@ -470,11 +485,11 @@ export function PersonalResourceWorkspace() {
       }
 
       const watchResult = await watchPersonalManagedFolder({
-        consentGranted: localFolderConsent,
+        consentGranted: true,
         localFolderId: result.data.localFolderId,
       });
       const syncResult = await syncPersonalLocalFileEventsToServer({
-        consentGranted: localFolderConsent,
+        consentGranted: true,
         limit: 20,
         localFolderId: result.data.localFolderId,
       });
@@ -624,6 +639,10 @@ export function PersonalResourceWorkspace() {
                           ? t("resources.workspace.localFolderCount", { count: localFolders.length })
                           : t("resources.workspace.localFolderNone"))}
                     </small>
+                  ) : null}
+                  {/* 재연동 정책 안내 — 폴더마다 따로 색인되고, 폴더를 바꿔도 이미 올라간 자료는 자료보드에 남는다. */}
+                  {isTauri && localFolders.length > 0 ? (
+                    <small>{t("resources.workspace.localFolderReconnectHint")}</small>
                   ) : null}
                 </span>
                 {isTauri ? (

@@ -110,7 +110,7 @@
 
 .statHeadline em {
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-style: normal;
   font-weight: 620;
 }
@@ -123,7 +123,7 @@
 .statCaption {
   margin: 0;
   color: var(--color-faint);
-  font-size: 12px;
+  font-size: 14px;
 }
 
 /* 오늘 요약 링 줄 */
@@ -165,7 +165,7 @@
 
 .weekBar b {
   color: var(--color-faint);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 640;
 }
 
@@ -183,7 +183,7 @@
 
 .progressRow {
   display: grid;
-  grid-template-columns: minmax(64px, 96px) 1fr 38px;
+  grid-template-columns: minmax(64px, 96px) 1fr 44px; /* 진행률 숫자 14px이 잘리지 않게 열 폭 보정 */
   align-items: center;
   gap: 8px;
 }
@@ -191,7 +191,7 @@
 .progressName {
   overflow: hidden;
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 640;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -214,7 +214,7 @@
 
 .progressValue {
   color: var(--color-text);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 760;
   text-align: right;
 }
@@ -235,7 +235,7 @@
 .appBarName {
   overflow: hidden;
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 640;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -258,7 +258,7 @@
 
 .appBarValue {
   color: var(--color-text);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -301,7 +301,7 @@
   border-radius: 999px;
   background: var(--surface);
   color: var(--color-text);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 640;
 }
 
@@ -384,7 +384,7 @@
   align-items: center;
   gap: 4px;
   color: var(--color-faint);
-  font-size: 11px;
+  font-size: 14px;
 }
 
 .heatmapSwatch {
@@ -417,7 +417,7 @@
 
 .queueCount span {
   color: var(--color-muted);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 640;
 }
 
@@ -451,7 +451,22 @@
 [data-theme="dark"] .focusDateInput {
   border-color: rgba(158, 216, 255, 0.24);
   background: rgba(20, 30, 42, 0.72);
-  color: var(--color-text);
+  /* --color-text는 다크에서도 어두운 잉크라 그대로 쓰면 어두운 배경에 묻힌다. */
+  color: rgba(232, 240, 250, 0.92);
+}
+
+/* 다크에서 어두운 잉크(--color-text)를 명시한 숫자/값 텍스트가 묻히지 않게 밝힌다. */
+[data-theme="dark"] .heroMeta b,
+[data-theme="dark"] .statHeadline,
+[data-theme="dark"] .progressValue,
+[data-theme="dark"] .appBarValue {
+  color: #eaf0f8;
+}
+
+[data-theme="dark"] .heroMeta,
+[data-theme="dark"] .statHeadline em,
+[data-theme="dark"] .appBarName {
+  color: rgba(194, 207, 230, 0.78);
 }
 
 [data-theme="dark"] .heatmapCell[data-level="0"],

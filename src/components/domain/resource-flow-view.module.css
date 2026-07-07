@@ -117,7 +117,7 @@
 
 .kicker {
   color: var(--ink-faint);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
   letter-spacing: 0;
 }
@@ -205,7 +205,7 @@
   display: block;
   overflow: hidden;
   color: var(--ink-soft);
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -288,7 +288,7 @@
 
 .suggestionItem footer span {
   color: var(--ink-faint);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 750;
 }
 

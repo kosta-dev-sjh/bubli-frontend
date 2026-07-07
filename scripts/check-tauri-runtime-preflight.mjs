@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { createServer } from "node:http";
 
-const DEFAULT_API_BASE_URL = "http://localhost:8080";
+const DEFAULT_API_BASE_URL = "http://127.0.0.1:8080";
 const API_BASE_URL = stripTrailingSlash(process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE_URL);
 const POSTGRES_CONTAINER = process.env.BUBLI_DEV_POSTGRES_CONTAINER ?? "bubli-postgres";
 const REDIS_CONTAINER = process.env.BUBLI_DEV_REDIS_CONTAINER ?? "bubli-redis";

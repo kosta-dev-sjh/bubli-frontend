@@ -44,7 +44,14 @@ const flowSteps: {
   },
 ];
 
-type StickyMode = "before" | "fixed" | "after";
+type StickyMode = "before" | "fixed" | "after" | "static";
+
+// 작은 창 폴백 기준 — globals.css의 sticky 폴백 미디어쿼리와 반드시 같은 값을 유지해야 한다.
+// 고정 패널(카피+그림)이 창 안에 다 들어가지 못하는 크기다:
+// 1열 배치(폭 960px 이하)는 높이 820px 아래, 2열 배치(폭 961px 이상)는 높이 760px 아래에서
+// 그림 영역이 화면 밖에 잘린 채 고정돼 백지처럼 보인다.
+const COMPACT_WINDOW_QUERY =
+  "(max-width: 960px) and (max-height: 820px), (min-width: 961px) and (max-height: 760px)";
 
 export function PublicHomeFlow() {
   const { t } = useI18n();
@@ -65,9 +72,24 @@ export function PublicHomeFlow() {
     const syncActiveStep = () => {
       const rect = section.getBoundingClientRect();
       const sectionTop = rect.top + window.scrollY;
+
+      // 작은 창에서는 고정(sticky)을 풀고 일반 세로 흐름으로 보여준다.
+      // 고정 패널이 뷰포트보다 커지면 그림 영역이 화면 밖에 잘린 채 고정돼
+      // 아무리 스크롤해도 보이지 않기 때문 — 내용이 다 보이는 것이 우선이다.
+      // 장면은 1단계로 고정하고, 4단계 전체 목록은 아래에 펼친다(globals.css 폴백과 짝).
+      if (window.matchMedia(COMPACT_WINDOW_QUERY).matches) {
+        setStickyMode("static");
+        setStickyFrame({});
+        setProgress(0);
+        setActiveIndex(0);
+        return;
+      }
+
       const topOffset = window.matchMedia("(max-width: 640px)").matches ? 72 : 96;
       const sticky = section.querySelector<HTMLElement>(".public-home-flow__sticky");
-      const stickyHeight = sticky?.offsetHeight ?? Math.min(window.innerHeight - topOffset, 760);
+      // 폴백 값은 CSS의 패널 높이(calc(100dvh - 128px))와 짝을 맞춘다. 예전 760px 상한은
+      // 큰 창에서 패널 아래 빈 띠(잉여 트랙 공백)를 만들던 원인이라 CSS와 함께 없앴다.
+      const stickyHeight = sticky?.offsetHeight ?? window.innerHeight - 128;
       const scrollable = Math.max(rect.height - window.innerHeight, 1);
       const nextProgress = Math.min(1, Math.max(0, (window.scrollY - sectionTop) / scrollable));
       const next = Math.min(flowSteps.length - 1, Math.floor(nextProgress * flowSteps.length));
@@ -129,7 +151,7 @@ export function PublicHomeFlow() {
   return (
     <section className="public-home-flow public-home-flow--story" aria-label={t("public.flow.aria")} ref={sectionRef}>
       <div className={cn("public-home-flow__sticky", `is-${stickyMode}`)} style={flowStyle}>
-        <video aria-hidden="true" autoPlay className="public-home-flow__video" loop muted playsInline poster="/landing/hero-bg.png">
+        <video aria-hidden="true" autoPlay className="public-home-flow__video" loop muted playsInline poster="/landing/hero-bg.jpg">
           <source src="/landing/slow-bubble-flow.mp4" type="video/mp4" />
         </video>
         <span aria-hidden="true" className="public-home-flow__veil" />

@@ -7,6 +7,7 @@ import type {
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { localFileAnalysisApi } from "@/features/managed-folder/api/localFileAnalysisApi";
 import { managedFolderApi } from "@/features/managed-folder/api/managedFolderApi";
+import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { notifyDataChanged } from "@/lib/data-changed";
 import {
   blocked,
@@ -227,6 +228,110 @@ export async function removePersonalManagedFolder(
 
   return runTauriAdapter(TAURI_COMMANDS.removeManagedFolder, () =>
     tauriCommands.removeManagedFolder(tauriInput),
+  );
+}
+
+export type PersonalFolderResourceCleanupResult = {
+  // 이 폴더 출처로 확인돼 삭제를 시도한 자료 수.
+  matchedCount: number;
+  deletedCount: number;
+  failedCount: number;
+  // 확인을 위해 훑은 개인 자료 수.
+  scannedCount: number;
+};
+
+// 파일 경로가 폴더 안에 있는지 확인한다. 경로 구분자(/, \)까지 확인해서
+// "폴더 이름이 접두어만 우연히 같은" 다른 폴더의 파일은 제외한다.
+function isPathInsideFolder(filePath: string, normalizedFolderPath: string) {
+  if (!filePath.startsWith(normalizedFolderPath)) {
+    return false;
+  }
+
+  const rest = filePath.slice(normalizedFolderPath.length);
+  return rest.startsWith("/") || rest.startsWith("\\");
+}
+
+// 폴더 연결 해제에서 "서버 자료도 함께 삭제"를 고른 경우:
+// 그 폴더 출처로 업로드된 개인 자료를 서버에서 일괄 삭제한다.
+// 서버에는 폴더 정보가 없어서(자료는 제목/크기만 올라간다), 로컬 색인(local_files)의
+// resourceId ↔ 파일 경로 매핑으로 "이 폴더에서 올라간 자료"를 골라낸다.
+// 폴더를 해제해도 로컬 색인은 기기 안에 남아 있어 해제 직후에도 조회할 수 있다.
+// 항목별 실패는 건너뛰고 개수만 집계하는 최선 노력 방식이다.
+export async function deletePersonalFolderResourcesOnServer(input: {
+  folderPath: string;
+  roomId?: string | null;
+}): Promise<LocalAdapterResult<PersonalFolderResourceCleanupResult>> {
+  const commandName = TAURI_COMMANDS.findLocalFileByResourceId;
+
+  if (!isTauriRuntime()) {
+    return unavailable(commandName);
+  }
+
+  if (hasProjectRoomScope(input)) {
+    return blocked("personal_scope_only", personalScopeMessage(), commandName);
+  }
+
+  // 끝의 경로 구분자를 정리해 접두어 비교를 일정하게 만든다.
+  const normalizedFolderPath = input.folderPath.replace(/[\\/]+$/, "");
+  if (!normalizedFolderPath) {
+    return failed(translate("local.folder.cleanupPathMissing"), commandName);
+  }
+
+  // 1) 개인 자료를 페이지 단위로 전부 모은다. 폴더 자료 수는 크지 않다는 전제이고,
+  //    페이지 상한을 둬서 서버 오류로 인한 무한 순회를 막는다.
+  const resources: Array<{ id: string }> = [];
+  const pageSize = 100;
+  const maxPages = 50;
+  try {
+    for (let page = 0; page < maxPages; page += 1) {
+      const response = await resourcesApi.listPersonalPage(page, pageSize);
+      resources.push(...response.items);
+      if (!response.hasNext) {
+        break;
+      }
+    }
+  } catch (error) {
+    return failed(getErrorMessage(error), commandName);
+  }
+
+  // 2) 자료마다 로컬 색인을 역조회해서 이 폴더 안에서 올라간 자료만 고른다.
+  //    조회 실패는 "이 폴더 자료 아님"으로 보고 건너뛴다(서버 자료 오삭제 방지).
+  const targetResourceIds: string[] = [];
+  for (const resource of resources) {
+    const localFile = await tauriCommands
+      .findLocalFileByResourceId({ resourceId: resource.id })
+      .catch(() => null);
+    if (localFile && isPathInsideFolder(localFile.path, normalizedFolderPath)) {
+      targetResourceIds.push(resource.id);
+    }
+  }
+
+  // 3) 항목별 최선 노력 삭제 — 하나가 실패해도 나머지는 계속 지우고 개수만 보고한다.
+  let deletedCount = 0;
+  let failedCount = 0;
+  for (const resourceId of targetResourceIds) {
+    await resourcesApi
+      .delete(resourceId)
+      .then(() => {
+        deletedCount += 1;
+      })
+      .catch(() => {
+        failedCount += 1;
+      });
+  }
+
+  if (deletedCount > 0) {
+    notifyDataChanged("resource");
+  }
+
+  return ready(
+    {
+      deletedCount,
+      failedCount,
+      matchedCount: targetResourceIds.length,
+      scannedCount: resources.length,
+    },
+    commandName,
   );
 }
 

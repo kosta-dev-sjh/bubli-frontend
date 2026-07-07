@@ -41,9 +41,11 @@ export const TAURI_COMMANDS = {
   listAppMonitors: "list_app_monitors",
   listLocalSqliteBackups: "list_local_sqlite_backups",
   closeOnboardingOverlay: "close_onboarding_overlay",
+  setAppBadgeCount: "set_app_badge_count",
   openOnboardingOverlay: "open_onboarding_overlay",
   markActivityContextSynced: "mark_activity_context_synced",
   listManagedFolders: "list_managed_folders",
+  moveWidgetWindowsToMonitor: "move_widget_windows_to_monitor",
   notifyWidgetDragStarted: "notify_widget_drag_started",
   notifyWidgetPointerSeen: "notify_widget_pointer_seen",
   openExternalUrl: "open_external_url",
@@ -59,6 +61,7 @@ export const TAURI_COMMANDS = {
   readWidgetPref: "read_widget_pref",
   readWidgetSummaryCache: "read_widget_summary_cache",
   reindexFile: "reindex_file",
+  reconcileLocalFilesWithServer: "reconcile_local_files_with_server",
   recoverTimerState: "recover_timer_state",
   recordActivityContext: "record_activity_context",
   recordTimerState: "record_timer_state",
@@ -350,6 +353,17 @@ export type LocalFileEventsMarkSyncedResult = {
   syncedCount: number;
 };
 
+// 서버→앱 방향 조정 입력: 서버에 지금 존재하는 개인 자료 id 집합.
+export type LocalFilesServerReconcileInput = {
+  resourceIds: string[];
+};
+
+export type LocalFilesServerReconcileResult = {
+  completedAt: string;
+  /** 서버 자료가 사라져 LOCAL_ONLY로 되돌린 로컬 인덱스 행 개수. */
+  resetCount: number;
+};
+
 export type LocalFileAnalysisBackfillStageInput = {
   limit?: number;
   maxAttempts?: number;
@@ -623,6 +637,11 @@ export type AppMonitorPreferenceInput = {
   monitorId: string;
 };
 
+// Bubli 메뉴 "모니터로 이동" 입력 — 바 + 열린 버블 창을 이 모니터로 옮긴다.
+export type MoveWidgetWindowsToMonitorInput = {
+  monitorId: string;
+};
+
 export type WidgetUsageEventInput = {
   bubbleType: string;
   eventType: string;
@@ -738,10 +757,13 @@ export type WidgetWindowPositionInput = WidgetWindowPosition & {
 };
 
 export type WidgetBarDragInput = {
+  cursorX?: number;
+  cursorY?: number;
   grabX: number;
   grabY: number;
   navHeight: number;
   navWidth: number;
+  placement?: "above" | "below";
   rootHeight: number;
   rootWidth: number;
 };
@@ -769,7 +791,7 @@ export type WidgetWindowResizeInput = {
 };
 
 // 자동 정렬 프리셋: 격자(기본)/세로 한 열/가로 한 줄/계단식.
-export type WidgetArrangeLayout = "grid" | "column" | "row" | "cascade";
+export type WidgetArrangeLayout = "board" | "grid" | "column" | "row" | "cascade";
 
 export type WidgetArrangeInput = {
   layout?: WidgetArrangeLayout;
@@ -911,6 +933,10 @@ export type TauriCommandContract = {
     args: undefined;
     result: null;
   };
+  set_app_badge_count: {
+    args: { count: number };
+    result: null;
+  };
   close_widget_window: {
     args: WidgetWindowTargetInput | undefined;
     result: WidgetWindowState;
@@ -986,6 +1012,10 @@ export type TauriCommandContract = {
   list_managed_folders: {
     args: undefined;
     result: ManagedFolderListResult;
+  };
+  move_widget_windows_to_monitor: {
+    args: MoveWidgetWindowsToMonitorInput;
+    result: WidgetWindowState[];
   };
   notify_widget_drag_started: {
     args: undefined;
@@ -1082,6 +1112,10 @@ export type TauriCommandContract = {
   mark_local_file_events_synced: {
     args: LocalFileEventsMarkSyncedInput;
     result: LocalFileEventsMarkSyncedResult;
+  };
+  reconcile_local_files_with_server: {
+    args: LocalFilesServerReconcileInput;
+    result: LocalFilesServerReconcileResult;
   };
   mark_widget_usage_summary_synced: {
     args: WidgetUsageSummaryMarkSyncedInput;
@@ -1286,6 +1320,10 @@ export const tauriCommands = {
   closeOnboardingOverlay() {
     return invokeTauri<null>(TAURI_COMMANDS.closeOnboardingOverlay);
   },
+  // 앱 아이콘의 읽지 않은 알림 배지(맥 독 숫자 / 윈도우 작업표시줄 점)를 갱신한다.
+  setAppBadgeCount(count: number) {
+    return invokeTauri<null>(TAURI_COMMANDS.setAppBadgeCount, { count });
+  },
   dragWidgetBarWindow(input: WidgetBarDragInput) {
     return invokeTauri<WidgetBarDragResult>(TAURI_COMMANDS.dragWidgetBarWindow, { input });
   },
@@ -1336,6 +1374,10 @@ export const tauriCommands = {
   },
   listManagedFolders() {
     return invokeTauri<ManagedFolderListResult>(TAURI_COMMANDS.listManagedFolders);
+  },
+  // Bubli 메뉴 "모니터로 이동": 바 + 열린 버블 창을 지정 모니터로 옮기고 선호 모니터도 같이 갱신한다.
+  moveWidgetWindowsToMonitor(input: MoveWidgetWindowsToMonitorInput) {
+    return invokeTauri<WidgetWindowState[]>(TAURI_COMMANDS.moveWidgetWindowsToMonitor, { input });
   },
   notifyWidgetDragStarted() {
     return invokeTauri<null>(TAURI_COMMANDS.notifyWidgetDragStarted);
@@ -1434,6 +1476,10 @@ export const tauriCommands = {
   },
   markLocalFileEventsSynced(input: LocalFileEventsMarkSyncedInput) {
     return invokeTauri<LocalFileEventsMarkSyncedResult>(TAURI_COMMANDS.markLocalFileEventsSynced, { input });
+  },
+  // 서버에서 지워진 개인 자료를 로컬 인덱스(local_files)에 반영하는 서버→앱 방향 조정.
+  reconcileLocalFilesWithServer(input: LocalFilesServerReconcileInput) {
+    return invokeTauri<LocalFilesServerReconcileResult>(TAURI_COMMANDS.reconcileLocalFilesWithServer, { input });
   },
   markWidgetUsageSummaryFailed(input: WidgetUsageSummaryMarkFailedInput) {
     return invokeTauri<WidgetUsageSummaryMarkFailedResult>(TAURI_COMMANDS.markWidgetUsageSummaryFailed, { input });

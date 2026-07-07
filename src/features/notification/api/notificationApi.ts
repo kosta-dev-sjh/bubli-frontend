@@ -33,4 +33,11 @@ export const notificationApi = {
       method: "PATCH",
     });
   },
+
+  // 알림 일괄 지우기(전체 보관) — 목록에서 모두 사라지고 배지도 0이 된다.
+  archiveAll() {
+    return apiRequest<unknown>("/api/notifications/archive-all", {
+      method: "PATCH",
+    });
+  },
 } as const;

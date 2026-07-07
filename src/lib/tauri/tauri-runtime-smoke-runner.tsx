@@ -98,10 +98,6 @@ function isWindowsRuntime() {
   return typeof navigator !== "undefined" && navigator.userAgent.toLowerCase().includes("windows");
 }
 
-function isMacRuntime() {
-  return typeof navigator !== "undefined" && navigator.userAgent.toLowerCase().includes("mac");
-}
-
 function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -1764,14 +1760,12 @@ async function runSmoke() {
     await tauriCommands.closeWidgetWindow({ bubbleType: "chat", windowId: "chat" });
     const closedChatWidgetState = await tauriCommands.getWidgetWindowState({ bubbleType: "chat", windowId: "chat" });
     assert(!closedChatWidgetState.windowVisible, "post-login relaunch setup closed one bubble widget", closedChatWidgetState);
-    if (isMacRuntime()) {
-      const barItemsAfterClose = await tauriCommands.getWidgetBarItems();
-      assert(
-        barItemsAfterClose.some((item) => item.activeBubble === "chat" && item.mode === "MINIMIZED" && !item.windowVisible),
-        "macOS closed chat widget remains restorable from the bar",
-        barItemsAfterClose,
-      );
-    }
+    const barItemsAfterClose = await tauriCommands.getWidgetBarItems();
+    assert(
+      !barItemsAfterClose.some((item) => (item.windowId ?? item.activeBubble) === "chat"),
+      "closed chat widget is removed from the bar restore items",
+      barItemsAfterClose,
+    );
     await tauriCommands.openWidgetWindow({
       bubbleType: "chat",
       mode: "DEFAULT",
@@ -1781,9 +1775,7 @@ async function runSmoke() {
     const restoredChatWidgetState = await tauriCommands.getWidgetWindowState({ bubbleType: "chat", windowId: "chat" });
     assert(
       restoredChatWidgetState.windowVisible && restoredChatWidgetState.selectedRoomId === smokeRoomId,
-      isMacRuntime()
-        ? "macOS closed chat widget restored from the bar with project room context"
-        : "closed chat widget reopened with project room context",
+      "closed chat widget reopened with project room context",
       restoredChatWidgetState,
     );
     assert(
