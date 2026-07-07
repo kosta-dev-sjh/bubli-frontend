@@ -15,6 +15,11 @@ type VoiceStoreSnapshot = {
 };
 
 const STORAGE_KEY = "bubli:voice-store";
+const CHANNEL_NAME = "bubli:voice-store-sync";
+
+type VoiceStoreMessage =
+  | { type: "request" }
+  | { snapshot: VoiceStoreSnapshot; type: "sync" };
 
 function readStorage(): VoiceStoreSnapshot | null {
   if (typeof window === "undefined") return null;
@@ -50,6 +55,33 @@ const _default: VoiceStoreSnapshot = {
 const _serverSnapshot: VoiceStoreSnapshot = _default;
 let _snapshot: VoiceStoreSnapshot = readStorage() ?? _default;
 const _listeners = new Set<() => void>();
+let _channel: BroadcastChannel | null = null;
+
+function notifyListeners() {
+  _listeners.forEach((listener) => listener());
+}
+
+function applyExternalSnapshot(snapshot: VoiceStoreSnapshot) {
+  _snapshot = snapshot.voice.kind === "ready" ? { ...snapshot, isSpeaking: false } : _default;
+  writeStorage(_snapshot);
+  notifyListeners();
+}
+
+if (typeof window !== "undefined") {
+  try {
+    _channel = new BroadcastChannel(CHANNEL_NAME);
+    _channel.addEventListener("message", (event: MessageEvent<VoiceStoreMessage>) => {
+      if (event.data.type === "request") {
+        _channel?.postMessage({ snapshot: _snapshot, type: "sync" } satisfies VoiceStoreMessage);
+        return;
+      }
+      applyExternalSnapshot(event.data.snapshot);
+    });
+    window.setTimeout(() => _channel?.postMessage({ type: "request" } satisfies VoiceStoreMessage), 0);
+  } catch {
+    _channel = null;
+  }
+}
 
 export const voiceStore = {
   subscribe(listener: () => void): () => void {
@@ -65,6 +97,7 @@ export const voiceStore = {
   update(patch: Partial<VoiceStoreSnapshot>): void {
     _snapshot = { ..._snapshot, ...patch };
     writeStorage(_snapshot);
-    _listeners.forEach((l) => l());
+    _channel?.postMessage({ snapshot: _snapshot, type: "sync" } satisfies VoiceStoreMessage);
+    notifyListeners();
   },
 };
