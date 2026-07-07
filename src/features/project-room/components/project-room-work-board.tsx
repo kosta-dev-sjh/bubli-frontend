@@ -179,6 +179,20 @@ function activeTaskStatus(status: TaskStatus) {
   return status === "BLOCKED" ? "REVIEW" : status;
 }
 
+function mergeTaskUpdate(
+  task: LocalTask,
+  updated: TaskResponse,
+  clearedFields: Array<keyof Pick<TaskResponse, "assigneeUserId" | "wbsItemId">> = [],
+) {
+  const merged: LocalTask = { ...task, ...updated };
+
+  clearedFields.forEach((field) => {
+    merged[field] = null;
+  });
+
+  return merged;
+}
+
 function generationErrorMessage(t: TranslateFn, error: unknown) {
   if (error instanceof Error && error.message) return error.message;
   return t("room.workBoard.genericError");
@@ -632,12 +646,9 @@ function ProjectRoomWorkBoardContent({
       .catch(() => setSaveNotice(t("room.workBoard.noticeTaskServerPending")));
   };
 
-  // 담당자/WBS "없음"은 null을 PATCH로 보낸다(client.ts가 JSON.stringify로 null을 유지).
-  // 되돌리기(없음으로 복귀)가 반영되지 않는다면 백엔드가 null을 "변경 없음"으로 무시하고
-  // 기존 값을 그대로 응답에 담아 되돌리는 것이 원인이다 — PATCH에서 명시적 null을 필드
-  // 해제로 처리하고 응답에 null을 반영하도록 서버가 수정되어야 한다(프론트는 이미 null 전송).
   const updateTaskAssignee = (taskId: string, assigneeUserId: string | null) => {
     const previousTasks = tasks;
+    const clearedFields = assigneeUserId === null ? (["assigneeUserId"] as const) : [];
 
     setTasks((current) => current.map((task) => (task.id === taskId ? { ...task, assigneeUserId } : task)));
     setSaveNotice(t("room.workBoard.noticeAssigneeSaving"));
@@ -645,7 +656,7 @@ function ProjectRoomWorkBoardContent({
     void todoApi
       .update(taskId, { assigneeUserId })
       .then((updated) => {
-        setTasks((current) => current.map((task) => (task.id === taskId ? { ...task, ...updated } : task)));
+        setTasks((current) => current.map((task) => (task.id === taskId ? mergeTaskUpdate(task, updated, [...clearedFields]) : task)));
         notifyDataChanged("todo");
         setSaveNotice(t("room.workBoard.noticeAssigneeSaved"));
       })
@@ -657,6 +668,7 @@ function ProjectRoomWorkBoardContent({
 
   const updateTaskWbs = (taskId: string, wbsItemId: string | null) => {
     const previousTasks = tasks;
+    const clearedFields = wbsItemId === null ? (["wbsItemId"] as const) : [];
 
     setTasks((current) => current.map((task) => (task.id === taskId ? { ...task, wbsItemId } : task)));
     setSaveNotice(t("room.workBoard.noticeTaskWbsSaving"));
@@ -664,7 +676,7 @@ function ProjectRoomWorkBoardContent({
     void todoApi
       .update(taskId, { wbsItemId })
       .then((updated) => {
-        setTasks((current) => current.map((task) => (task.id === taskId ? { ...task, ...updated } : task)));
+        setTasks((current) => current.map((task) => (task.id === taskId ? mergeTaskUpdate(task, updated, [...clearedFields]) : task)));
         notifyDataChanged("todo");
         setSaveNotice(t("room.workBoard.noticeTaskWbsSaved"));
       })
