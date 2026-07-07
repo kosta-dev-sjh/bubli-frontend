@@ -102,12 +102,10 @@ function roomSwitchHref(
   searchParams: ReadonlyURLSearchParams,
   nextRoomId: string,
 ): string | null {
-  // 룸 채팅(/app/chat?mode=room): 룸을 바꾸면 채팅도 새 룸으로. 1:1/그룹(mode=direct/group)은
-  // 프로젝트룸에 묶이지 않으므로 제외 — 안 그러면 1:1·그룹 탭을 보다가 룸을 바꾸면 원치 않게
-  // 프로젝트룸 탭으로 튕겨나갔다.
+  // 룸 채팅(/app/chat?mode=room): 룸을 바꾸면 채팅도 새 룸으로. 다이렉트 메시지(mode=direct, 1:1/그룹
+  // 통합 탭)는 룸에 안 묶이므로 제외.
   if (pathname === "/app/chat") {
-    const mode = searchParams.get("mode");
-    if (mode === "direct" || mode === "group") return null;
+    if (searchParams.get("mode") === "direct") return null;
     if (searchParams.get("roomId") === nextRoomId) return null;
     return `/app/chat?mode=room&roomId=${encodeURIComponent(nextRoomId)}`;
   }
@@ -1047,7 +1045,7 @@ export function AppShell({ children }: AppShellProps) {
       }
       if (room?.chatType === "GROUP") {
         voiceStore.update({ selectedChatRoomId: chatRoomId });
-        return { isProjectRoom: false, route: "/app/chat?mode=group" };
+        return { isProjectRoom: false, route: "/app/chat?mode=direct" };
       }
     } catch {
       // 조회 실패 시 1:1/그룹으로 간주하고 진행 — 최소한 소통 화면까지는 이동시킨다
