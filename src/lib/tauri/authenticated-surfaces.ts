@@ -396,7 +396,11 @@ export function launchTauriAuthenticatedSurfaces(options: LaunchTauriAuthenticat
       return;
     }
 
-    const startupWindowsReady = await authenticatedStartupWindowsReady(startupWindows);
+    const nativeAuthenticatedSurfacesEnabled = await tauriCommands.getAuthenticatedSurfacesEnabled().catch(() => false);
+    const shouldReuseExistingWindows = launchedAuthenticatedSurfaces || nativeAuthenticatedSurfacesEnabled;
+    const startupWindowsReady = shouldReuseExistingWindows
+      ? await authenticatedStartupWindowsReady(startupWindows)
+      : false;
     if (startupWindowsReady) {
       await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: true }).catch(() => undefined);
       timeline.authGateEnabledAt = nowIso();
