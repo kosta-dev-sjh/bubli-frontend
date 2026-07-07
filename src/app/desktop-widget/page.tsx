@@ -3206,10 +3206,11 @@ function DesktopWidgetSurface() {
     if (!incomingVoiceCall) return;
     const call = incomingVoiceCall;
     // 상대(발신자)에게 거절했음을 알려야 마이크가 켜진 채로 대기하는 발신자 화면을 자동으로 끊을 수 있다.
-    // 이미 열려 있는 방을 그대로 반환하는 createVoiceRoom("join-or-create")으로 방 id를 얻는다 — 참여자로
-    // 등록되지는 않으므로(방이 이미 있으면 참여자를 추가하지 않음) 내 마이크가 켜지지 않는다.
+    // createVoiceRoom("있으면 join, 없으면 create")으로 방 id를 구하면, 타이밍 등으로 기존 방을
+    // 못 찾을 때 새 방을 만들어버려(그리고 "통화를 시작했습니다" 알림까지 잘못 나가) 거절 신호
+    // 자체가 새어나갔다. 부작용 없는 조회 전용 엔드포인트로 방 id만 가져온다.
     void widgetCommunicationApi
-      .createVoiceRoom({ chatRoomId: call.chatRoomId })
+      .getOpenVoiceRoomByChatRoomId(call.chatRoomId)
       .then((room) => widgetCommunicationApi.declineVoiceRoom(room.id))
       .catch(() => undefined);
     void notificationApi.markRead(call.notificationId).catch(() => undefined);
@@ -3224,10 +3225,26 @@ function DesktopWidgetSurface() {
       const voiceRoom = await widgetCommunicationApi.createVoiceRoom({ chatRoomId: call.chatRoomId });
       setActiveVoiceRoomId(voiceRoom.id);
       setVoiceConnectionLabel("Voice room opened");
+      setCommunicationRevision((current) => current + 1);
+      publishWidgetDataChanged("chat");
 
-      try {
-        const token = await widgetCommunicationApi.getVoiceToken(voiceRoom.id);
-        if (token.serverUrl && token.token) {
+      if (isTauri) {
+        void tauriCommands
+          .openWidgetWindow({
+            bubbleType: "chat",
+            mode: "DEFAULT",
+            selectedRoomId: call.chatRoomId,
+            windowId: "chat",
+          })
+          .catch(() => undefined);
+      }
+
+      // 오디오 연결(ICE/DTLS 협상)은 몇 초 걸릴 수 있어 기다리지 않고 먼저 위젯을 연다 —
+      // 기다리게 하면 수락을 눌러도 오디오가 붙을 때까지 화면 전환이 몇 초씩 늦어 보였다.
+      void widgetCommunicationApi
+        .getVoiceToken(voiceRoom.id)
+        .then(async (token) => {
+          if (!token.serverUrl || !token.token) return;
           const liveKitRoom = new Room();
           liveKitRoom.on(RoomEvent.TrackSubscribed, (track) => attachWidgetRemoteAudioTrack(track));
           liveKitRoom.on(RoomEvent.TrackUnsubscribed, (track) => {
@@ -3242,24 +3259,10 @@ function DesktopWidgetSurface() {
           await liveKitRoom.localParticipant.setMicrophoneEnabled(true);
           setVoiceMicMuted(false);
           setVoiceConnectionLabel("LiveKit connected");
-        }
-      } catch {
-        setVoiceConnectionLabel("Voice room open; token failed");
-      }
-
-      setCommunicationRevision((current) => current + 1);
-      publishWidgetDataChanged("chat");
-
-      if (isTauri) {
-        await tauriCommands
-          .openWidgetWindow({
-            bubbleType: "chat",
-            mode: "DEFAULT",
-            selectedRoomId: call.chatRoomId,
-            windowId: "chat",
-          })
-          .catch(() => undefined);
-      }
+        })
+        .catch(() => {
+          setVoiceConnectionLabel("Voice room open; token failed");
+        });
     } catch {
       // 룸 생성/조회 자체가 실패한 경우 — 조용히 무시하고 알림만 닫는다
     } finally {
@@ -3602,7 +3605,7 @@ function DesktopWidgetSurface() {
           usageSummary={menuUsageSummary}
         />
         {incomingVoiceCall ? (
-          <div className="voice-call-invite" role="dialog" aria-modal="true" aria-label={t("layout.voiceCall.aria")}>
+          <div className="voice-call-invite voice-call-invite--widget" role="dialog" aria-modal="true" aria-label={t("layout.voiceCall.aria")}>
             <div className="voice-call-invite__card" data-bubli-interactive="true">
               <div className="voice-call-invite__avatar" aria-hidden="true">
                 <Phone size={26} strokeWidth={2} />

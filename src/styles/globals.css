@@ -22633,6 +22633,26 @@ body[data-bubli-surface="hybrid-app"] .resource-workspace > * {
   backdrop-filter: blur(2px);
 }
 
+/* 위젯(소통 위젯)에서는 창 자체가 보이는 카드보다 훨씬 큰 투명 사각형이라, 전체 화면 딤 배경을
+   깔면 그 투명 영역까지 흐릿하게 덮여 화면이 이상해 보였다. 배경 없이 카드만 작게 띄운다. */
+.voice-call-invite--widget {
+  padding-top: 10px;
+  background: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.voice-call-invite--widget .voice-call-invite__card {
+  width: min(272px, calc(100vw - 20px));
+  padding: 20px 16px 16px;
+  border-radius: 22px;
+}
+
+.voice-call-invite--widget .voice-call-invite__avatar {
+  width: 52px;
+  height: 52px;
+}
+
 .voice-call-invite__card {
   display: flex;
   flex-direction: column;

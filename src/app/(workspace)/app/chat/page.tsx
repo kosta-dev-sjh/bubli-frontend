@@ -790,6 +790,9 @@ function ChatPageContent() {
     (p) => p.userId === currentUser?.id && p.status === "JOINED"
   );
   const isVoiceCreator = activeVoiceRoom !== null && activeVoiceRoom.createdByUserId === currentUser?.id;
+  // 1:1 통화는 "나가기" 개념이 없다 — 둘 중 하나만 있어도 대화가 안 되므로 종료만 노출하고,
+  // 개설자가 아니어도 종료할 수 있게 한다(백엔드도 1:1에 한해 동일하게 허용).
+  const isDirectVoiceRoom = selectedRoom?.chatType === "DIRECT";
 
   // 새로고침 등으로 실제 LiveKit 연결만 끊긴 채 DB상 참여 상태가 남아있으면 조용히 재연결한다.
   useEffect(() => {
@@ -2045,13 +2048,13 @@ function ChatPageContent() {
                         {voiceAction === "mic" ? t("chat.voiceCard.changing") : voiceMicMuted ? t("chat.voiceCard.micOn") : t("chat.voiceCard.micOff")}
                       </button>
                     ) : null}
-                    {isInVoice ? (
+                    {isInVoice && !isDirectVoiceRoom ? (
                       <button className="workspace-route__voice-pill" data-voice-pill="2" disabled={voiceAction === "leave"} onClick={() => void leaveVoice()} type="button">
                         <LogOut aria-hidden size={13} strokeWidth={2} />
                         {voiceAction === "leave" ? t("chat.voiceCard.leaving") : t("chat.voiceCard.leave")}
                       </button>
                     ) : null}
-                    {isVoiceCreator ? (
+                    {isVoiceCreator || (isDirectVoiceRoom && isInVoice) ? (
                       <button className="workspace-route__voice-pill workspace-route__voice-pill--end" data-voice-pill="3" disabled={voiceAction === "end"} onClick={() => void endVoice()} type="button">
                         <Square aria-hidden size={13} strokeWidth={2} />
                         {voiceAction === "end" ? t("chat.voiceCard.ending") : t("chat.voiceCard.end")}
