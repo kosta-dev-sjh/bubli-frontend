@@ -73,7 +73,9 @@ export type AgentSuggestionType =
 
 export type AgentSuggestionResponse = {
   createdAt: string;
+  downloadUrl?: string | null;
   evidenceJson: Record<string, unknown>;
+  exportUrl?: string | null;
   jobId: string | null;
   payloadJson: Record<string, unknown>;
   resourceId: string | null;
@@ -99,6 +101,8 @@ export type GeneratedDocumentResponse = {
   contentMarkdown: string;
   createdAt: string;
   documentType: string;
+  downloadUrl?: string | null;
+  exportUrl?: string | null;
   id: string;
   metadataJson: Record<string, unknown>;
   resourceId: string | null;

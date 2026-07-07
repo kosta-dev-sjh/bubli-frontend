@@ -26,6 +26,7 @@ import {
 } from "@/features/widget/api/widgetDisplayApi";
 import { agentApi } from "@/features/agent/api/agentApi";
 import { authApi } from "@/features/auth/api/authApi";
+import { resolveResourceDownloadUrl } from "@/features/resources/components/resource-board-common";
 import { ApiClientError } from "@/lib/api/errors";
 import {
   widgetApi,
@@ -2551,11 +2552,15 @@ function DesktopWidgetSurface() {
       }
 
       const result = await widgetDisplayApi.getResourceDownloadUrl(item.id);
+      const url = resolveResourceDownloadUrl(result);
+      if (!url) {
+        throw new Error("Download URL is empty");
+      }
       // Tauri 웹뷰에서는 window.open(_blank)이 막히므로 OS 기본 브라우저로 연다(웹은 새 탭 유지).
       if (isTauri) {
-        await tauriCommands.openExternalUrl(result.url).catch(() => undefined);
+        await tauriCommands.openExternalUrl(url).catch(() => undefined);
       } else {
-        window.open(result.url, "_blank", "noopener,noreferrer");
+        window.open(url, "_blank", "noopener,noreferrer");
       }
 
       if (isTauri) {
