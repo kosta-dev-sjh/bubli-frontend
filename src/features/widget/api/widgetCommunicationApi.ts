@@ -1,6 +1,6 @@
 import { apiRequest } from "@/lib/api/client";
-import type { ChatMessageListResponse, ChatMessageResponse, ChatRoomResponse, RoomAgentCommandRequest, RoomAgentCommandResponse } from "@/types/api/chat";
-import type { FriendResponse } from "@/types/api/friend";
+import type { ChatMessageListResponse, ChatMessageResponse, ChatRoomResponse, GroupChatRoomRequest, RoomAgentCommandRequest, RoomAgentCommandResponse } from "@/types/api/chat";
+import type { FriendRequestApiResponse, FriendResponse } from "@/types/api/friend";
 import type { VoiceParticipantResponse, VoiceRoomResponse, VoiceTokenResponse } from "@/types/api/voice";
 import { withWidgetDevAuthHeaders } from "./widgetAuthHeaders";
 
@@ -65,6 +65,32 @@ export const widgetCommunicationApi = {
     return widgetCommunicationRequest<ChatRoomResponse>("/api/chat/direct-rooms", {
       body: { targetUserId: friendUserId },
       method: "POST",
+    });
+  },
+
+  createGroupRoom(body: GroupChatRoomRequest) {
+    return widgetCommunicationRequest<ChatRoomResponse>("/api/chat/group-rooms", {
+      body,
+      method: "POST",
+    });
+  },
+
+  sendFriendRequest(bubliId: string) {
+    return widgetCommunicationRequest<FriendRequestApiResponse>("/api/friend-requests", {
+      body: { bubliId },
+      method: "POST",
+    });
+  },
+
+  acceptFriendRequest(requestId: string) {
+    return widgetCommunicationRequest<FriendRequestApiResponse>(`/api/friend-requests/${requestId}/accept`, {
+      method: "PATCH",
+    });
+  },
+
+  rejectFriendRequest(requestId: string) {
+    return widgetCommunicationRequest<FriendRequestApiResponse>(`/api/friend-requests/${requestId}/reject`, {
+      method: "PATCH",
     });
   },
 

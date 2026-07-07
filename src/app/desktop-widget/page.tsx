@@ -28,6 +28,7 @@ import { agentApi } from "@/features/agent/api/agentApi";
 import { authApi } from "@/features/auth/api/authApi";
 import { resolveResourceDownloadUrl } from "@/features/resources/components/resource-board-common";
 import { ApiClientError } from "@/lib/api/errors";
+import type { FriendRequestApiResponse } from "@/types/api/friend";
 import {
   widgetApi,
   type BackendWidgetBubbleType,
@@ -507,12 +508,13 @@ function parseCachedWidgetChatMessages(items: Array<{ bodyJson: string }>): Widg
 }
 
 function resolveActiveWidgetChatRoom(rooms: WidgetChatRoomResponse[], selectedRoomId?: string | null) {
-  const activeRooms = rooms.filter((room) => room.status === "ACTIVE");
-  if (selectedRoomId) {
-    return activeRooms.find((room) => room.chatType === "ROOM" && room.roomId === selectedRoomId) ?? null;
-  }
+  if (!selectedRoomId) return null;
+  return rooms.find((room) => room.status === "ACTIVE" && room.chatType === "ROOM" && room.roomId === selectedRoomId) ?? null;
+}
 
-  return activeRooms.find((room) => room.chatType === "DIRECT" || room.roomId === null) ?? null;
+function resolveSelectedPeerChatRoom(peerRooms: WidgetChatRoomResponse[], selectedPeerChatRoomId?: string | null) {
+  if (!selectedPeerChatRoomId) return null;
+  return peerRooms.find((room) => room.id === selectedPeerChatRoomId) ?? null;
 }
 
 type TimerDisplay = WidgetDashboardWorkResponse["runningTimer"] | TimeLogResponse | null | undefined;
@@ -695,6 +697,11 @@ function widgetNotificationToRow(t: TranslateFn, item: WidgetNotificationRespons
 
 function buildDisplayBubbles(input: {
   currentUserId?: string | null;
+  currentUserBubliId?: string | null;
+  chatScope?: "direct" | "room";
+  peerRooms?: WidgetChatRoomResponse[];
+  selectedPeerChatRoomId?: string | null;
+  friendRequests?: FriendRequestApiResponse[];
   dashboard?: WidgetDashboardWorkResponse | null;
   friends: WidgetFriendResponse[];
   memos: WidgetMemoResponse[];
@@ -980,6 +987,14 @@ function buildDisplayBubbles(input: {
     }),
     chat: withBubble("chat", {
       chatRoomId: input.chatRoom?.id,
+      chatScope: input.chatScope,
+      currentUserId: input.currentUserId,
+      myBubliId: input.currentUserBubliId,
+      peerRooms: input.peerRooms ?? [],
+      selectedPeerChatRoomId: input.selectedPeerChatRoomId,
+      friendRequests: input.friendRequests ?? [],
+      friends: input.friends,
+      hasProjectRoomScope: Boolean(input.roomId),
       compactLabel: t("widget.chat.count", { count: input.messages.length + voiceParticipants.length }),
       lastMessageSequence: input.messages.reduce((max, item) => Math.max(max, item.roomSequence), 0),
       metric: String(input.messages.length),
@@ -995,7 +1010,7 @@ function buildDisplayBubbles(input: {
       voiceRoomId: input.voiceRoom?.id,
       rows: [
         ...input.friends.slice(0, 1).map((item) => ({
-          id: item.userId ?? item.friendUserId ?? item.bubliId,
+          id: item.userId,
           kind: "friend" as const,
           label: item.name,
           status: t("widget.chat.people"),
@@ -1359,6 +1374,11 @@ function DesktopWidgetSurface() {
   const [hasAuthSession, setHasAuthSession] = useState(!isTauri);
   // 룸 컨텍스트에서 "내 담당 태스크 우선" 정렬에 쓰는 현재 사용자 id.
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserBubliId, setCurrentUserBubliId] = useState<string | null>(null);
+  // 소통 버블 전용 — 1:1/그룹 ↔ 프로젝트룸 모드와 1:1/그룹 목록에서 선택한 대화방.
+  // 창별 로컬 상태로 둔다(activeBubble/mode처럼 창 간 동기화하지 않음).
+  const [chatScope, setChatScope] = useState<"direct" | "room">("direct");
+  const [selectedPeerChatRoomId, setSelectedPeerChatRoomId] = useState<string | null>(null);
   const [activeBubble, setActiveBubble] = useState<WidgetBubbleType>(requestedBubble);
   const [mode, setMode] = useState<WidgetWindowMode>(requestedMode);
   const [alwaysOnTop, setAlwaysOnTop] = useState(true);
@@ -1607,7 +1627,10 @@ function DesktopWidgetSurface() {
     void authApi
       .getMe()
       .then((me) => {
-        if (!cancelled) setCurrentUserId(me.id);
+        if (!cancelled) {
+          setCurrentUserId(me.id);
+          setCurrentUserBubliId(me.bubliId);
+        }
       })
       .catch(() => undefined);
 
@@ -1934,6 +1957,7 @@ function DesktopWidgetSurface() {
         notificationsResult,
         chatRoomsResult,
         friendsResult,
+        friendRequestsResult,
         roomResult,
         voiceResult,
         projectRoomsResult,
@@ -1958,6 +1982,7 @@ function DesktopWidgetSurface() {
           loadNotifications ? widgetDisplayApi.listNotifications(20) : Promise.resolve(null),
           loadChat ? widgetDisplayApi.listChatRooms(20) : Promise.resolve(null),
           loadChat ? widgetDisplayApi.listFriends() : Promise.resolve(null),
+          loadChat ? widgetDisplayApi.listFriendRequests() : Promise.resolve(null),
           loadRoom && selectedRoomId ? widgetDisplayApi.getProjectRoom(selectedRoomId) : Promise.resolve(null),
           loadChat && voiceRoomId ? widgetDisplayApi.getVoiceRoom(voiceRoomId) : Promise.resolve(null),
           loadProjectRooms ? widgetDisplayApi.listProjectRooms() : Promise.resolve(null),
@@ -1981,14 +2006,19 @@ function DesktopWidgetSurface() {
       const notificationsValue = notificationsResult.status === "fulfilled" ? notificationsResult.value : null;
       const chatRoomsValue = chatRoomsResult.status === "fulfilled" ? chatRoomsResult.value : null;
       const friendsValue = friendsResult.status === "fulfilled" ? friendsResult.value : null;
+      const friendRequestsValue = friendRequestsResult.status === "fulfilled" ? friendRequestsResult.value : null;
       const roomValue = roomResult.status === "fulfilled" ? roomResult.value : null;
       const voiceValue = voiceResult.status === "fulfilled" ? voiceResult.value : null;
       setActiveVoiceRoom(voiceValue);
       const projectRoomsValue = projectRoomsResult.status === "fulfilled" ? projectRoomsResult.value : null;
       const notifications = notificationsValue?.items ?? [];
       const rooms = chatRoomsValue?.items ?? [];
-      let activeRoom = resolveActiveWidgetChatRoom(rooms, selectedRoomId);
-      if (loadChat && selectedRoomId && !activeRoom) {
+      const peerRooms = rooms.filter((room) => room.status === "ACTIVE" && (room.chatType === "DIRECT" || room.chatType === "GROUP"));
+      let activeRoom =
+        chatScope === "room"
+          ? resolveActiveWidgetChatRoom(rooms, selectedRoomId)
+          : resolveSelectedPeerChatRoom(peerRooms, selectedPeerChatRoomId);
+      if (loadChat && chatScope === "room" && selectedRoomId && !activeRoom) {
         activeRoom = await widgetDisplayApi.createProjectRoomChatRoom(selectedRoomId).catch(() => null);
       }
       if (cancelled) return;
@@ -2028,6 +2058,7 @@ function DesktopWidgetSurface() {
         loadChat &&
         (chatRoomsResult.status === "rejected" ||
           friendsResult.status === "rejected" ||
+          friendRequestsResult.status === "rejected" ||
           (activeRoom && !messages) ||
           (voiceRoomId && voiceResult.status === "rejected"))
       ) {
@@ -2099,7 +2130,12 @@ function DesktopWidgetSurface() {
 
       const nextDisplayBubbles = buildDisplayBubbles({
           chatRoom: activeRoom ?? null,
+          chatScope,
           currentUserId,
+          currentUserBubliId,
+          friendRequests: friendRequestsValue ?? [],
+          peerRooms,
+          selectedPeerChatRoomId,
           dashboard,
           friends: friendsValue ?? [],
           generatedDocuments: generatedDocumentsForWidget,
@@ -2152,7 +2188,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [activeBubble, activeVoiceRoomId, agentRevision, barFullDisplayReady, communicationRevision, currentUserId, displayRefreshRevision, isBubbleBar, isMenuOrb, isTauri, isWidgetChrome, itemStateOverrides, memoRevision, notificationRevision, resourceRevision, scheduleRevision, selectedWidgetRoomId, t, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContextInitialized, widgetSessionReady]);
+  }, [activeBubble, activeVoiceRoomId, agentRevision, barFullDisplayReady, chatScope, communicationRevision, currentUserBubliId, currentUserId, displayRefreshRevision, isBubbleBar, isMenuOrb, isTauri, isWidgetChrome, itemStateOverrides, memoRevision, notificationRevision, resourceRevision, scheduleRevision, selectedPeerChatRoomId, selectedWidgetRoomId, t, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContextInitialized, widgetSessionReady]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;
@@ -2779,6 +2815,50 @@ function DesktopWidgetSurface() {
     [isTauri, publishWidgetDataChanged],
   );
 
+  const createWidgetDirectRoom = useCallback(
+    async (friendUserId: string) => {
+      const room = await widgetCommunicationApi.createDirectRoom(friendUserId);
+      setChatScope("direct");
+      setSelectedPeerChatRoomId(room.id);
+      setCommunicationRevision((current) => current + 1);
+      publishWidgetDataChanged("chat");
+      return room;
+    },
+    [publishWidgetDataChanged, setChatScope, setSelectedPeerChatRoomId],
+  );
+
+  const createWidgetGroupRoom = useCallback(
+    async (memberUserIds: string[], name: string) => {
+      const room = await widgetCommunicationApi.createGroupRoom({ memberUserIds, name });
+      setChatScope("direct");
+      setSelectedPeerChatRoomId(room.id);
+      setCommunicationRevision((current) => current + 1);
+      publishWidgetDataChanged("chat");
+      return room;
+    },
+    [publishWidgetDataChanged, setChatScope, setSelectedPeerChatRoomId],
+  );
+
+  const searchWidgetFriend = useCallback((bubliId: string) => widgetDisplayApi.searchFriend(bubliId), []);
+
+  const sendWidgetFriendRequest = useCallback(async (bubliId: string) => {
+    await widgetCommunicationApi.sendFriendRequest(bubliId);
+    setCommunicationRevision((current) => current + 1);
+  }, []);
+
+  const respondWidgetFriendRequest = useCallback(
+    async (requestId: string, action: "accept" | "reject") => {
+      if (action === "accept") {
+        await widgetCommunicationApi.acceptFriendRequest(requestId);
+      } else {
+        await widgetCommunicationApi.rejectFriendRequest(requestId);
+      }
+      setCommunicationRevision((current) => current + 1);
+      publishWidgetDataChanged("chat");
+    },
+    [publishWidgetDataChanged],
+  );
+
   const createWidgetMemo = useCallback(
     async (bubble: WidgetPreviewBubble, inlineBody?: string) => {
       // 버블 하단 인라인 컴포저가 본문을 넘겨주면 그대로 저장하고, 없을 때만 prompt로 받는다.
@@ -3394,14 +3474,17 @@ function DesktopWidgetSurface() {
 
   const startWidgetVoice = useCallback(
     async (bubble: WidgetPreviewBubble) => {
-      if (!bubble.roomId) {
+      // 프로젝트룸이면 roomId로, 1:1/그룹이면 chatRoomId로 통화방을 잡는다(웹 소통창과 동일한 분기).
+      if (!bubble.roomId && !bubble.chatRoomId) {
         setVoiceConnectionLabel("Select a room first");
         return;
       }
 
       const voiceRoom = activeVoiceRoomId
         ? await widgetCommunicationApi.getVoiceRoom(activeVoiceRoomId)
-        : await widgetCommunicationApi.createVoiceRoom({ roomId: bubble.roomId });
+        : await widgetCommunicationApi.createVoiceRoom(
+            bubble.roomId ? { roomId: bubble.roomId } : { chatRoomId: bubble.chatRoomId },
+          );
 
       setActiveVoiceRoomId(voiceRoom.id);
       setVoiceConnectionLabel("Voice room opened");
@@ -3739,6 +3822,15 @@ function DesktopWidgetSurface() {
       bubble={displayBubbles[activeBubble]}
       clickThrough={clickThrough}
       mode={mode}
+      chatScope={chatScope}
+      onChatScopeChange={setChatScope}
+      selectedPeerChatRoomId={selectedPeerChatRoomId}
+      onSelectPeerChatRoom={setSelectedPeerChatRoomId}
+      onCreateDirectRoom={createWidgetDirectRoom}
+      onCreateGroupRoom={createWidgetGroupRoom}
+      onSearchFriend={searchWidgetFriend}
+      onSendFriendRequest={sendWidgetFriendRequest}
+      onRespondFriendRequest={respondWidgetFriendRequest}
       onClose={closeWindow}
       onItemStateChange={handleItemStateChange}
       onLeaveVoice={leaveWidgetVoice}
