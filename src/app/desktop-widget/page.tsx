@@ -105,7 +105,6 @@ const devVoiceRoomId =
 const WIDGET_SESSION_RESTORE_GRACE_ATTEMPTS = 6;
 const WIDGET_SESSION_RESTORE_GRACE_DELAY_MS = 250;
 const TIMER_HEARTBEAT_INTERVAL_MS = 60_000;
-const WIDGET_MOCK_GENERATED_DRAFT_ID = "widget-mock-generated-draft";
 type WidgetItemStateAction = "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED";
 type WidgetAgentSuggestionReviewAction = "APPROVE" | "HOLD" | "REJECT";
 
@@ -192,10 +191,6 @@ function isDesktopWidgetBubble(value: string): value is WidgetBubbleType {
 
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-}
-
-function isWidgetMockGeneratedDraftId(value: string) {
-  return value === WIDGET_MOCK_GENERATED_DRAFT_ID;
 }
 
 function getRequestedMode(value: string | null): WidgetWindowMode {
@@ -623,31 +618,6 @@ function collectWidgetItemIds(bubbles: Partial<Record<WidgetBubbleType, WidgetPr
         .filter(isUuid),
     ),
   ];
-}
-
-function createWidgetMockGeneratedDraft(roomId?: string | null, userId?: string | null): GeneratedDocumentResponse {
-  const now = new Date().toISOString();
-  return {
-    contentMarkdown: "## 프로젝트 진행 요약\n\n- 핵심 요구사항 정리\n- 다음 검토 항목 초안화\n- 담당자 확인 필요",
-    createdAt: now,
-    documentType: "요약 초안",
-    id: WIDGET_MOCK_GENERATED_DRAFT_ID,
-    metadataJson: { widgetMock: true },
-    resourceId: null,
-    roomId: roomId ?? null,
-    suggestionId: null,
-    title: "프로젝트 진행 요약 초안",
-    updatedAt: now,
-    userId: userId ?? "widget-mock-user",
-  };
-}
-
-function withWidgetMockGeneratedDraft(
-  items: GeneratedDocumentResponse[],
-  roomId?: string | null,
-  userId?: string | null,
-) {
-  return items.length > 0 ? items : [createWidgetMockGeneratedDraft(roomId, userId)];
 }
 
 function itemStateResponseToOverrides(
@@ -2019,13 +1989,11 @@ function DesktopWidgetSurface() {
         roomBoardResult.status === "fulfilled" && roomBoardResult.value ? roomBoardResult.value.items : [];
       const dashboardUnreadNotificationCount = dashboardValue?.unreadNotificationCount ?? summaryDashboard?.unreadNotificationCount;
       const generatedDocumentsForWidget =
-        loadGeneratedDocuments && generatedDocumentsResult.status === "fulfilled"
-          ? withWidgetMockGeneratedDraft(generatedDocumentsValue?.items ?? [], selectedRoomId, currentUserId)
-          : (generatedDocumentsValue?.items ?? []);
+        loadGeneratedDocuments && generatedDocumentsResult.status === "fulfilled" ? (generatedDocumentsValue?.items ?? []) : [];
       const personalGeneratedDocumentsForWidget =
         loadGeneratedDocuments && selectedRoomId && personalGeneratedDocumentsResult.status === "fulfilled"
-          ? withWidgetMockGeneratedDraft(personalGeneratedDocumentsValue?.items ?? [], null, currentUserId)
-          : (personalGeneratedDocumentsValue?.items ?? []);
+          ? (personalGeneratedDocumentsValue?.items ?? [])
+          : [];
       const hadLoadedDisplay = displayLoadedOnceRef.current;
       const nextNotificationSignal =
         loadNotifications && notificationsResult.status === "rejected"
@@ -2546,27 +2514,6 @@ function DesktopWidgetSurface() {
   const downloadWidgetResource = useCallback(
     async (item: WidgetPreviewItem) => {
       if (item.kind === "document") {
-        if (isWidgetMockGeneratedDraftId(item.id)) {
-          const blob = new Blob(
-            [
-              "# 프로젝트 진행 요약 초안\n\n",
-              "- 핵심 요구사항 정리\n",
-              "- 다음 검토 항목 초안화\n",
-              "- 담당자 확인 필요\n",
-            ],
-            { type: "text/markdown;charset=utf-8" },
-          );
-          const url = URL.createObjectURL(blob);
-          const anchor = document.createElement("a");
-          anchor.href = url;
-          anchor.download = "프로젝트_진행_요약_초안.md";
-          document.body.append(anchor);
-          anchor.click();
-          anchor.remove();
-          window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-          return;
-        }
-
         const result = await agentApi.exportGeneratedDocument(item.id);
         const url = URL.createObjectURL(result.blob);
         const anchor = document.createElement("a");
