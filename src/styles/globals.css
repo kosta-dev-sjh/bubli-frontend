@@ -22803,6 +22803,17 @@ body[data-bubli-surface="hybrid-app"] .resource-workspace > * {
   white-space: nowrap;
 }
 
+.message-toast__view-detail {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--blue-ink);
+  opacity: 0.75;
+}
+
+.message-toast__view-detail::after {
+  content: " →";
+}
+
 .message-toast__close {
   flex-shrink: 0;
   width: 28px;

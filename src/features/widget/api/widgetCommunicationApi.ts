@@ -97,4 +97,16 @@ export const widgetCommunicationApi = {
       method: "PATCH",
     });
   },
+
+  declineVoiceRoom(voiceRoomId: string) {
+    return widgetCommunicationRequest<void>(`/api/voice/rooms/${voiceRoomId}/decline`, {
+      method: "PATCH",
+    });
+  },
+
+  endVoiceRoom(voiceRoomId: string) {
+    return widgetCommunicationRequest<VoiceRoomResponse>(`/api/voice/rooms/${voiceRoomId}/end`, {
+      method: "PATCH",
+    });
+  },
 } as const;
