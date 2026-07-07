@@ -56,10 +56,18 @@ import { startCallRingtone, stopCallRingtone } from "@/lib/sound/call-sound";
 import { projectRoomRoute } from "@/lib/project-room-routes";
 import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
 import { setWidgetWindowDragLocked, tauriCommands, waitForPendingWidgetUsageEventRecords, type AppMonitorInfo, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetInteractiveRect, type WidgetWindowBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
-import { emitWidgetDataChanged, listenWidgetDataChanged, listenWidgetRoomContextChanged } from "@/lib/tauri/events";
+import {
+  emitWidgetDataChanged,
+  listenWidgetBarItemsChanged,
+  listenWidgetDataChanged,
+  listenWidgetRoomContextChanged,
+  listenWidgetWindowStateChanged,
+} from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { sendTauriNotification } from "@/lib/tauri/notification";
 import { defaultTauriStartupOptimizationConfig, readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
 import { readCachedWidgetRoomNames, readWidgetSummary, writeCachedWidgetRoomNames, type WidgetRoomNameMap } from "@/lib/widget";
+import { readWidgetWorkTimerSnapshot, writeWidgetWorkTimerSnapshot } from "@/lib/widget/widget-pref-client";
 import { syncActiveProjectRoomFromWidgetContext } from "@/lib/workspace-active-room";
 import { getChatRealtimeClient } from "@/lib/websocket/chat-realtime";
 import { websocketTopics } from "@/lib/websocket/topics";
@@ -542,7 +550,7 @@ function timerStatusLabel(t: TranslateFn, status: NonNullable<TimerDisplay>["sta
 function timerActionLabel(t: TranslateFn, timer?: TimerDisplay) {
   if (!timer) return t("widget.timerAction.start");
   if (timer.status === "PAUSED") return t("widget.timerAction.resume");
-  if (timer.status === "RUNNING") return t("widget.timerAction.stop");
+  if (timer.status === "RUNNING") return t("widget.timer.pause");
   return t("widget.timerAction.start");
 }
 
@@ -743,7 +751,7 @@ function buildDisplayBubbles(input: {
   const scheduleRoute = roomScopedRoute("/app/calendar", input.roomId);
   const personalScheduleRoute = roomScopedRoute("/app/calendar", null);
   // 실행 중(또는 일시정지) 타이머는 사용자당 1개뿐이라, 위젯 스코프와 무관하게 타이머 버블에 항상 노출한다.
-  // 다른 룸에 걸린 타이머도 여기서 바로 종료할 수 있어야 "안 보여서 멈추지도 못하는" 데드락
+  // 다른 룸에 걸린 타이머도 여기서 바로 일시정지/재개할 수 있어야 "안 보여서 멈추지도 못하는" 데드락
   // (새 start가 서버에서 409로 막힘)이 생기지 않는다. 어느 룸 타이머인지는 아래 timer row의 roomName 라벨로 구분한다.
   const activeTimer = input.timer ?? input.dashboard?.runningTimer ?? null;
   // 실행 중 타이머가 귀속된 "그 룸"의 이름(현재 위젯 스코프가 아니라 타이머 자신의 룸 기준).
@@ -1441,7 +1449,7 @@ function DesktopWidgetSurface() {
   const [orbSuggestionNonce, setOrbSuggestionNonce] = useState(0);
   const orbPrevSuggestionCountRef = useRef(0);
   const [timerSnapshot, setTimerSnapshot] = useState<TimeLogResponse | null>(null);
-  // 타이머 시작/종료 실패 안내(권한 없음·이미 실행 중 등). 잠깐 떴다가 자동으로 사라진다.
+  // 타이머 시작/일시정지/재개 실패 안내(권한 없음·이미 실행 중 등). 잠깐 떴다가 자동으로 사라진다.
   const [timerActionNotice, setTimerActionNotice] = useState<string | null>(null);
   const [activeTimerHeartbeatId, setActiveTimerHeartbeatId] = useState<string | null>(null);
   const [voiceConnectionLabel, setVoiceConnectionLabel] = useState<string | null>(null);
@@ -1752,6 +1760,36 @@ function DesktopWidgetSurface() {
       cancelled = true;
     };
   }, [isTauri, isWidgetChrome, requestedBubble, requestedMode, requestedRoomId, widgetSessionReady]);
+
+  // 바로 숨었던 창은 웹뷰를 재사용(hide→show)하므로, 복원 시 Rust가 보내는 창 상태 이벤트로
+  // React 상태를 되살린다. 안 받으면 창은 다시 보이는데 windowVisible=false로 남아
+  // 인터랙티브 영역 보고가 꺼진 채(전면 클릭 통과) 굳는다.
+  useEffect(() => {
+    if (!isTauri) return;
+    if (isWidgetChrome) return;
+
+    let unlisten: (() => void) | null = null;
+    let cancelled = false;
+
+    void listenWidgetWindowStateChanged((state) => {
+      setActiveBubble(resolveWidgetBubble(state.activeBubble, requestedBubble));
+      setMode(state.mode);
+      setAlwaysOnTop(state.alwaysOnTop);
+      setClickThrough(state.clickThrough);
+      setWindowVisible(state.windowVisible);
+    }).then((nextUnlisten) => {
+      if (cancelled) {
+        nextUnlisten();
+        return;
+      }
+      unlisten = nextUnlisten;
+    });
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [isTauri, isWidgetChrome, requestedBubble]);
 
   useEffect(() => {
     if (!isTauri) return;
@@ -2120,8 +2158,9 @@ function DesktopWidgetSurface() {
             ? []
             : (summaryDashboard?.todayTasks ?? []);
       // 실행 중(또는 일시정지) 타이머는 사용자당 1개뿐이라, 위젯 스코프와 무관하게 항상 노출한다.
-      // (다른 룸에 걸린 타이머도 어디서든 바로 종료할 수 있어야 데드락이 안 생긴다. 룸 구분은 라벨로.)
-      const activeTimer = timerSnapshot?.status === "PAUSED" ? timerSnapshot : (dashboard?.runningTimer ?? timerSnapshot);
+      // (다른 룸에 걸린 타이머도 어디서든 바로 일시정지/재개할 수 있어야 데드락이 안 생긴다. 룸 구분은 라벨로.)
+      const rememberedTimerSnapshot = timerSnapshot ?? (await readWidgetWorkTimerSnapshot(null).catch(() => null));
+      const activeTimer = dashboard?.runningTimer ?? rememberedTimerSnapshot;
       const messageItems = messages?.items ?? cachedMessages;
       const schedules = schedulesValue?.items ?? (selectedRoomId ? [] : (summaryDashboard?.todaySchedules ?? []));
       const tasks = tasksValue?.items ?? (selectedRoomId ? [] : (summaryDashboard?.todayTasks ?? []));
@@ -2217,6 +2256,7 @@ function DesktopWidgetSurface() {
     if (!isBubbleBar) return;
 
     let cancelled = false;
+    let unlistenBarItemsChanged: (() => void) | null = null;
 
     async function loadBarItems() {
       if (!isTauri) {
@@ -2251,14 +2291,30 @@ function DesktopWidgetSurface() {
     }
 
     void loadBarItems();
-    // 데이터 변경은 tauri 이벤트가 즉시 밀어주므로 폴은 fallback으로 4초까지 늦춘다(기존 2초).
-    const intervalId = window.setInterval(() => void loadBarItems(), 4000);
+    if (isTauri) {
+      void listenWidgetBarItemsChanged(() => {
+        void loadBarItems();
+        requestDisplayRefresh();
+      }).then((nextUnlisten) => {
+        if (cancelled) {
+          nextUnlisten();
+          return;
+        }
+        unlistenBarItemsChanged = nextUnlisten;
+      });
+    }
+    // Rust 이벤트가 즉시 밀어주므로 폴링은 누락 이벤트 복구용 fallback으로만 느리게 둔다.
+    const intervalId = window.setInterval(() => {
+      void loadBarItems();
+      requestDisplayRefresh();
+    }, isTauri ? 15000 : 4000);
 
     return () => {
       cancelled = true;
+      unlistenBarItemsChanged?.();
       window.clearInterval(intervalId);
     };
-  }, [isBubbleBar, isTauri, widgetSessionReady]);
+  }, [isBubbleBar, isTauri, requestDisplayRefresh, widgetSessionReady]);
 
   const setWindowMode = useCallback(
     async (nextMode: WidgetWindowMode) => {
@@ -3112,6 +3168,7 @@ function DesktopWidgetSurface() {
       setTimerSnapshot(timeLog.status === "ENDED" ? null : timeLog);
       setActiveTimerHeartbeatId(timeLog.status === "RUNNING" ? timeLog.id : null);
       recordLocalTimerState(timeLog);
+      void writeWidgetWorkTimerSnapshot(timeLog.status === "ENDED" ? null : timeLog, null);
       setTimerRevision((current) => current + 1);
       // 액션이 성공했으면 직전 실패 안내는 지운다.
       setTimerActionNotice(null);
@@ -3146,7 +3203,7 @@ function DesktopWidgetSurface() {
     async (error: unknown, roomId?: string | null) => {
       if (error instanceof ApiClientError) {
         // 이미 실행 중인 타이머(409): 조용히 넘기지 말고 안내한다. 실행 중 타이머는 스코프와
-        // 무관하게 화면에 노출되므로(refresh 후), 사용자가 그 타이머를 바로 종료할 수 있다.
+        // 무관하게 화면에 노출되므로(refresh 후), 사용자가 그 타이머를 바로 일시정지/재개할 수 있다.
         // 빠른 연타나 느린 배경 갱신으로 start가 한 번 더 나가는 경우에도 dev overlay가 뜨지 않게 한다.
         if (error.status === 409 && error.code === "PERSONAL_409_001") {
           setTimerActionNotice(t("widget.timer.alreadyRunning"));
@@ -3251,9 +3308,9 @@ function DesktopWidgetSurface() {
 
       try {
         if (currentTimer?.status === "RUNNING") {
-          const timeLog = await timerApi.stop(currentTimer.id);
+          const timeLog = await timerApi.pause(currentTimer.id);
           applyTimerResult(timeLog);
-          recordTimerUsage("timer:stop", timeLog.id);
+          recordTimerUsage("timer:pause", timeLog.id);
           publishWidgetDataChanged("timer");
           return;
         }
@@ -3302,17 +3359,9 @@ function DesktopWidgetSurface() {
       // 데스크탑 OS 알림 팝업 — 다른 앱을 보고 있어도 내용이 화면에 뜬다(맥/윈도우 공통).
       // 웹뷰에는 브라우저 Notification API가 없어서 네이티브 플러그인 경로를 쓴다.
       // 바 창 하나만 구독하므로 중복 팝업은 없다. 실패는 조용히 무시(팝업은 보조 신호).
-      void import("@tauri-apps/plugin-notification")
-        .then(async ({ isPermissionGranted, requestPermission, sendNotification }) => {
-          let granted = await isPermissionGranted();
-          if (!granted) {
-            granted = (await requestPermission()) === "granted";
-          }
-          if (granted) {
-            sendNotification({ body: notification.body ?? undefined, title: notification.title });
-          }
-        })
-        .catch(() => undefined);
+      void sendTauriNotification({ body: notification.body ?? undefined, title: notification.title }).catch(
+        () => undefined,
+      );
 
       if (notification.sourceType === "VOICE_CALL" && notification.sourceId) {
         setIncomingVoiceCall({

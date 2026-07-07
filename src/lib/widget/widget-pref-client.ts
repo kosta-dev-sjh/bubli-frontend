@@ -4,19 +4,41 @@
 // 서버로는 절대 반영하지 않는다(뽀모도로 사이클은 로컬 전용, 스펙 §타이머 버블).
 import { getStoredAuthSession, restoreStoredAuthSessionFromTauri } from "@/lib/auth/auth-session";
 import { tauriCommands } from "@/lib/tauri/commands";
+import { emitWidgetBarItemsChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import type { TimerType, TimeLogResponse, TimeLogStatus } from "@/types/api/timer";
 
 export type WidgetTimerMode = "clock" | "work" | "pomodoro";
 
 // 타이머 탭 내부의 하위 종류. work=서버 누적(룸 귀속), personal=로컬 임시(저장 안 함).
 export type WidgetTimerKind = "work" | "personal";
 
+export type WidgetTodoTab = "mine" | "room";
+
 export type PomodoroPhase = "focus" | "break";
+
+export type PersonalTimerState = {
+  elapsedSeconds: number;
+  running: boolean;
+  startedAt: number | null;
+};
+
+export type WidgetWorkTimerSnapshot = {
+  durationSeconds?: number | null;
+  id: string;
+  lastStartedAt?: string | null;
+  roomId?: string | null;
+  startedAt: string;
+  status: Extract<TimeLogStatus, "NEEDS_RECOVERY" | "PAUSED" | "RUNNING">;
+  timerType?: TimerType | null;
+};
 
 // 로컬 전용 뽀모도로 진행 상태. running 중에는 phaseEndsAt(에폭 ms)로 남은 시간을 복원한다.
 // 창을 닫아도 sqlite에서 복원되도록 재오픈 시 이 값을 읽어 다시 카운트한다.
 export type PomodoroState = {
   cyclesCompleted: number;
+  // 현재 phaseEndsAt에서 마무리 알림음을 이미 울렸는지 기록한다. 창을 접었다 다시 열어도 중복 재생하지 않는다.
+  endingSoundCueKey: number | null;
   phase: PomodoroPhase;
   // 실행 중이면 이 시각(에폭 ms)에 현재 페이즈가 끝난다. 정지/일시정지면 null.
   phaseEndsAt: number | null;
@@ -40,18 +62,29 @@ export const POMODORO_BREAK_SECONDS = POMODORO_DEFAULT_BREAK_MINUTES * 60;
 
 const TIMER_MODE_KIND = "timer_mode";
 const TIMER_SUBKIND_KIND = "timer_kind";
+const TIMER_PERSONAL_STATE_KIND = "timer_personal_state";
+const TIMER_WORK_SNAPSHOT_KIND = "timer_work_snapshot";
+const TODO_TAB_KIND = "todo_tab";
 const POMODORO_KIND = "pomodoro_state";
+const PREF_MIRROR_PREFIX = "bubli:widget-pref";
+const PREF_CHANGED_EVENT = "bubli-widget-pref-changed";
+const PREF_BROADCAST_CHANNEL = "bubli-widget-pref";
 
 const TIMER_MODES: readonly WidgetTimerMode[] = ["clock", "work", "pomodoro"];
+const TODO_TABS: readonly WidgetTodoTab[] = ["mine", "room"];
 
 function isTimerMode(value: unknown): value is WidgetTimerMode {
   return typeof value === "string" && (TIMER_MODES as readonly string[]).includes(value);
 }
 
+function isTodoTab(value: unknown): value is WidgetTodoTab {
+  return typeof value === "string" && (TODO_TABS as readonly string[]).includes(value);
+}
+
 // summary-client와 동일한 컨텍스트 스코프 규칙. 룸이면 room:{id}, 아니면 personal.
 // 사용자 격리를 위해 JWT sub를 접두어로 붙인다(토큰 없으면 anon).
 // 주의: 바에서 복원된 새 창·앱 재시작 직후에는 세션 미러 복원보다 이 키 계산이 먼저 돌 수 있다.
-// 그 순간 동기 localStorage가 비어 있으면 sub:anon 키로 읽어버려 저장해 둔 탭·뽀모도로를
+// 그 순간 동기 브라우저 미러가 비어 있으면 sub:anon 키로 읽어버려 저장해 둔 탭·뽀모도로를
 // 못 찾는 레이스가 있었으므로, 토큰이 없을 때는 Tauri 미러 복원을 한 번 기다린 뒤 키를 확정한다
 // (비-Tauri는 기존과 동일하게 동기 값만 쓴다).
 async function resolvePrefCacheKey(selectedRoomId?: string | null): Promise<string> {
@@ -78,12 +111,84 @@ function getJwtSubject(token: string | null): string | null {
   }
 }
 
-export async function readWidgetTimerMode(selectedRoomId?: string | null): Promise<WidgetTimerMode | null> {
-  if (!isTauriRuntime()) return null;
+type WidgetPrefChangedPayload = {
+  cacheKey?: string;
+  kind: string;
+  valueJson: string;
+};
+
+function notifyWidgetPrefChangedForBar() {
+  void emitWidgetBarItemsChanged().catch(() => undefined);
+}
+
+function prefMirrorKey(cacheKey: string, kind: string) {
+  return `${PREF_MIRROR_PREFIX}:${cacheKey}:${kind}`;
+}
+
+function lastPrefMirrorKey(kind: string) {
+  return `${PREF_MIRROR_PREFIX}:last:${kind}`;
+}
+
+function readPrefMirror(cacheKey: string, kind: string): string | null {
+  if (typeof window === "undefined") return null;
   try {
-    const cached = await tauriCommands.readWidgetPref({ cacheKey: await resolvePrefCacheKey(selectedRoomId), kind: TIMER_MODE_KIND });
-    if (!cached) return null;
-    const parsed: unknown = JSON.parse(cached.valueJson);
+    return window.localStorage.getItem(prefMirrorKey(cacheKey, kind)) ?? window.localStorage.getItem(lastPrefMirrorKey(kind));
+  } catch {
+    return null;
+  }
+}
+
+function writePrefMirror(cacheKey: string | null, kind: string, valueJson: string) {
+  if (typeof window === "undefined") return;
+  try {
+    if (cacheKey) window.localStorage.setItem(prefMirrorKey(cacheKey, kind), valueJson);
+    window.localStorage.setItem(lastPrefMirrorKey(kind), valueJson);
+  } catch {
+    // Browser storage availability must never block widget state.
+  }
+}
+
+function emitPrefChanged(payload: WidgetPrefChangedPayload) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent<WidgetPrefChangedPayload>(PREF_CHANGED_EVENT, { detail: payload }));
+  try {
+    const channel = new BroadcastChannel(PREF_BROADCAST_CHANNEL);
+    channel.postMessage(payload);
+    channel.close();
+  } catch {
+    // BroadcastChannel is best-effort; polling/browser storage still cover the state.
+  }
+}
+
+function subscribePrefChanged(kind: string, listener: (valueJson: string) => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  const handlePayload = (payload: unknown) => {
+    const next = payload as Partial<WidgetPrefChangedPayload>;
+    if (next.kind !== kind || typeof next.valueJson !== "string") return;
+    listener(next.valueJson);
+  };
+  const onWindowEvent = (event: Event) => {
+    handlePayload((event as CustomEvent<WidgetPrefChangedPayload>).detail);
+  };
+  window.addEventListener(PREF_CHANGED_EVENT, onWindowEvent);
+
+  let channel: BroadcastChannel | null = null;
+  try {
+    channel = new BroadcastChannel(PREF_BROADCAST_CHANNEL);
+    channel.onmessage = (event) => handlePayload(event.data);
+  } catch {
+    channel = null;
+  }
+
+  return () => {
+    window.removeEventListener(PREF_CHANGED_EVENT, onWindowEvent);
+    channel?.close();
+  };
+}
+
+function parseTimerMode(valueJson: string): WidgetTimerMode | null {
+  try {
+    const parsed: unknown = JSON.parse(valueJson);
     const mode = (parsed as { mode?: unknown })?.mode;
     return isTimerMode(mode) ? mode : null;
   } catch {
@@ -91,14 +196,119 @@ export async function readWidgetTimerMode(selectedRoomId?: string | null): Promi
   }
 }
 
+function parsePomodoroState(valueJson: string): PomodoroState | null {
+  try {
+    const parsed: unknown = JSON.parse(valueJson);
+    return isPomodoroState(parsed) ? normalizePomodoroState(parsed) : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseTimerKind(valueJson: string): WidgetTimerKind | null {
+  try {
+    const parsed: unknown = JSON.parse(valueJson);
+    const kind = (parsed as { kind?: unknown })?.kind;
+    return isTimerKind(kind) ? kind : null;
+  } catch {
+    return null;
+  }
+}
+
+function parsePersonalTimerState(valueJson: string): PersonalTimerState | null {
+  try {
+    const parsed: unknown = JSON.parse(valueJson);
+    return normalizePersonalTimerState(parsed);
+  } catch {
+    return null;
+  }
+}
+
+function normalizeWorkTimerSnapshot(value: unknown): WidgetWorkTimerSnapshot | null {
+  if (!value || typeof value !== "object") return null;
+  const snapshot = value as Partial<WidgetWorkTimerSnapshot>;
+  if (typeof snapshot.id !== "string" || !snapshot.id.trim()) return null;
+  if (typeof snapshot.startedAt !== "string" || !snapshot.startedAt.trim()) return null;
+  if (snapshot.status !== "RUNNING" && snapshot.status !== "PAUSED" && snapshot.status !== "NEEDS_RECOVERY") return null;
+  return {
+    durationSeconds: typeof snapshot.durationSeconds === "number" ? Math.max(0, snapshot.durationSeconds) : (snapshot.durationSeconds ?? null),
+    id: snapshot.id,
+    lastStartedAt: typeof snapshot.lastStartedAt === "string" ? snapshot.lastStartedAt : null,
+    roomId: typeof snapshot.roomId === "string" ? snapshot.roomId : null,
+    startedAt: snapshot.startedAt,
+    status: snapshot.status,
+    timerType: snapshot.timerType === "WORK" || snapshot.timerType === "GENERAL" ? snapshot.timerType : null,
+  };
+}
+
+function parseWorkTimerSnapshot(valueJson: string): WidgetWorkTimerSnapshot | null {
+  try {
+    const parsed: unknown = JSON.parse(valueJson);
+    return normalizeWorkTimerSnapshot((parsed as { timer?: unknown })?.timer ?? parsed);
+  } catch {
+    return null;
+  }
+}
+
+export function subscribeWidgetTimerModeChange(listener: (mode: WidgetTimerMode) => void): () => void {
+  return subscribePrefChanged(TIMER_MODE_KIND, (valueJson) => {
+    const mode = parseTimerMode(valueJson);
+    if (mode) listener(mode);
+  });
+}
+
+export function subscribeWidgetTimerKindChange(listener: (kind: WidgetTimerKind) => void): () => void {
+  return subscribePrefChanged(TIMER_SUBKIND_KIND, (valueJson) => {
+    const kind = parseTimerKind(valueJson);
+    if (kind) listener(kind);
+  });
+}
+
+export function subscribePersonalTimerStateChange(listener: (state: PersonalTimerState) => void): () => void {
+  return subscribePrefChanged(TIMER_PERSONAL_STATE_KIND, (valueJson) => {
+    const state = parsePersonalTimerState(valueJson);
+    if (state) listener(state);
+  });
+}
+
+export function subscribePomodoroStateChange(listener: (state: PomodoroState) => void): () => void {
+  return subscribePrefChanged(POMODORO_KIND, (valueJson) => {
+    const state = parsePomodoroState(valueJson);
+    if (state) listener(state);
+  });
+}
+
+export async function readWidgetTimerMode(selectedRoomId?: string | null): Promise<WidgetTimerMode | null> {
+  try {
+    const cacheKey = await resolvePrefCacheKey(selectedRoomId);
+    const mirrored = readPrefMirror(cacheKey, TIMER_MODE_KIND);
+    const mirroredMode = mirrored ? parseTimerMode(mirrored) : null;
+    if (mirroredMode) return mirroredMode;
+    if (!isTauriRuntime()) return null;
+    const cached = await tauriCommands.readWidgetPref({ cacheKey, kind: TIMER_MODE_KIND });
+    if (!cached) return null;
+    writePrefMirror(cacheKey, TIMER_MODE_KIND, cached.valueJson);
+    return parseTimerMode(cached.valueJson);
+  } catch {
+    return null;
+  }
+}
+
 export async function writeWidgetTimerMode(mode: WidgetTimerMode, selectedRoomId?: string | null): Promise<void> {
+  const valueJson = JSON.stringify({ mode });
+  writePrefMirror(null, TIMER_MODE_KIND, valueJson);
+  emitPrefChanged({ kind: TIMER_MODE_KIND, valueJson });
   if (!isTauriRuntime()) return;
   try {
+    const cacheKey = await resolvePrefCacheKey(selectedRoomId);
+    writePrefMirror(cacheKey, TIMER_MODE_KIND, valueJson);
+    emitPrefChanged({ cacheKey, kind: TIMER_MODE_KIND, valueJson });
     await tauriCommands.storeWidgetPref({
-      cacheKey: await resolvePrefCacheKey(selectedRoomId),
+      cacheKey,
       kind: TIMER_MODE_KIND,
-      valueJson: JSON.stringify({ mode }),
+      valueJson,
     });
+    notifyWidgetPrefChangedForBar();
   } catch {
     // best-effort: 저장 실패가 위젯 표시를 막지 않는다.
   }
@@ -109,26 +319,166 @@ function isTimerKind(value: unknown): value is WidgetTimerKind {
 }
 
 export async function readWidgetTimerKind(selectedRoomId?: string | null): Promise<WidgetTimerKind | null> {
-  if (!isTauriRuntime()) return null;
   try {
-    const cached = await tauriCommands.readWidgetPref({ cacheKey: await resolvePrefCacheKey(selectedRoomId), kind: TIMER_SUBKIND_KIND });
+    const cacheKey = await resolvePrefCacheKey(selectedRoomId);
+    const mirrored = readPrefMirror(cacheKey, TIMER_SUBKIND_KIND);
+    const mirroredKind = mirrored ? parseTimerKind(mirrored) : null;
+    if (mirroredKind) return mirroredKind;
+    if (!isTauriRuntime()) return null;
+    const cached = await tauriCommands.readWidgetPref({ cacheKey, kind: TIMER_SUBKIND_KIND });
     if (!cached) return null;
-    const parsed: unknown = JSON.parse(cached.valueJson);
-    const kind = (parsed as { kind?: unknown })?.kind;
-    return isTimerKind(kind) ? kind : null;
+    writePrefMirror(cacheKey, TIMER_SUBKIND_KIND, cached.valueJson);
+    return parseTimerKind(cached.valueJson);
   } catch {
     return null;
   }
 }
 
 export async function writeWidgetTimerKind(kind: WidgetTimerKind, selectedRoomId?: string | null): Promise<void> {
+  const valueJson = JSON.stringify({ kind });
+  writePrefMirror(null, TIMER_SUBKIND_KIND, valueJson);
+  emitPrefChanged({ kind: TIMER_SUBKIND_KIND, valueJson });
   if (!isTauriRuntime()) return;
   try {
+    const cacheKey = await resolvePrefCacheKey(selectedRoomId);
+    writePrefMirror(cacheKey, TIMER_SUBKIND_KIND, valueJson);
+    emitPrefChanged({ cacheKey, kind: TIMER_SUBKIND_KIND, valueJson });
     await tauriCommands.storeWidgetPref({
-      cacheKey: await resolvePrefCacheKey(selectedRoomId),
+      cacheKey,
       kind: TIMER_SUBKIND_KIND,
-      valueJson: JSON.stringify({ kind }),
+      valueJson,
     });
+    notifyWidgetPrefChangedForBar();
+  } catch {
+    // best-effort
+  }
+}
+
+function normalizePersonalTimerState(value: unknown): PersonalTimerState | null {
+  if (!value || typeof value !== "object") return null;
+  const state = value as Partial<PersonalTimerState>;
+  const elapsedSeconds =
+    typeof state.elapsedSeconds === "number" && Number.isFinite(state.elapsedSeconds)
+      ? Math.max(0, Math.floor(state.elapsedSeconds))
+      : 0;
+  const startedAt =
+    typeof state.startedAt === "number" && Number.isFinite(state.startedAt) && state.startedAt > 0
+      ? state.startedAt
+      : null;
+  const running = state.running === true && startedAt !== null;
+  return { elapsedSeconds, running, startedAt: running ? startedAt : null };
+}
+
+export async function readPersonalTimerState(selectedRoomId?: string | null): Promise<PersonalTimerState | null> {
+  try {
+    const cacheKey = await resolvePrefCacheKey(selectedRoomId);
+    const mirrored = readPrefMirror(cacheKey, TIMER_PERSONAL_STATE_KIND);
+    const mirroredState = mirrored ? parsePersonalTimerState(mirrored) : null;
+    if (mirroredState) return mirroredState;
+    if (!isTauriRuntime()) return null;
+    const cached = await tauriCommands.readWidgetPref({ cacheKey, kind: TIMER_PERSONAL_STATE_KIND });
+    if (!cached) return null;
+    writePrefMirror(cacheKey, TIMER_PERSONAL_STATE_KIND, cached.valueJson);
+    return parsePersonalTimerState(cached.valueJson);
+  } catch {
+    return null;
+  }
+}
+
+export async function writePersonalTimerState(state: PersonalTimerState, selectedRoomId?: string | null): Promise<void> {
+  const normalized = normalizePersonalTimerState(state) ?? { elapsedSeconds: 0, running: false, startedAt: null };
+  const valueJson = JSON.stringify(normalized);
+  writePrefMirror(null, TIMER_PERSONAL_STATE_KIND, valueJson);
+  emitPrefChanged({ kind: TIMER_PERSONAL_STATE_KIND, valueJson });
+  if (!isTauriRuntime()) return;
+  try {
+    const cacheKey = await resolvePrefCacheKey(selectedRoomId);
+    writePrefMirror(cacheKey, TIMER_PERSONAL_STATE_KIND, valueJson);
+    emitPrefChanged({ cacheKey, kind: TIMER_PERSONAL_STATE_KIND, valueJson });
+    await tauriCommands.storeWidgetPref({
+      cacheKey,
+      kind: TIMER_PERSONAL_STATE_KIND,
+      valueJson,
+    });
+    notifyWidgetPrefChangedForBar();
+  } catch {
+    // best-effort
+  }
+}
+
+export async function readWidgetWorkTimerSnapshot(selectedRoomId?: string | null): Promise<WidgetWorkTimerSnapshot | null> {
+  try {
+    const cacheKey = await resolvePrefCacheKey(selectedRoomId);
+    const mirrored = readPrefMirror(cacheKey, TIMER_WORK_SNAPSHOT_KIND);
+    const mirroredSnapshot = mirrored ? parseWorkTimerSnapshot(mirrored) : null;
+    if (mirroredSnapshot) return mirroredSnapshot;
+    if (!isTauriRuntime()) return null;
+    const cached = await tauriCommands.readWidgetPref({ cacheKey, kind: TIMER_WORK_SNAPSHOT_KIND });
+    if (!cached) return null;
+    writePrefMirror(cacheKey, TIMER_WORK_SNAPSHOT_KIND, cached.valueJson);
+    return parseWorkTimerSnapshot(cached.valueJson);
+  } catch {
+    return null;
+  }
+}
+
+export async function writeWidgetWorkTimerSnapshot(timeLog: TimeLogResponse | null, selectedRoomId?: string | null): Promise<void> {
+  const snapshot = timeLog && timeLog.status !== "ENDED" ? normalizeWorkTimerSnapshot(timeLog) : null;
+  const valueJson = JSON.stringify({ timer: snapshot });
+  writePrefMirror(null, TIMER_WORK_SNAPSHOT_KIND, valueJson);
+  emitPrefChanged({ kind: TIMER_WORK_SNAPSHOT_KIND, valueJson });
+  if (!isTauriRuntime()) return;
+  try {
+    const cacheKey = await resolvePrefCacheKey(selectedRoomId);
+    writePrefMirror(cacheKey, TIMER_WORK_SNAPSHOT_KIND, valueJson);
+    emitPrefChanged({ cacheKey, kind: TIMER_WORK_SNAPSHOT_KIND, valueJson });
+    await tauriCommands.storeWidgetPref({
+      cacheKey,
+      kind: TIMER_WORK_SNAPSHOT_KIND,
+      valueJson,
+    });
+    notifyWidgetPrefChangedForBar();
+  } catch {
+    // best-effort
+  }
+}
+
+export async function readWidgetTodoTab(selectedRoomId?: string | null): Promise<WidgetTodoTab | null> {
+  try {
+    const cacheKey = await resolvePrefCacheKey(selectedRoomId);
+    const mirrored = readPrefMirror(cacheKey, TODO_TAB_KIND);
+    if (mirrored) {
+      const parsed: unknown = JSON.parse(mirrored);
+      const tab = (parsed as { tab?: unknown })?.tab;
+      if (isTodoTab(tab)) return tab;
+    }
+    if (!isTauriRuntime()) return null;
+    const cached = await tauriCommands.readWidgetPref({ cacheKey, kind: TODO_TAB_KIND });
+    if (!cached) return null;
+    writePrefMirror(cacheKey, TODO_TAB_KIND, cached.valueJson);
+    const parsed: unknown = JSON.parse(cached.valueJson);
+    const tab = (parsed as { tab?: unknown })?.tab;
+    return isTodoTab(tab) ? tab : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function writeWidgetTodoTab(tab: WidgetTodoTab, selectedRoomId?: string | null): Promise<void> {
+  const valueJson = JSON.stringify({ tab });
+  writePrefMirror(null, TODO_TAB_KIND, valueJson);
+  emitPrefChanged({ kind: TODO_TAB_KIND, valueJson });
+  if (!isTauriRuntime()) return;
+  try {
+    const cacheKey = await resolvePrefCacheKey(selectedRoomId);
+    writePrefMirror(cacheKey, TODO_TAB_KIND, valueJson);
+    emitPrefChanged({ cacheKey, kind: TODO_TAB_KIND, valueJson });
+    await tauriCommands.storeWidgetPref({
+      cacheKey,
+      kind: TODO_TAB_KIND,
+      valueJson,
+    });
+    notifyWidgetPrefChangedForBar();
   } catch {
     // best-effort
   }
@@ -158,6 +508,7 @@ function normalizePomodoroState(parsed: Partial<PomodoroState>): PomodoroState {
   // 예전 저장본(분 필드 없음)은 기본 25/5로 채워 하위호환한다.
   return {
     cyclesCompleted: parsed.cyclesCompleted ?? 0,
+    endingSoundCueKey: typeof parsed.endingSoundCueKey === "number" ? parsed.endingSoundCueKey : null,
     phase: parsed.phase ?? "focus",
     phaseEndsAt: parsed.phaseEndsAt ?? null,
     remainingSeconds: parsed.remainingSeconds ?? null,
@@ -169,13 +520,19 @@ function normalizePomodoroState(parsed: Partial<PomodoroState>): PomodoroState {
 
 export async function readPomodoroState(selectedRoomId?: string | null): Promise<PomodoroState | null> {
   const cacheKey = await resolvePrefCacheKey(selectedRoomId);
+  const mirrored = readPrefMirror(cacheKey, POMODORO_KIND);
+  const mirroredState = mirrored ? parsePomodoroState(mirrored) : null;
+  if (mirroredState) return mirroredState;
   // Tauri에서는 영속 저장본을 우선(다른 창/재오픈 반영)하고, 아직 저장 전이면 인메모리로 폴백한다.
   if (isTauriRuntime()) {
     try {
       const cached = await tauriCommands.readWidgetPref({ cacheKey, kind: POMODORO_KIND });
       if (cached) {
-        const parsed: unknown = JSON.parse(cached.valueJson);
-        if (isPomodoroState(parsed)) return normalizePomodoroState(parsed);
+        const state = parsePomodoroState(cached.valueJson);
+        if (state) {
+          writePrefMirror(cacheKey, POMODORO_KIND, cached.valueJson);
+          return state;
+        }
       }
     } catch {
       // 저장 읽기 실패는 인메모리 폴백으로 넘어간다.
@@ -186,15 +543,21 @@ export async function readPomodoroState(selectedRoomId?: string | null): Promise
 }
 
 export async function writePomodoroState(state: PomodoroState, selectedRoomId?: string | null): Promise<void> {
+  const valueJson = JSON.stringify(state);
+  writePrefMirror(null, POMODORO_KIND, valueJson);
+  emitPrefChanged({ kind: POMODORO_KIND, valueJson });
   const cacheKey = await resolvePrefCacheKey(selectedRoomId);
   pomodoroStateCache.set(cacheKey, state);
+  writePrefMirror(cacheKey, POMODORO_KIND, valueJson);
+  emitPrefChanged({ cacheKey, kind: POMODORO_KIND, valueJson });
   if (!isTauriRuntime()) return;
   try {
     await tauriCommands.storeWidgetPref({
       cacheKey,
       kind: POMODORO_KIND,
-      valueJson: JSON.stringify(state),
+      valueJson,
     });
+    notifyWidgetPrefChangedForBar();
   } catch {
     // best-effort
   }
@@ -209,6 +572,7 @@ export function createIdlePomodoroState(
   const brk = clampMinutes(breakMinutes, POMODORO_DEFAULT_BREAK_MINUTES, POMODORO_BREAK_MIN, POMODORO_BREAK_MAX);
   return {
     cyclesCompleted: 0,
+    endingSoundCueKey: null,
     phase: "focus",
     phaseEndsAt: null,
     remainingSeconds: focus * 60,

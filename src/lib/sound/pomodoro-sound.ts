@@ -14,10 +14,14 @@ import { isNotificationSoundMuted } from "@/lib/sound/notification-sound";
 export const POMODORO_ENDING_SOUND_SECONDS = 60;
 
 const SOUND_SRC = "/sounds/bubli-pomodoro.mp3";
+const CUE_CHANNEL = "bubli:pomodoro-ending-sound";
 const VOLUME = 0.7;
 
 let baseAudio: HTMLAudioElement | null = null;
+let cueChannel: BroadcastChannel | null = null;
 let lastCueKey: string | null = null;
+let pendingCueKey: string | null = null;
+let playingCueKey: string | null = null;
 
 function canPlay(): boolean {
   return typeof window !== "undefined" && typeof Audio !== "undefined";
@@ -29,29 +33,76 @@ function ensureBaseAudio(): HTMLAudioElement | null {
     baseAudio = new Audio(SOUND_SRC);
     baseAudio.preload = "auto";
     baseAudio.volume = VOLUME;
+    baseAudio.addEventListener("ended", () => {
+      playingCueKey = null;
+      if (baseAudio) baseAudio.currentTime = 0;
+    });
   }
   return baseAudio;
+}
+
+function ensureCueChannel(): BroadcastChannel | null {
+  if (typeof BroadcastChannel === "undefined") return null;
+  if (!cueChannel) {
+    cueChannel = new BroadcastChannel(CUE_CHANNEL);
+    cueChannel.onmessage = (event: MessageEvent<{ cueKey?: string; type?: string }>) => {
+      if (event.data?.type !== "played" || !event.data.cueKey) return;
+      lastCueKey = event.data.cueKey;
+    };
+  }
+  return cueChannel;
+}
+
+function broadcastCueKey(key: string): void {
+  ensureCueChannel()?.postMessage({ cueKey: key, type: "played" });
+}
+
+export function stopPomodoroEndingSound(): void {
+  const audio = baseAudio;
+  pendingCueKey = null;
+  playingCueKey = null;
+  if (!audio) return;
+  audio.pause();
+  audio.currentTime = 0;
 }
 
 /**
  * 집중 페이즈 틱마다 호출한다. 남은 초가 60초 경계 안으로 들어온 순간에만 1회 재생한다.
  * cueKey는 페이즈를 구분하는 값(phaseEndsAt 타임스탬프)이라 같은 페이즈 재진입 시 중복 재생을 막는다.
  */
-export function maybePlayPomodoroEndingSound(remainingSeconds: number, cueKey: number | null): void {
-  if (!canPlay() || isNotificationSoundMuted()) return;
-  if (cueKey === null) return;
-  if (remainingSeconds > POMODORO_ENDING_SOUND_SECONDS || remainingSeconds <= 0) return;
+export async function maybePlayPomodoroEndingSound(
+  remainingSeconds: number,
+  cueKey: number | null,
+  options: { onPlayed?: () => void } = {},
+): Promise<boolean> {
+  if (!canPlay() || isNotificationSoundMuted()) return false;
+  if (cueKey === null) return false;
+  if (remainingSeconds > POMODORO_ENDING_SOUND_SECONDS || remainingSeconds <= 0) return false;
 
+  ensureCueChannel();
   const key = String(cueKey);
-  if (lastCueKey === key) return;
-  lastCueKey = key;
+  if (lastCueKey === key) return false;
+  if (pendingCueKey === key) return false;
 
-  const base = ensureBaseAudio();
-  if (!base) return;
-  const node = base.cloneNode(true) as HTMLAudioElement;
+  const node = ensureBaseAudio();
+  if (!node) return false;
+  if (playingCueKey && playingCueKey !== key) stopPomodoroEndingSound();
+  if (!node.paused && playingCueKey === key) return true;
+  if (!node.paused) return false;
+  pendingCueKey = key;
+  playingCueKey = key;
+  node.currentTime = 0;
   node.volume = VOLUME;
-  const result = node.play();
-  if (result && typeof result.catch === "function") {
-    result.catch(() => undefined);
+  try {
+    await node.play();
+    pendingCueKey = null;
+    lastCueKey = key;
+    broadcastCueKey(key);
+    options.onPlayed?.();
+    return true;
+  } catch {
+    pendingCueKey = null;
+    playingCueKey = null;
+    return false;
   }
 }

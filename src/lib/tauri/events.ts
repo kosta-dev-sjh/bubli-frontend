@@ -5,6 +5,7 @@ import {
   type DataChangedDomain,
 } from "@/lib/data-changed";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import type { WidgetWindowState } from "@/lib/tauri/commands";
 
 type TauriEvent<TPayload> = {
   payload: TPayload;
@@ -25,6 +26,10 @@ export const TAURI_EVENTS = {
   // 바 창의 Bubli 버튼이 상시 실행 중인 메뉴(오브) 창에 "패널 열기"를 요청하는 창 간 이벤트.
   widgetMenuPanelRequested: "bubli-widget-menu-panel-requested",
   widgetRoomContextChanged: "bubli-widget-room-context-changed",
+  // 바로 숨었던 창은 웹뷰를 재사용(hide→show)하므로, Rust가 창 상태를 바꿀 때 해당 창
+  // 라벨로만 보내는 상태 동기화 이벤트. 새로 빌드되는 창은 URL 쿼리 초기 동기화가 대신한다.
+  widgetWindowStateChanged: "bubli-widget-window-state-changed",
+  widgetBarItemsChanged: "bubli-widget-bar-items-changed",
 } as const;
 
 export type ManagedFolderWatchEventPayload = {
@@ -104,6 +109,26 @@ export function listenWidgetMenuPanelRequested(
   handler: (payload: WidgetMenuPanelRequestedPayload) => void,
 ) {
   return listenTauriEvent(TAURI_EVENTS.widgetMenuPanelRequested, handler);
+}
+
+export function listenWidgetWindowStateChanged(
+  handler: (payload: WidgetWindowState) => void,
+) {
+  return listenTauriEvent<WidgetWindowState>(TAURI_EVENTS.widgetWindowStateChanged, handler);
+}
+
+export function listenWidgetBarItemsChanged(handler: () => void) {
+  return listenTauriEvent<void>(TAURI_EVENTS.widgetBarItemsChanged, () => handler());
+}
+
+export async function emitWidgetBarItemsChanged() {
+  if (!isTauriRuntime()) return;
+
+  const { emit } = (await import("@tauri-apps/api/event")) as {
+    emit: (eventName: string, payload?: unknown) => Promise<void>;
+  };
+
+  await emit(TAURI_EVENTS.widgetBarItemsChanged);
 }
 
 // Tauri 이벤트 emit은 모든 창(웹뷰)에 브로드캐스트된다 — 바 창 → 메뉴 창 패널 열기 신호에 사용.

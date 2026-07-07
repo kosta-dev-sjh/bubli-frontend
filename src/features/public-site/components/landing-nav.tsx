@@ -9,7 +9,7 @@ import { LOCALES, useI18n } from "@/lib/i18n";
 import type { Locale, MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
-// 랜딩에서 고른 언어는 localStorage에 저장돼 로그인 후 회원 화면에도 그대로 이어진다.
+// 랜딩에서 고른 언어는 locale provider 저장소에 남아 로그인 후 회원 화면에도 그대로 이어진다.
 const localeLabels: Record<Locale, string> = { en: "EN", ja: "日本語", ko: "한국어" };
 
 // 메뉴는 별도 페이지가 아니라 같은 페이지 섹션으로 가는 앵커.

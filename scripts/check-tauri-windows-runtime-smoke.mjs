@@ -4,7 +4,7 @@ import { appendFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8080";
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? resolveWsUrl(API_BASE_URL);
 const ROOM_ID = "22222222-2222-4222-8222-222222222222";
 const TIMEOUT_MS = Number(process.env.BUBLI_TAURI_RUNTIME_SMOKE_TIMEOUT_MS ?? 240_000);

@@ -537,6 +537,10 @@
   margin-top: auto;
 }
 
+.body > .scheduleComposer {
+  margin-top: auto;
+}
+
 /* chat 버블 하단 입력줄 래퍼(자동완성 팝오버 기준점)도 같은 하단 고정을 따른다. */
 .body > .composerWrap {
   margin-top: auto;
@@ -744,7 +748,7 @@
   border-radius: 999px;
   color: var(--acc-ink);
   background: color-mix(in srgb, var(--acc) 14%, transparent);
-  /* 20px 고정 높이의 초소형 상태 배지 — 최소 폰트 예외(12px 유지). */
+  /* 20px 고정 높이의 상태 배지. 폰트는 위젯 최소 14px 정책을 따른다. */
   font-size: 14px;
   font-weight: 700;
   white-space: nowrap;
@@ -889,7 +893,7 @@
   line-height: 1;
 }
 
-/* 96px 링 내부(내경 약 58px)에 물리적으로 갇힌 캡션 — 최소 폰트 예외(12px). */
+/* 96px 링 내부(내경 약 58px)에 맞춘 캡션. 폰트는 최소 14px을 유지한다. */
 .countRingLabel {
   color: var(--widget-muted);
   font-size: 14px;
@@ -922,7 +926,7 @@
 
 /* ---------- TODO 행: [체크 어포던스][제목][룸 칩][마감 칩] ---------- */
 
-/* 그룹 헤더("내 할 일" / "룸에서 할당됨") — 20px 미만 캡션이라 최소 폰트 예외(12px 유지). */
+/* 그룹 헤더("내 할 일" / "룸에서 할당됨") — 위젯 최소 14px 정책을 따른다. */
 .todoGroupHead {
   margin-top: 2px;
   color: var(--widget-faint);
@@ -1048,7 +1052,7 @@
 }
 
 /* 룸 칩: 개인 컨텍스트에서 룸 태스크 귀속을 알리는 accent 타일(.rowTile 계열).
-   20px 고정 높이 초소형 배지 — 최소 폰트 예외(12px 유지). */
+   20px 고정 높이 배지이며 폰트는 최소 14px을 유지한다. */
 .roomChip {
   overflow: hidden;
   display: inline-flex;
@@ -1067,7 +1071,7 @@
 }
 
 /* 마감 칩: 기본 배지(.checkRow b와 동일 해부) + 톤(지남/오늘/내일/이후).
-   20px 고정 높이 초소형 배지 — 최소 폰트 예외(12px 유지). */
+   20px 고정 높이 배지이며 폰트는 최소 14px을 유지한다. */
 .dueChip {
   display: inline-flex;
   align-items: center;
@@ -1522,7 +1526,7 @@
   background: color-mix(in srgb, var(--signal-alert) 20%, transparent);
   border: 1px solid color-mix(in srgb, var(--signal-alert) 40%, transparent);
   color: color-mix(in srgb, var(--signal-alert) 55%, #2c3540);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.35;
   text-align: center;
@@ -1677,8 +1681,8 @@
 .segmented button {
   position: relative;
   min-width: 0;
-  height: 27px;
-  padding: 0 8px;
+  height: 30px;
+  padding: 0 6px;
   border: 0;
   border-radius: 9px;
   color: var(--widget-muted);
@@ -1686,8 +1690,10 @@
   font: inherit;
   font-size: 14px;
   font-weight: 700;
+  line-height: 1.2;
   cursor: pointer;
-  /* 말줄임 금지 정책 — 라벨이 언어별로 길어지는 만큼 창 기본 폭을 넓혀 전부 보이게 한다. */
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -1708,6 +1714,11 @@
 .segLabel {
   position: relative;
   z-index: 1;
+  display: block;
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .timerActions {
@@ -1923,6 +1934,7 @@
   font: inherit;
   font-size: 14px;
   font-weight: 600;
+  line-height: 1.2;
 }
 
 .input button:not(.composerSave) {
@@ -1939,6 +1951,240 @@
 }
 
 .input button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+/* ---------- 일정 입력: 제목+시각이 분리된 컴팩트 composer ---------- */
+
+.scheduleComposer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--acc) 18%, var(--widget-hairline));
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(255, 255, 255, 0.56)),
+    color-mix(in srgb, var(--acc) 6%, transparent);
+  box-shadow: var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9));
+}
+
+.scheduleTitleField,
+.scheduleWhenButton,
+.scheduleTimeField {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  min-width: 0;
+  border: 1px solid var(--widget-hairline);
+  border-radius: 10px;
+  color: var(--widget-muted);
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.scheduleTitleField {
+  gap: 7px;
+  height: 34px;
+  padding: 0 9px;
+}
+
+.scheduleWhenButton,
+.scheduleTimeField {
+  gap: 6px;
+  width: 100%;
+  height: 34px;
+  padding: 0 8px;
+  font: inherit;
+  text-align: left;
+}
+
+.scheduleTitleField:focus-within,
+.scheduleWhenButton:focus-visible,
+.scheduleTimeField:focus-within {
+  border-color: color-mix(in srgb, var(--acc) 40%, transparent);
+  box-shadow: var(--glow-sky, 0 0 0 3px rgba(158, 216, 255, 0.2));
+}
+
+.scheduleTitleField input,
+.scheduleTimeField input {
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: var(--widget-text);
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.schedulePickerWrap {
+  position: relative;
+  min-width: 0;
+}
+
+.scheduleWhenButton {
+  cursor: pointer;
+}
+
+.scheduleWhenButton span {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.scheduleWhenButton b,
+.scheduleWhenButton small {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--widget-text);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scheduleWhenButton small {
+  flex: none;
+  color: var(--widget-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.schedulePickerPanel {
+  position: absolute;
+  z-index: 20;
+  right: -16px;
+  bottom: calc(100% + 8px);
+  left: -16px;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--acc) 22%, var(--widget-hairline));
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow:
+    var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9)),
+    var(--shadow-floating-light, 0 10px 22px -14px rgba(35, 48, 59, 0.18));
+}
+
+.schedulePickerHead {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: 6px;
+}
+
+.schedulePickerHead button {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--widget-hairline);
+  border-radius: 10px;
+  color: var(--widget-muted);
+  background: rgba(255, 255, 255, 0.66);
+  cursor: pointer;
+}
+
+.schedulePickerHead strong {
+  overflow: hidden;
+  color: var(--widget-text);
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.2;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.schedulePickerWeekdays,
+.schedulePickerGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.schedulePickerWeekdays span {
+  color: var(--widget-muted);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.schedulePickerDay {
+  display: inline-grid;
+  place-items: center;
+  min-width: 0;
+  height: 32px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: var(--widget-text);
+  background: rgba(255, 255, 255, 0.62);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.schedulePickerDay:hover,
+.schedulePickerHead button:hover {
+  border-color: color-mix(in srgb, var(--acc) 28%, transparent);
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 10%, rgba(255, 255, 255, 0.72));
+}
+
+.schedulePickerDayOutside {
+  color: var(--widget-faint);
+  opacity: 0.62;
+}
+
+.schedulePickerDayToday {
+  border-color: color-mix(in srgb, var(--acc) 26%, transparent);
+}
+
+.schedulePickerDaySelected {
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 20%, transparent);
+}
+
+.scheduleTimeField input {
+  font-variant-numeric: tabular-nums;
+}
+
+.scheduleSubmit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 10px;
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 18%, transparent);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.scheduleSubmit:hover,
+.scheduleSubmit:focus-visible {
+  background: color-mix(in srgb, var(--acc) 25%, transparent);
+}
+
+.scheduleSubmit:disabled {
   cursor: default;
   opacity: 0.45;
 }
@@ -2086,7 +2332,7 @@
   min-height: 28px;
   padding: 2px 6px;
   color: var(--widget-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
 }
 
@@ -2106,7 +2352,7 @@
   border-radius: 999px;
   color: var(--acc-ink);
   background: color-mix(in srgb, var(--acc) 12%, transparent);
-  font-size: 12px;
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -2139,7 +2385,7 @@
   border-radius: 999px;
   background: color-mix(in srgb, var(--acc) 14%, transparent);
   color: var(--acc-ink);
-  /* 20px 고정 높이의 초소형 상태 배지 — 최소 폰트 예외(12px 유지). */
+  /* 20px 고정 높이의 상태 배지. 폰트는 위젯 최소 14px 정책을 따른다. */
   font-size: 14px;
   font-weight: 700;
 }
@@ -2216,7 +2462,7 @@
   color: var(--widget-muted);
   background: color-mix(in srgb, var(--acc) 6%, transparent);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -2260,7 +2506,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--widget-muted);
 }
@@ -2273,7 +2519,7 @@
   background: rgba(255, 255, 255, 0.7);
   color: var(--widget-text);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -2296,7 +2542,7 @@
   color: var(--widget-muted);
   background: color-mix(in srgb, var(--acc) 6%, transparent);
   font: inherit;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -2317,7 +2563,7 @@
   align-items: center;
   gap: 5px;
   color: var(--widget-muted);
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.02em;
 }
@@ -2430,7 +2676,7 @@
   border-radius: 999px;
   background: color-mix(in srgb, var(--acc) 14%, transparent);
   color: var(--acc-ink);
-  /* 20px 고정 높이의 초소형 상태 배지 — 최소 폰트 예외(12px 유지). */
+  /* 20px 고정 높이의 상태 배지. 폰트는 위젯 최소 14px 정책을 따른다. */
   font-size: 14px;
   font-weight: 700;
 }
@@ -3178,7 +3424,7 @@
   background: #43ACFF;
   box-shadow: 0 2px 6px -1px rgba(58, 120, 184, 0.55);
   color: #fff;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
   font-style: normal;
   line-height: 1;
@@ -3237,7 +3483,7 @@
 
 .orbSuggestionPopLabel {
   color: var(--color-blue-deep);
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.02em;
 }
@@ -3248,7 +3494,7 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   color: #23303b;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.35;
 }
 
@@ -3703,6 +3949,10 @@
 :global([data-theme="dark"]) .agentInlineRow,
 :global([data-theme="dark"]) .message,
 :global([data-theme="dark"]) .input,
+:global([data-theme="dark"]) .scheduleComposer,
+:global([data-theme="dark"]) .scheduleTitleField,
+:global([data-theme="dark"]) .scheduleWhenButton,
+:global([data-theme="dark"]) .scheduleTimeField,
 :global([data-theme="dark"]) .bubbleNote,
 :global([data-theme="dark"]) .chatPickerItem,
 :global([data-theme="dark"]) .dragbar {
@@ -3815,6 +4065,32 @@
 :global([data-theme="dark"]) .nextCard {
   border-color: color-mix(in srgb, var(--acc) 30%, transparent);
   background: color-mix(in srgb, var(--acc) 14%, transparent);
+}
+
+:global([data-theme="dark"]) .scheduleComposer {
+  border-color: color-mix(in srgb, var(--acc) 24%, rgba(150, 170, 215, 0.14));
+  background:
+    linear-gradient(180deg, rgba(22, 30, 46, 0.72), rgba(18, 26, 40, 0.62)),
+    color-mix(in srgb, var(--acc) 10%, transparent);
+}
+
+:global([data-theme="dark"]) .scheduleSubmit {
+  color: var(--acc-ink);
+  background: color-mix(in srgb, var(--acc) 20%, transparent);
+}
+
+:global([data-theme="dark"]) .schedulePickerPanel {
+  border-color: color-mix(in srgb, var(--acc) 28%, rgba(150, 170, 215, 0.14));
+  background: rgba(22, 30, 46, 0.98);
+  box-shadow:
+    var(--inner-highlight-dark, inset 0 1px 0 rgba(180, 205, 240, 0.07)),
+    var(--shadow-floating-dark, 0 12px 26px -18px rgba(0, 0, 0, 0.44));
+}
+
+:global([data-theme="dark"]) .schedulePickerHead button,
+:global([data-theme="dark"]) .schedulePickerDay {
+  border-color: rgba(150, 170, 215, 0.14);
+  background: rgba(18, 26, 40, 0.62);
 }
 
 :global([data-theme="dark"]) .agentSummary {
@@ -4221,7 +4497,7 @@
 }
 
 .memoRowStack .memoTime {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 720;
 }
 
@@ -4383,7 +4659,7 @@
   height: 0;
 }
 
-/* Enter 줄바꿈 · Cmd/Ctrl+Enter 저장 힌트 — 상태 배지와 같은 최소 폰트 예외(12px). */
+/* Enter 줄바꿈 · Cmd/Ctrl+Enter 저장 힌트 — 위젯 최소 14px 정책을 따른다. */
 .composerHint {
   color: var(--widget-faint);
   font-size: 14px;
@@ -4594,7 +4870,7 @@
   color: var(--acc-ink);
   background: color-mix(in srgb, var(--acc) 12%, transparent);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -4611,7 +4887,7 @@
 
 .schedWeekdays span {
   color: var(--widget-muted);
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
   text-align: center;
 }
@@ -4642,9 +4918,9 @@
   background: color-mix(in srgb, var(--acc) 8%, rgba(255, 255, 255, 0.5));
 }
 
-/* 달력 날짜 숫자는 초소형 달력 예외로 12px(상태 배지 예외와 동일 취지). */
+/* 달력 날짜 숫자도 위젯 최소 14px 정책을 따른다. */
 .schedCellNum {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
@@ -4693,7 +4969,7 @@
 .schedAgendaHead {
   padding: 2px 2px 0;
   color: var(--widget-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
 }
 
@@ -4706,7 +4982,7 @@
 .schedDayHead {
   padding: 2px 2px 0;
   color: var(--widget-text);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
 }
 
@@ -4718,7 +4994,7 @@
   margin: 0;
   padding: 4px 2px 6px;
   color: var(--widget-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -4732,7 +5008,7 @@
 
 .schedWbsAxisCell {
   color: var(--widget-muted);
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   text-align: center;
@@ -4762,7 +5038,7 @@
   border-radius: 7px;
   color: var(--acc-ink);
   background: color-mix(in srgb, var(--acc) 20%, transparent);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 22px;
   text-overflow: ellipsis;

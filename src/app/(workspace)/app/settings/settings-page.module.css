@@ -287,7 +287,7 @@
   width: 15px;
   height: 15px;
   margin: 0;
-  accent-color: #6fb8f2;
+  accent-color: var(--bubble-blue);
 }
 
 .folderConfirmActions {
@@ -462,12 +462,12 @@
 
 [data-theme="dark"] .consentBadge {
   background: rgba(142, 205, 246, 0.2);
-  color: #cfe6f8;
+  color: var(--sky-light);
 }
 
 [data-theme="dark"] .consentBadge[data-on="false"] {
   background: rgba(232, 196, 160, 0.22);
-  color: #f0dcc4;
+  color: var(--color-warning);
 }
 
 .guard,

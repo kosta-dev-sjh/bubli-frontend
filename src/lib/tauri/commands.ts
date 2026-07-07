@@ -757,10 +757,13 @@ export type WidgetWindowPositionInput = WidgetWindowPosition & {
 };
 
 export type WidgetBarDragInput = {
+  cursorX?: number;
+  cursorY?: number;
   grabX: number;
   grabY: number;
   navHeight: number;
   navWidth: number;
+  placement?: "above" | "below";
   rootHeight: number;
   rootWidth: number;
 };

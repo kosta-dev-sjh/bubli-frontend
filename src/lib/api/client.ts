@@ -11,7 +11,7 @@ import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import type { AuthTokenResponse } from "@/types/api/auth";
 import type { ApiFailure, ApiResponse } from "@/types/api/common";
 
-const DEFAULT_LOCAL_API_BASE_URL = "http://localhost:8080";
+const DEFAULT_LOCAL_API_BASE_URL = "http://127.0.0.1:8080";
 const DEFAULT_PRODUCTION_API_BASE_URL = "https://bubli.n-e.kr";
 const DEFAULT_API_TIMEOUT_MS = 15000;
 const PREVIEW_API_TIMEOUT_MS = 1200;
@@ -23,10 +23,14 @@ export type ApiRequestOptions = Omit<RequestInit, "body"> & {
 };
 
 export function getApiBaseUrl() {
-  return (
+  return stripTrailingSlash(
     process.env.NEXT_PUBLIC_API_BASE_URL ??
-    (process.env.NODE_ENV === "production" ? DEFAULT_PRODUCTION_API_BASE_URL : DEFAULT_LOCAL_API_BASE_URL)
+      (process.env.NODE_ENV === "production" ? DEFAULT_PRODUCTION_API_BASE_URL : DEFAULT_LOCAL_API_BASE_URL),
   );
+}
+
+function stripTrailingSlash(value: string) {
+  return value.replace(/\/+$/, "");
 }
 
 function getApiTimeoutMs() {
@@ -187,7 +191,7 @@ function isRefreshTokenRejected(status: number, payload: ApiResponse<AuthTokenRe
 
 async function refreshAuthSessionOnce(): Promise<AuthRefreshResult> {
   // 웹에서 탭을 여러 개 열면 같은 refresh 토큰으로 동시에 갱신을 시도한다. 백엔드는 refresh
-  // 토큰을 1회용으로 회전시키므로 늦은 쪽이 "재사용" 거절을 받고 공용 localStorage 세션을
+  // 토큰을 1회용으로 회전시키므로 늦은 쪽이 "재사용" 거절을 받고 공용 브라우저 세션을
   // 지워 모든 탭이 로그아웃돼 버렸다. Web Locks로 탭 간 갱신을 직렬화한다.
   if (typeof navigator !== "undefined" && navigator.locks) {
     try {
