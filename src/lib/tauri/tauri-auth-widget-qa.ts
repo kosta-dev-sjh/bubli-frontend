@@ -43,6 +43,9 @@ const REAL_OAUTH_LOCAL_SYNC_INITIAL_SEARCH_QUERY = "RealOAuthLocalSyncInitial";
 const REAL_OAUTH_LOCAL_SYNC_UPDATED_MARKER = "RealOAuthLocalSyncUpdated";
 const REAL_OAUTH_LOCAL_SYNC_UPDATED_SEARCH_QUERY = "searchable marker";
 const REAL_OAUTH_LOCAL_SYNC_WATCH_INITIAL_QUERY = "RealOAuthLocalWatchInitial";
+const STANDALONE_WIDGET_BUBBLE_TYPES = WIDGET_BUBBLE_TYPES.filter(
+  (bubbleType) => bubbleType !== "resource",
+);
 
 type RealOAuthQaPrivacyConsents = {
   activityDetectionEnabled: boolean;
@@ -1008,7 +1011,7 @@ async function runRealOAuthStopCleanupProbe(): Promise<TauriRealOAuthStopCleanup
     const activeProjectRoom = await tauriCommands.readActiveProjectRoom().catch(() => null);
     const barWindow = await readWindowState("bar", null, null);
     const windowEntries = await Promise.all(
-      WIDGET_BUBBLE_TYPES.map(async (bubbleType) => [
+      STANDALONE_WIDGET_BUBBLE_TYPES.map(async (bubbleType) => [
         bubbleType,
         await readWindowState(bubbleType, null, null),
       ] as const),
@@ -1017,7 +1020,7 @@ async function runRealOAuthStopCleanupProbe(): Promise<TauriRealOAuthStopCleanup
 
     return {
       activeProjectRoomCleared: activeProjectRoom === null,
-      allExpectedWindowsHidden: WIDGET_BUBBLE_TYPES.every((bubbleType) => !windows[bubbleType]?.windowVisible),
+      allExpectedWindowsHidden: STANDALONE_WIDGET_BUBBLE_TYPES.every((bubbleType) => !windows[bubbleType]?.windowVisible),
       barWindowHidden: !barWindow?.windowVisible,
       enabled: true,
       syncLoopsStopped:
@@ -1491,20 +1494,20 @@ async function readWidgetRuntimeState(
     ? await readWindowState("bar", selectedRoomId, serverSelectedRoomId)
     : null;
   const windowEntries = await Promise.all(
-    WIDGET_BUBBLE_TYPES.map(async (bubbleType) => [
+    STANDALONE_WIDGET_BUBBLE_TYPES.map(async (bubbleType) => [
       bubbleType,
       isTauriRuntime() ? await readWindowState(bubbleType, selectedRoomId, serverSelectedRoomId) : null,
     ] as const),
   );
   const windows = Object.fromEntries(windowEntries) as Record<WidgetBubbleType, TauriWidgetWindowQaState | null>;
-  const missingVisibleBubbles = WIDGET_BUBBLE_TYPES.filter((bubbleType) => !windows[bubbleType]?.windowVisible);
+  const missingVisibleBubbles = STANDALONE_WIDGET_BUBBLE_TYPES.filter((bubbleType) => !windows[bubbleType]?.windowVisible);
 
   return {
     allExpectedWindowsVisible: missingVisibleBubbles.length === 0,
-    allWindowRoomContextMatchesActive: WIDGET_BUBBLE_TYPES.every(
+    allWindowRoomContextMatchesActive: STANDALONE_WIDGET_BUBBLE_TYPES.every(
       (bubbleType) => windows[bubbleType]?.selectedRoomMatchesActiveRoom,
     ),
-    allWindowRoomContextMatchesServer: WIDGET_BUBBLE_TYPES.every(
+    allWindowRoomContextMatchesServer: STANDALONE_WIDGET_BUBBLE_TYPES.every(
       (bubbleType) => windows[bubbleType]?.selectedRoomMatchesServerContext,
     ),
     barRestoreItems: {
@@ -1628,7 +1631,7 @@ export async function readTauriAuthWidgetQaSnapshot(
       },
     },
     collectedAt: new Date().toISOString(),
-    expectedBubbleTypes: WIDGET_BUBBLE_TYPES,
+    expectedBubbleTypes: STANDALONE_WIDGET_BUBBLE_TYPES,
     localSession,
     localSyncProbe,
     launchTimeline,

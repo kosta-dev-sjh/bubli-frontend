@@ -99,8 +99,8 @@ const WIDGET_POINTER_DRAG_GRACE_MS: u128 = 400;
 // 웹뷰가 상호작용 표면 위에서 실제 마우스 이벤트를 받았다는 힌트가 이 시간 안에 있으면,
 // Retina 배율/좌표 드리프트로 rect 판정이 어긋나도 클릭 가능(통과 꺼짐)을 유지한다.
 const WIDGET_POINTER_SEEN_GRACE_MS: u128 = 500;
-const QA_ALL_WIDGET_BUBBLES: [&str; 7] = [
-    "todo", "agent", "chat", "timer", "memo", "schedule", "alert",
+const QA_ALL_WIDGET_BUBBLES: [&str; 8] = [
+    "todo", "agent", "chat", "timer", "memo", "schedule", "resource", "alert",
 ];
 // 사용자 크기 조절 클램프: 버블별 최소 = 현재 기본 크기, 최대 = 최소 × 1.6.
 // src/features/widget/components/desktop-widget-bubble.tsx 리사이즈 핸들과 동기화한다.
@@ -3030,8 +3030,15 @@ fn arrange_widget_grid_placements(
         let mut row_y = area_y + WIDGET_ARRANGE_GAP;
         for widget in column {
             let size = widget_window_size(widget);
-            let (x, y) =
-                clamp_point_into_work_area(column_x, row_y, &size, area_x, area_y, area_width, area_height);
+            let (x, y) = clamp_point_into_work_area(
+                column_x,
+                row_y,
+                &size,
+                area_x,
+                area_y,
+                area_width,
+                area_height,
+            );
             placements.push((
                 widget_window_label(widget),
                 WidgetWindowPosition {
@@ -3081,8 +3088,15 @@ fn arrange_widget_column_placements(
         }
         column_width = column_width.max(size.width);
         column_x = (column_right - column_width).max(area_x + WIDGET_ARRANGE_GAP);
-        let (x, y) =
-            clamp_point_into_work_area(column_x, row_y, &size, area_x, area_y, area_width, area_height);
+        let (x, y) = clamp_point_into_work_area(
+            column_x,
+            row_y,
+            &size,
+            area_x,
+            area_y,
+            area_width,
+            area_height,
+        );
         placements.push((
             widget_window_label(widget),
             WidgetWindowPosition {
@@ -3119,7 +3133,15 @@ fn arrange_widget_row_placements(
             row_height = 0.0;
         }
         row_height = row_height.max(size.height);
-        let (x, y) = clamp_point_into_work_area(col_x, row_y, &size, area_x, area_y, area_width, area_height);
+        let (x, y) = clamp_point_into_work_area(
+            col_x,
+            row_y,
+            &size,
+            area_x,
+            area_y,
+            area_width,
+            area_height,
+        );
         placements.push((
             widget_window_label(widget),
             WidgetWindowPosition {
@@ -3147,7 +3169,8 @@ fn arrange_widget_cascade_placements(
         .iter()
         .map(|widget| widget_window_size(widget).width)
         .fold(0.0_f64, f64::max);
-    let base_x = (area_x + area_width - WIDGET_ARRANGE_GAP - base_width).max(area_x + WIDGET_ARRANGE_GAP);
+    let base_x =
+        (area_x + area_width - WIDGET_ARRANGE_GAP - base_width).max(area_x + WIDGET_ARRANGE_GAP);
     let base_y = area_y + WIDGET_ARRANGE_GAP;
     let area_bottom = area_y + area_height - WIDGET_ARRANGE_GAP;
     let mut deck = 0.0_f64;
@@ -3155,7 +3178,8 @@ fn arrange_widget_cascade_placements(
         let size = widget_window_size(widget);
         // 대각선 오프셋이 하단을 넘거나 좌측 여백을 침범하면 덱을 우상단으로 되감는다.
         if deck > 0.0
-            && (base_y + deck + size.height > area_bottom || base_x - deck < area_x + WIDGET_ARRANGE_GAP)
+            && (base_y + deck + size.height > area_bottom
+                || base_x - deck < area_x + WIDGET_ARRANGE_GAP)
         {
             deck = 0.0;
         }
@@ -3987,10 +4011,6 @@ fn app_ready(
             .set_background_color(Some(Color(0, 0, 0, 0)))
             .map_err(|error| error.to_string())?;
 
-        if surface_ready_only {
-            return Ok("bubli-tauri-ready");
-        }
-
         let widget = {
             let guard = state
                 .lock()
@@ -4006,6 +4026,10 @@ fn app_ready(
             apply_widget_window_state(&app, &monitor_state, &widget)?;
         } else if !window.is_visible().unwrap_or(false) {
             window.show().map_err(|error| error.to_string())?;
+        }
+
+        if surface_ready_only {
+            return Ok("bubli-tauri-ready");
         }
     }
 
@@ -5158,14 +5182,20 @@ mod widget_runtime_tests {
         let (area_x, area_y, area_w, area_h) = (0.0_f64, 0.0_f64, 1280.0_f64, 720.0_f64);
         for layout in ["grid", "column", "row", "cascade"] {
             let placements = match layout {
-                "column" => arrange_widget_column_placements(&targets, area_x, area_y, area_w, area_h),
+                "column" => {
+                    arrange_widget_column_placements(&targets, area_x, area_y, area_w, area_h)
+                }
                 "row" => arrange_widget_row_placements(&targets, area_x, area_y, area_w, area_h),
                 "cascade" => {
                     arrange_widget_cascade_placements(&targets, area_x, area_y, area_w, area_h)
                 }
                 _ => arrange_widget_grid_placements(&targets, area_x, area_y, area_w, area_h),
             };
-            assert_eq!(placements.len(), targets.len(), "layout {layout} dropped windows");
+            assert_eq!(
+                placements.len(),
+                targets.len(),
+                "layout {layout} dropped windows"
+            );
             for (label, position) in &placements {
                 let widget = targets
                     .iter()
