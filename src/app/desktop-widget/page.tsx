@@ -57,6 +57,7 @@ import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
 import { setWidgetWindowDragLocked, tauriCommands, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetInteractiveRect, type WidgetWindowBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import { emitWidgetDataChanged, listenWidgetDataChanged, listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { defaultTauriStartupOptimizationConfig, readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
 import { readCachedWidgetRoomNames, readWidgetSummary, writeCachedWidgetRoomNames, type WidgetRoomNameMap } from "@/lib/widget";
 import { syncActiveProjectRoomFromWidgetContext } from "@/lib/workspace-active-room";
 import { getChatRealtimeClient } from "@/lib/websocket/chat-realtime";
@@ -1339,6 +1340,7 @@ function DesktopWidgetSurface() {
   const isBubbleBar = requestedSurface === "bar";
   const isMenuOrb = requestedSurface === "menu";
   const isWidgetChrome = isBubbleBar || isMenuOrb;
+  const [startupOptimization, setStartupOptimization] = useState(defaultTauriStartupOptimizationConfig);
   const requestedBubble = getRequestedBubble(requestedSurface);
   const currentWindowBubble: WidgetWindowBubbleType = isBubbleBar ? "bar" : isMenuOrb ? "menu" : requestedBubble;
   const requestedMode = getRequestedMode(searchParams.get("mode"));
@@ -1357,6 +1359,7 @@ function DesktopWidgetSurface() {
   }, [alwaysOnTop]);
   const [clickThrough, setClickThrough] = useState(false);
   const [windowVisible, setWindowVisible] = useState(true);
+  const [barFullDisplayDelayElapsed, setBarFullDisplayDelayElapsed] = useState(false);
   const [widgetContext, setWidgetContext] = useState<WidgetContextResponse | null>(
     requestedRoomId ? widgetContextForRoomId(requestedRoomId) : null,
   );
@@ -1421,6 +1424,42 @@ function DesktopWidgetSurface() {
   const requestDisplayRefresh = useCallback(() => {
     setDisplayRefreshRevision((current) => current + 1);
   }, []);
+
+  useEffect(() => {
+    if (!isTauri) return;
+    let cancelled = false;
+
+    void readTauriStartupOptimizationConfig().then((config) => {
+      if (!cancelled) setStartupOptimization(config);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isTauri]);
+
+  const shouldDeferBarFullDisplay =
+    isTauri && isBubbleBar && startupOptimization.deferBarFullDisplayUntilAfterFirstPaint;
+  const barFullDisplayReady =
+    !shouldDeferBarFullDisplay || (widgetSessionReady && windowVisible && barFullDisplayDelayElapsed);
+
+  useEffect(() => {
+    if (!shouldDeferBarFullDisplay || !widgetSessionReady || !windowVisible || barFullDisplayDelayElapsed) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setBarFullDisplayDelayElapsed(true);
+    }, startupOptimization.deferredBarFullDisplayDelayMs);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [
+    barFullDisplayDelayElapsed,
+    shouldDeferBarFullDisplay,
+    startupOptimization.deferredBarFullDisplayDelayMs,
+    widgetSessionReady,
+    windowVisible,
+  ]);
 
   // 창별 상호작용 rect 보고(투명 영역 클릭 통과). 브라우저 미리보기에서는 동작하지 않는다.
   useWidgetInteractiveRectReporting(isTauri && mounted && widgetSessionReady && windowVisible);
@@ -1852,9 +1891,9 @@ function DesktopWidgetSurface() {
         }
       }
 
-      const loadFullDisplay = isBubbleBar;
+      const loadFullDisplay = isBubbleBar && barFullDisplayReady;
       const shouldLoadBubbleData = (...bubbleTypes: WidgetBubbleType[]) =>
-        loadFullDisplay || bubbleTypes.includes(activeBubble);
+        loadFullDisplay || (!isWidgetChrome && bubbleTypes.includes(activeBubble));
       const voiceRoomId = activeVoiceRoomId;
       const loadDashboard = shouldLoadBubbleData("timer", "todo", "schedule", "agent", "alert");
       const loadTasks = shouldLoadBubbleData("todo");
@@ -2102,7 +2141,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [activeBubble, activeVoiceRoomId, agentRevision, communicationRevision, currentUserId, displayRefreshRevision, isBubbleBar, isMenuOrb, isTauri, itemStateOverrides, memoRevision, notificationRevision, resourceRevision, scheduleRevision, selectedWidgetRoomId, t, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContextInitialized, widgetSessionReady]);
+  }, [activeBubble, activeVoiceRoomId, agentRevision, barFullDisplayReady, communicationRevision, currentUserId, displayRefreshRevision, isBubbleBar, isMenuOrb, isTauri, isWidgetChrome, itemStateOverrides, memoRevision, notificationRevision, resourceRevision, scheduleRevision, selectedWidgetRoomId, t, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContextInitialized, widgetSessionReady]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;
