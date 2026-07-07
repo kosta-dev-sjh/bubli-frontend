@@ -160,31 +160,33 @@ if (existsSync(managedFolderClientPath)) {
       "src/lib/local/managed-folder-client.ts: native folder watch is implemented; do not mask watch_managed_folder failures as a pending/not-wired state.",
     );
   }
-  const syncFunctionBlock = text.match(
-    /export async function syncPersonalLocalFileEventsToServer[\s\S]*?\n}\n\nexport async function backfillPersonalLocalFileAnalyses/,
+  const analyzableExtensionsBlock = text.match(
+    /const ANALYZABLE_LOCAL_FILE_EXTENSIONS = new Set\(\[([\s\S]*?)\]\);/,
   )?.[0];
-  if (!syncFunctionBlock) {
+  if (!analyzableExtensionsBlock) {
     failures.push(
-      "src/lib/local/managed-folder-client.ts: local-file event sync function must stay explicit so product rules can guard analysis side effects.",
+      "src/lib/local/managed-folder-client.ts: local-file analysis candidate extension set must stay explicit.",
     );
   }
-  if (syncFunctionBlock?.includes("analyzePersonalLocalFileWithKeySentences")) {
-    failures.push(
-      "src/lib/local/managed-folder-client.ts: local-folder sync must not auto-start AI analysis; analysis must be a user-requested resource detail action.",
-    );
+  for (const extension of ["json", "jsonl", "yaml", "yml", "html", "htm", "rtf"]) {
+    if (!analyzableExtensionsBlock?.includes(`"${extension}"`)) {
+      failures.push(
+        `src/lib/local/managed-folder-client.ts: local-file analysis candidates must include .${extension} after Tauri extraction support was added.`,
+      );
+    }
   }
-  if (syncFunctionBlock?.includes("localFileAnalysisApi.create")) {
+  if (!/function isAnalyzableLocalFileName[\s\S]*ANALYZABLE_LOCAL_FILE_EXTENSIONS\.has\(extension\)/.test(text)) {
     failures.push(
-      "src/lib/local/managed-folder-client.ts: local-folder sync must not POST local-file analysis requests.",
+      "src/lib/local/managed-folder-client.ts: isAnalyzableLocalFileName must use ANALYZABLE_LOCAL_FILE_EXTENSIONS for sync-time analysis filtering.",
     );
   }
 }
 
 if (existsSync(managedFolderAutoSyncPath)) {
   const text = readFileSync(managedFolderAutoSyncPath, "utf8");
-  if (text.includes("backfillPersonalLocalFileAnalyses") || text.includes("stageLocalFileAnalysisBackfill")) {
+  if (!text.includes("backfillPersonalLocalFileAnalyses") || !text.includes("analysisBackfillHasRun ? 1 : 3")) {
     failures.push(
-      "src/lib/local/managed-folder-auto-sync.ts: automatic managed-folder sync must not drain local-file AI analysis backfill.",
+      "src/lib/local/managed-folder-auto-sync.ts: automatic managed-folder sync must keep bounded local-file AI analysis backfill after backend idempotency.",
     );
   }
 }
