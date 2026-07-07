@@ -916,15 +916,10 @@ assertNotContains(
   /widget\.active_bubble != "resource"/,
   "Native widget bar items must not exclude the resource bubble from restore chips.",
 );
-assertNotContains(
-  widgetBubble,
-  /new Set<WidgetBubbleType>\(\[\s*"resource"\s*\]\)/,
-  "Desktop widget UI must not hide the resource bubble from widget menus or restore chips.",
-);
 assertContains(
   widgetBubble,
-  /const hiddenDesktopWidgetBubbleTypes = new Set<WidgetBubbleType>\(\);/,
-  "Desktop widget hidden-bubble set must stay empty so all eight widgets can be restored from the bar.",
+  /const hiddenDesktopWidgetBubbleTypes = new Set<WidgetBubbleType>\(\[\s*"resource"\s*\]\);/,
+  "Desktop widget UI must hide the standalone resource/draft bubble because generated drafts live inside the agent widget.",
 );
 assertContains(
   widgetPage,
@@ -1359,17 +1354,17 @@ assertContains(
   /bubbleType:\s*"todo"[\s\S]*windowId:\s*"todo"/,
   "Login startup windows must include the primary TODO bubble.",
 );
-for (const required of ["agent", "alert", "chat", "memo", "resource", "schedule", "timer"]) {
+for (const required of ["agent", "alert", "chat", "memo", "schedule", "timer"]) {
   assertContains(
     startupWindows,
     new RegExp(`bubbleType:\\s*"${required}"[\\s\\S]*windowId:\\s*"${required}"`),
     `Login startup windows must include the ${required} bubble so authenticated Tauri launches restore all widget surfaces.`,
   );
 }
-assertContains(
+assertNotContains(
   startupWindows,
-  /bubbleType:\s*"resource"[\s\S]*mode:\s*"DEFAULT"[\s\S]*windowId:\s*"resource"/,
-  "Login startup windows must open the resource bubble visibly so installed real-OAuth QA gets all eight expected widget windows.",
+  /bubbleType:\s*"resource"[\s\S]*windowId:\s*"resource"/,
+  "Login startup windows must not open the standalone resource/draft bubble because generated drafts live inside the agent widget.",
 );
 
 assertContains(
