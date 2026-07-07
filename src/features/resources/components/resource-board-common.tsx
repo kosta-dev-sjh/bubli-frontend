@@ -51,6 +51,7 @@ import type {
   ResourceSummaryStatus,
   ResourceVersionResponse,
 } from "@/types/api/resource";
+import type { StorageUsageItemResponse, StorageUsageResponse } from "@/types/api/settings";
 
 import styles from "./resource-workspace.module.css";
 
@@ -509,9 +510,62 @@ function formatStorageBytes(value: number) {
   return `${Math.max(0, Math.round(value / kb))}KB`;
 }
 
+type StorageUsageSnapshot = {
+  limit: number;
+  used: number;
+};
+
+function isValidStorageUsage(value?: StorageUsageItemResponse | null): value is StorageUsageItemResponse {
+  return Boolean(
+    value &&
+      Number.isFinite(value.usedBytes) &&
+      Number.isFinite(value.limitBytes) &&
+      value.usedBytes >= 0 &&
+      value.limitBytes > 0,
+  );
+}
+
+function usageSnapshotFromItem(item: StorageUsageItemResponse): StorageUsageSnapshot {
+  return {
+    limit: item.limitBytes,
+    used: item.usedBytes,
+  };
+}
+
+function resolveResourceStorageUsage(response: StorageUsageResponse, roomId?: string): StorageUsageSnapshot | null {
+  if (roomId) {
+    const roomUsage = response.usages.find((item) => item.storageScope === "ROOM" && item.roomId === roomId);
+    return isValidStorageUsage(roomUsage) ? usageSnapshotFromItem(roomUsage) : null;
+  }
+
+  const personalUsage = response.usages.find((item) => item.storageScope === "PERSONAL" && !item.roomId);
+  if (isValidStorageUsage(personalUsage)) {
+    return usageSnapshotFromItem(personalUsage);
+  }
+
+  const fallbackPersonalUsage = response.usages.find((item) => item.storageScope === "PERSONAL");
+  if (isValidStorageUsage(fallbackPersonalUsage)) {
+    return usageSnapshotFromItem(fallbackPersonalUsage);
+  }
+
+  if (
+    Number.isFinite(response.totalUsedBytes) &&
+    Number.isFinite(response.totalLimitBytes) &&
+    response.totalUsedBytes >= 0 &&
+    response.totalLimitBytes > 0
+  ) {
+    return {
+      limit: response.totalLimitBytes,
+      used: response.totalUsedBytes,
+    };
+  }
+
+  return null;
+}
+
 export function ResourceStorageUsage({ roomId }: { roomId?: string }) {
   const { t } = useI18n();
-  const [usage, setUsage] = useState<{ limit: number; used: number } | null>(null);
+  const [usage, setUsage] = useState<StorageUsageSnapshot | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -520,13 +574,7 @@ export function ResourceStorageUsage({ roomId }: { roomId?: string }) {
       .getStorageUsage(roomId ? { roomId } : undefined)
       .then((response) => {
         if (cancelled) return;
-        const used = response.totalUsedBytes;
-        const limit = response.totalLimitBytes;
-        if (!Number.isFinite(used) || !Number.isFinite(limit) || used < 0 || limit <= 0) {
-          setUsage(null);
-          return;
-        }
-        setUsage({ limit, used });
+        setUsage(resolveResourceStorageUsage(response, roomId));
       })
       .catch(() => {
         if (!cancelled) setUsage(null);
