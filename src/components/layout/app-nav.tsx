@@ -12,13 +12,11 @@ import {
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useSyncExternalStore } from "react";
 
 import { siteConfig } from "@/config/site";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
 import { projectRoomRoute } from "@/lib/project-room-routes";
-import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { cn } from "@/lib/utils";
 
 const navIcons: Record<(typeof siteConfig.appNav)[number]["href"], LucideIcon> = {
@@ -56,10 +54,6 @@ type AppNavProps = {
   activeRoomId?: string | null;
 };
 
-function subscribeToTauriRuntime() {
-  return () => undefined;
-}
-
 function navHref(href: (typeof siteConfig.appNav)[number]["href"], activeRoomId?: string | null) {
   if (!activeRoomId) return href;
 
@@ -81,14 +75,11 @@ function navHref(href: (typeof siteConfig.appNav)[number]["href"], activeRoomId?
 export function AppNav({ activeRoomId }: AppNavProps) {
   const pathname = usePathname();
   const reduceMotion = useReducedMotion();
-  const isTauri = useSyncExternalStore(subscribeToTauriRuntime, isTauriRuntime, () => false);
   const { t } = useI18n();
-
-  const navItems = isTauri ? siteConfig.appNav.filter((item) => item.href !== "/app/chat") : siteConfig.appNav;
 
   return (
     <nav aria-label={t("nav.appLabel")} className="bubli-nav">
-      {navItems.map((item) => {
+      {siteConfig.appNav.map((item) => {
         const Icon = navIcons[item.href];
         const label = t(navLabelKeys[item.href]);
         const isActive = isActiveNavItem(item.href, pathname);
