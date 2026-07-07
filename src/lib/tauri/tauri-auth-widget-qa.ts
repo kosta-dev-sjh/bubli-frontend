@@ -57,6 +57,7 @@ let realOAuthQaPrivacyConsentsChanged = false;
 
 type QaProbe = {
   code?: string;
+  durationMs?: number;
   ok: boolean;
   status?: number;
 };
@@ -271,12 +272,12 @@ type ReadTauriAuthWidgetQaSnapshotOptions = {
   runStopCleanupProbe?: boolean;
 };
 
-function toProbe(error: unknown): QaProbe {
+function toProbe(error: unknown, durationMs: number): QaProbe {
   if (error instanceof ApiClientError) {
-    return { code: error.code, ok: false, status: error.status };
+    return { code: error.code, durationMs, ok: false, status: error.status };
   }
 
-  return { ok: false };
+  return { durationMs, ok: false };
 }
 
 function shouldRetryBackendProbe(error: unknown) {
@@ -288,11 +289,13 @@ function shouldRetryBackendProbe(error: unknown) {
 }
 
 async function probeBackend<T>(read: () => Promise<T>, attempts = 3): Promise<{ data?: T; probe: QaProbe }> {
+  const startedAt = Date.now();
   let lastError: unknown = null;
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
-      return { data: await read(), probe: { ok: true } };
+      const data = await read();
+      return { data, probe: { durationMs: Date.now() - startedAt, ok: true } };
     } catch (error) {
       lastError = error;
       if (attempt >= attempts - 1 || !shouldRetryBackendProbe(error)) {
@@ -302,7 +305,7 @@ async function probeBackend<T>(read: () => Promise<T>, attempts = 3): Promise<{ 
     }
   }
 
-  return { probe: toProbe(lastError) };
+  return { probe: toProbe(lastError, Date.now() - startedAt) };
 }
 
 function roomMatches(actual: string | null | undefined, expected: string | null) {
@@ -1572,7 +1575,7 @@ export async function readTauriAuthWidgetQaSnapshot(
   const memoryRoomId = getActiveProjectRoomId();
   const tauriRoom = isTauriRuntime() ? await tauriCommands.readActiveProjectRoom().catch(() => null) : null;
   const hasAuthSession = localSession.hasSession || tauriMirrorSession.hasSession;
-  const missingSessionProbe: QaProbe = { code: "MISSING_AUTH_SESSION", ok: false, status: 401 };
+  const missingSessionProbe: QaProbe = { code: "MISSING_AUTH_SESSION", durationMs: 0, ok: false, status: 401 };
   const backendMe = hasAuthSession
     ? await probeBackend(() => authApi.getMe())
     : { probe: missingSessionProbe };
