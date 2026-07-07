@@ -3,6 +3,7 @@
 import { Fragment, memo, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, type Ref, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { AnimatePresence, LayoutGroup, MotionConfig, motion, useReducedMotion } from "motion/react";
 import {
+  AtSign,
   Bell,
   Check,
   CheckCircle2,
@@ -11,11 +12,12 @@ import {
   CircleDashed,
   CirclePause,
   Clock3,
+  Copy,
   Download,
   ExternalLink,
   FileText,
   Ghost,
-  Headphones,
+  Inbox,
   LayoutGrid,
   MessageSquare,
   Mic,
@@ -23,6 +25,7 @@ import {
   Monitor,
   Pause,
   Pencil,
+  Phone,
   PhoneOff,
   Pin,
   Play,
@@ -30,6 +33,7 @@ import {
   Power,
   RefreshCw,
   Repeat,
+  Search,
   Settings,
   SmilePlus,
   Send,
@@ -38,6 +42,7 @@ import {
   StickyNote,
   Timer,
   Trash2,
+  UserPlus,
   Users,
   X,
   type LucideIcon,
@@ -78,6 +83,7 @@ import {
 } from "@/lib/widget/widget-pref-client";
 import { autoSizeGhostWidgetWindow, isWidgetWindowDragLocked, readCurrentTauriWindowMonitorState, startWidgetWindowDragging, tauriCommands, type AppMonitorInfo, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import type { FriendSearchApiResponse } from "@/types/api/friend";
 
 import { maybePlayPomodoroEndingSound } from "@/lib/sound/pomodoro-sound";
 import styles from "./desktop-widget-bubble.module.css";
@@ -194,6 +200,16 @@ export type DesktopWidgetBubbleProps = {
   bubble?: WidgetPreviewBubble;
   clickThrough: boolean;
   mode: WidgetWindowMode;
+  // 소통 버블 전용 — 1:1/그룹 ↔ 프로젝트룸 모드, 목록 선택, 새 대화·친구 관리 액션.
+  chatScope?: "direct" | "room";
+  onChatScopeChange?: (scope: "direct" | "room") => void;
+  selectedPeerChatRoomId?: string | null;
+  onSelectPeerChatRoom?: (chatRoomId: string | null) => void;
+  onCreateDirectRoom?: (friendUserId: string) => Promise<unknown>;
+  onCreateGroupRoom?: (memberUserIds: string[], name: string) => Promise<unknown>;
+  onSearchFriend?: (bubliId: string) => Promise<FriendSearchApiResponse | null>;
+  onSendFriendRequest?: (bubliId: string) => Promise<void>;
+  onRespondFriendRequest?: (requestId: string, action: "accept" | "reject") => Promise<void>;
   onClose: () => void;
   onOpenHandoff?: (item: WidgetPreviewItem) => Promise<void> | void;
   onItemStateChange?: (item: WidgetPreviewItem, state: "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED") => void;
@@ -1058,8 +1074,19 @@ function AgentBody({
   );
 }
 
+type ChatScreen = "list" | "thread" | "newRoom" | "friends";
+
 function ChatBody({
   bubble,
+  chatScope,
+  onChatScopeChange,
+  selectedPeerChatRoomId,
+  onSelectPeerChatRoom,
+  onCreateDirectRoom,
+  onCreateGroupRoom,
+  onSearchFriend,
+  onSendFriendRequest,
+  onRespondFriendRequest,
   onItemStateChange,
   onLeaveVoice,
   onMarkChatRead,
@@ -1069,6 +1096,15 @@ function ChatBody({
   onToggleVoiceMic,
 }: {
   bubble: WidgetPreviewBubble;
+  chatScope?: DesktopWidgetBubbleProps["chatScope"];
+  onChatScopeChange?: DesktopWidgetBubbleProps["onChatScopeChange"];
+  selectedPeerChatRoomId?: DesktopWidgetBubbleProps["selectedPeerChatRoomId"];
+  onSelectPeerChatRoom?: DesktopWidgetBubbleProps["onSelectPeerChatRoom"];
+  onCreateDirectRoom?: DesktopWidgetBubbleProps["onCreateDirectRoom"];
+  onCreateGroupRoom?: DesktopWidgetBubbleProps["onCreateGroupRoom"];
+  onSearchFriend?: DesktopWidgetBubbleProps["onSearchFriend"];
+  onSendFriendRequest?: DesktopWidgetBubbleProps["onSendFriendRequest"];
+  onRespondFriendRequest?: DesktopWidgetBubbleProps["onRespondFriendRequest"];
   onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
   onLeaveVoice?: DesktopWidgetBubbleProps["onLeaveVoice"];
   onMarkChatRead?: DesktopWidgetBubbleProps["onMarkChatRead"];
@@ -1084,6 +1120,11 @@ function ChatBody({
   const [submitting, setSubmitting] = useState(false);
   const [voiceSubmitting, setVoiceSubmitting] = useState(false);
   const composerInputRef = useRef<HTMLInputElement | null>(null);
+  // 화면 전환(목록 ↔ 스레드 ↔ 새 대화 ↔ 친구 관리) — 위젯 창은 좁아 웹처럼 나란히 못 두고
+  // 모바일 앱처럼 스택형으로 오간다. 프로젝트룸 모드는 항상 스레드 하나뿐이라 목록이 없다.
+  const [chatScreen, setChatScreen] = useState<ChatScreen>(() =>
+    chatScope === "room" || selectedPeerChatRoomId ? "thread" : "list",
+  );
   // /bubli 자동완성 — 프로젝트룸 소통 버블에서만 연다(웹 소통창과 같은 명령 목록).
   const applyAgentCommandCompletion = useCallback((completedText: string) => {
     setDraft(completedText);
@@ -1163,43 +1204,109 @@ function ChatBody({
     }
   };
 
+  const changeChatScope = (nextScope: "direct" | "room") => {
+    onChatScopeChange?.(nextScope);
+    if (nextScope === "room") {
+      setChatScreen("thread");
+    } else {
+      onSelectPeerChatRoom?.(null);
+      setChatScreen("list");
+    }
+  };
+
+  const openPeerRoom = (chatRoomId: string) => {
+    onSelectPeerChatRoom?.(chatRoomId);
+    setChatScreen("thread");
+  };
+
+  const backToList = () => {
+    onSelectPeerChatRoom?.(null);
+    setChatScreen("list");
+  };
+
+  const modeSwitcher = (
+    <div className={styles.chatModeSwitch}>
+      <SegmentedControl
+        ariaLabel={t("widget.chat.scope.aria")}
+        labels={[t("widget.chat.scope.direct"), t("widget.chat.scope.room")]}
+        onChange={(index) => changeChatScope(index === 1 ? "room" : "direct")}
+        value={chatScope === "room" ? 1 : 0}
+      />
+    </div>
+  );
+
+  if (chatScreen === "newRoom") {
+    return (
+      <NewChatRoomScreen
+        bubble={bubble}
+        onBack={backToList}
+        onCreateDirectRoom={onCreateDirectRoom}
+        onCreateGroupRoom={onCreateGroupRoom}
+        onOpenThread={openPeerRoom}
+      />
+    );
+  }
+
+  if (chatScreen === "friends") {
+    return (
+      <FriendsScreen
+        bubble={bubble}
+        onBack={backToList}
+        onCreateDirectRoom={onCreateDirectRoom}
+        onOpenThread={openPeerRoom}
+        onRespondFriendRequest={onRespondFriendRequest}
+        onSearchFriend={onSearchFriend}
+        onSendFriendRequest={onSendFriendRequest}
+      />
+    );
+  }
+
+  if (chatScope !== "room" && chatScreen === "list") {
+    const peerRooms = bubble.peerRooms ?? [];
+    return (
+      <div className={styles.body}>
+        {modeSwitcher}
+        <div className={styles.chatListActions}>
+          <button className={styles.chatListActionButton} onClick={() => setChatScreen("newRoom")} type="button">
+            <Plus aria-hidden size={13} strokeWidth={2.2} />
+            {t("widget.chat.quick.newRoom")}
+          </button>
+          <button className={styles.chatListActionButton} onClick={() => setChatScreen("friends")} type="button">
+            <UserPlus aria-hidden size={13} strokeWidth={2.2} />
+            {t("widget.chat.quick.manageFriends")}
+          </button>
+        </div>
+        <div className={styles.rowList}>
+          {peerRooms.map((room) => (
+            <button className={styles.chatPickerItem} key={room.id} onClick={() => openPeerRoom(room.id)} type="button">
+              <i className={styles.pickerAvatar} aria-hidden="true">
+                {room.chatType === "GROUP" ? <Users size={14} strokeWidth={2} /> : <MessageSquare size={14} strokeWidth={2} />}
+              </i>
+              <span>{room.name?.trim() || t("widget.chat.list.title")}</span>
+            </button>
+          ))}
+          {peerRooms.length === 0 ? <span className={styles.statusText}>{t("widget.chat.list.empty")}</span> : null}
+        </div>
+      </div>
+    );
+  }
+
+  if (chatScope === "room" && !bubble.hasProjectRoomScope) {
+    return (
+      <div className={styles.body}>
+        {modeSwitcher}
+        <span className={styles.statusText}>{t("widget.chat.roomScope.emptyBody")}</span>
+      </div>
+    );
+  }
+
   const roomSelected = Boolean(bubble.chatRoomId);
   const voiceOpen = Boolean(bubble.voiceRoomId);
 
-  // 방 미선택: 방/친구 선택이 먼저다. 보이스·반응·입력은 방이 선택된 뒤에만 보여준다.
   if (!roomSelected) {
-    const pickerFriends =
-      friendRows.length > 0
-        ? friendRows.map((item) => ({ id: item.id, label: item.label }))
-        : (bubble.participantLabels ?? []).map((label, index) => ({ id: `friend-${index}`, label }));
-
-    const openChatPicker = (label: string) => {
-      const pickerItem: WidgetPreviewItem = { handoffUrl: "/app/chat", id: "chat-room-picker", kind: "friend", label, status: "" };
-      if (onOpenHandoff) {
-        void onOpenHandoff(pickerItem);
-        return;
-      }
-      window.open("/app/chat", "_blank", "noopener,noreferrer");
-    };
-
     return (
       <div className={styles.body}>
-        <div className={styles.chatPicker} role="group" aria-label={t("widget.chat.openRooms")}>
-          <button className={styles.chatPickerItem} onClick={() => openChatPicker(t("widget.chat.openRooms"))} type="button">
-            <i className={styles.pickerAvatar} aria-hidden="true">
-              <MessageSquare size={14} strokeWidth={2} />
-            </i>
-            <span>{t("widget.chat.openRooms")}</span>
-          </button>
-          {pickerFriends.slice(0, 3).map((friend) => (
-            <button className={styles.chatPickerItem} key={friend.id} onClick={() => openChatPicker(friend.label)} type="button">
-              <i className={styles.pickerAvatar} aria-hidden="true">
-                <Users size={14} strokeWidth={2} />
-              </i>
-              <span>{friend.label}</span>
-            </button>
-          ))}
-        </div>
+        {modeSwitcher}
         <span className={styles.statusText}>{t("widget.chat.pickHint")}</span>
       </div>
     );
@@ -1207,12 +1314,23 @@ function ChatBody({
 
   return (
     <div className={styles.body}>
+      {modeSwitcher}
       <div className={styles.chatHead}>
+        {chatScope !== "room" ? (
+          <button aria-label={t("widget.chat.back")} className={styles.chatBackButton} onClick={backToList} type="button">
+            <ChevronLeft aria-hidden size={14} strokeWidth={2.4} />
+          </button>
+        ) : null}
         <span>{t(bubble.panelLabel as MessageKey)}</span>
         <b>{visibleRows.length}</b>
         {!voiceOpen ? (
-          <button aria-label={t("widget.chat.startVoice")} disabled={!bubble.roomId || voiceSubmitting} onClick={() => void runVoiceAction("start")} type="button">
-            <Headphones size={13} strokeWidth={2} />
+          <button
+            aria-label={t("widget.chat.startVoice")}
+            disabled={(!bubble.roomId && !bubble.chatRoomId) || voiceSubmitting}
+            onClick={() => void runVoiceAction("start")}
+            type="button"
+          >
+            <Phone size={13} strokeWidth={2} />
           </button>
         ) : null}
       </div>
@@ -1307,6 +1425,359 @@ function ChatBody({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+const MIN_WIDGET_GROUP_MEMBER_COUNT = 2;
+
+// 새 대화(1:1 시작 / 그룹 생성) — 친구를 고르면 바로 1:1을 열거나, 여럿 고르면 그룹을 만든다.
+// 웹 소통창의 새 채팅방 만들기 패널과 같은 로직을 위젯 폭에 맞게 옮겼다.
+function NewChatRoomScreen({
+  bubble,
+  onBack,
+  onCreateDirectRoom,
+  onCreateGroupRoom,
+  onOpenThread,
+}: {
+  bubble: WidgetPreviewBubble;
+  onBack: () => void;
+  onCreateDirectRoom?: DesktopWidgetBubbleProps["onCreateDirectRoom"];
+  onCreateGroupRoom?: DesktopWidgetBubbleProps["onCreateGroupRoom"];
+  onOpenThread: (chatRoomId: string) => void;
+}) {
+  const { t } = useI18n();
+  const friends = useMemo(() => bubble.friends ?? [], [bubble.friends]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [groupName, setGroupName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [errorText, setErrorText] = useState<string | null>(null);
+
+  const toggleMember = (userId: string) => {
+    setSelectedIds((current) => (current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId]));
+  };
+
+  const startDirect = async (userId: string) => {
+    if (!onCreateDirectRoom || busy) return;
+    setBusy(true);
+    setErrorText(null);
+    try {
+      const room = (await onCreateDirectRoom(userId)) as { id?: string } | undefined;
+      if (room?.id) onOpenThread(room.id);
+    } catch {
+      setErrorText(t("widget.chat.newRoom.createFailed"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const createGroup = async () => {
+    if (!onCreateGroupRoom || busy || selectedIds.length < MIN_WIDGET_GROUP_MEMBER_COUNT) return;
+    setBusy(true);
+    setErrorText(null);
+    try {
+      const fallbackName = friends
+        .filter((friend) => selectedIds.includes(friend.userId))
+        .map((friend) => friend.name)
+        .slice(0, 3)
+        .join(", ");
+      const room = (await onCreateGroupRoom(selectedIds, groupName.trim() || fallbackName)) as { id?: string } | undefined;
+      if (room?.id) onOpenThread(room.id);
+    } catch {
+      setErrorText(t("widget.chat.newRoom.createFailed"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className={styles.body}>
+      <div className={styles.chatScreenHead}>
+        <button aria-label={t("widget.chat.back")} className={styles.chatBackButton} onClick={onBack} type="button">
+          <ChevronLeft aria-hidden size={14} strokeWidth={2.4} />
+        </button>
+        <span>{t("widget.chat.newRoom.title")}</span>
+      </div>
+      <label className={styles.groupNameField} htmlFor="widget-group-room-name">
+        <span>{t("widget.chat.newRoom.groupName")}</span>
+        <input
+          id="widget-group-room-name"
+          onChange={(event) => setGroupName(event.target.value)}
+          placeholder={t("widget.chat.newRoom.groupNamePlaceholder")}
+          value={groupName}
+        />
+      </label>
+      <div className={styles.rowList}>
+        {friends.map((friend) => {
+          const selected = selectedIds.includes(friend.userId);
+          return (
+            <div className={styles.chatFriendRow} key={friend.userId}>
+              <i className={styles.pickerAvatar} aria-hidden="true">
+                {selected ? <Check size={14} strokeWidth={2.2} /> : friend.name.slice(0, 1)}
+              </i>
+              <span>{friend.name}</span>
+              <span className={styles.itemActions}>
+                <button aria-label={t("widget.chat.newRoom.direct")} disabled={busy} onClick={() => void startDirect(friend.userId)} type="button">
+                  <MessageSquare aria-hidden size={12} strokeWidth={2} />
+                </button>
+                <button
+                  aria-label={selected ? t("widget.chat.newRoom.deselect") : t("widget.chat.newRoom.selectForGroup")}
+                  aria-pressed={selected}
+                  disabled={busy}
+                  onClick={() => toggleMember(friend.userId)}
+                  type="button"
+                >
+                  <UserPlus aria-hidden size={12} strokeWidth={2} />
+                </button>
+              </span>
+            </div>
+          );
+        })}
+        {friends.length === 0 ? <span className={styles.statusText}>{t("widget.chat.newRoom.friendsEmpty")}</span> : null}
+      </div>
+      <div className={styles.chatListActions}>
+        <span className={styles.statusText}>
+          {t("widget.chat.newRoom.selectedCount", { count: selectedIds.length })}
+          {selectedIds.length < MIN_WIDGET_GROUP_MEMBER_COUNT ? ` · ${t("widget.chat.newRoom.minGroupSelection")}` : ""}
+        </span>
+        <button
+          className={styles.chatListActionButton}
+          disabled={busy || selectedIds.length < MIN_WIDGET_GROUP_MEMBER_COUNT}
+          onClick={() => void createGroup()}
+          type="button"
+        >
+          {busy ? t("widget.chat.newRoom.creating") : t("widget.chat.newRoom.createGroup")}
+        </button>
+      </div>
+      {errorText ? <span className={styles.statusText}>{errorText}</span> : null}
+    </div>
+  );
+}
+
+type FriendSearchState =
+  | { kind: "idle" }
+  | { kind: "searching" }
+  | { kind: "empty" }
+  | { kind: "ready"; result: FriendSearchApiResponse };
+
+// 친구 관리 — 내 ID 복사, 검색+요청, 친구 목록(1:1 시작만), 받은/보낸 요청.
+// 삭제·룸 초대 등은 위젯 스코프 밖(웹에서만) — 좁은 창에서 액션이 너무 많아지는 걸 막는다.
+function FriendsScreen({
+  bubble,
+  onBack,
+  onCreateDirectRoom,
+  onOpenThread,
+  onRespondFriendRequest,
+  onSearchFriend,
+  onSendFriendRequest,
+}: {
+  bubble: WidgetPreviewBubble;
+  onBack: () => void;
+  onCreateDirectRoom?: DesktopWidgetBubbleProps["onCreateDirectRoom"];
+  onOpenThread: (chatRoomId: string) => void;
+  onRespondFriendRequest?: DesktopWidgetBubbleProps["onRespondFriendRequest"];
+  onSearchFriend?: DesktopWidgetBubbleProps["onSearchFriend"];
+  onSendFriendRequest?: DesktopWidgetBubbleProps["onSendFriendRequest"];
+}) {
+  const { t } = useI18n();
+  const friends = bubble.friends ?? [];
+  const requests = bubble.friendRequests ?? [];
+  const currentUserId = bubble.currentUserId;
+  const receivedRequests = requests.filter((request) => request.requesterId !== currentUserId);
+  const sentRequests = requests.filter((request) => request.requesterId === currentUserId);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchState, setSearchState] = useState<FriendSearchState>({ kind: "idle" });
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [busyRequestId, setBusyRequestId] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [directBusyId, setDirectBusyId] = useState<string | null>(null);
+
+  const runSearch = async () => {
+    const bubliId = searchQuery.trim().replace(/^@/, "");
+    if (!bubliId || !onSearchFriend) return;
+    setSearchState({ kind: "searching" });
+    setSentTo(null);
+    try {
+      const result = await onSearchFriend(bubliId);
+      setSearchState(result ? { kind: "ready", result } : { kind: "empty" });
+    } catch {
+      setSearchState({ kind: "empty" });
+    }
+  };
+
+  const sendRequest = async (targetBubliId: string) => {
+    if (!onSendFriendRequest) return;
+    try {
+      await onSendFriendRequest(targetBubliId);
+      setSentTo(targetBubliId);
+    } catch {
+      // 실패는 조용히 무시 — 검색 결과의 버튼이 그대로 다시 시도 가능한 상태로 남는다.
+    }
+  };
+
+  const respond = async (requestId: string, action: "accept" | "reject") => {
+    if (!onRespondFriendRequest || busyRequestId) return;
+    setBusyRequestId(requestId);
+    try {
+      await onRespondFriendRequest(requestId, action);
+    } finally {
+      setBusyRequestId(null);
+    }
+  };
+
+  const startDirect = async (userId: string) => {
+    if (!onCreateDirectRoom || directBusyId) return;
+    setDirectBusyId(userId);
+    try {
+      const room = (await onCreateDirectRoom(userId)) as { id?: string } | undefined;
+      if (room?.id) onOpenThread(room.id);
+    } finally {
+      setDirectBusyId(null);
+    }
+  };
+
+  const copyMyId = async () => {
+    if (!bubble.myBubliId) return;
+    try {
+      await navigator.clipboard.writeText(bubble.myBubliId);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // 클립보드 권한이 없으면 조용히 무시.
+    }
+  };
+
+  return (
+    <div className={styles.body}>
+      <div className={styles.chatScreenHead}>
+        <button aria-label={t("widget.chat.back")} className={styles.chatBackButton} onClick={onBack} type="button">
+          <ChevronLeft aria-hidden size={14} strokeWidth={2.4} />
+        </button>
+        <span>{t("widget.chat.social.title")}</span>
+      </div>
+
+      <div className={styles.socialCard}>
+        <span className={styles.socialKicker}>
+          <AtSign aria-hidden size={12} strokeWidth={2} />
+          {t("widget.chat.social.myBubliId")}
+        </span>
+        <div className={styles.chatFriendRow}>
+          <span aria-hidden="true" />
+          <strong>{bubble.myBubliId ?? ""}</strong>
+          <button aria-label={t("widget.chat.social.copy")} onClick={() => void copyMyId()} type="button">
+            <Copy aria-hidden size={13} strokeWidth={2} />
+          </button>
+        </div>
+        {copied ? <span className={styles.statusText}>{t("widget.chat.social.copied")}</span> : null}
+      </div>
+
+      <div className={styles.socialCard}>
+        <span className={styles.socialKicker}>
+          <Search aria-hidden size={12} strokeWidth={2} />
+          {t("widget.chat.social.searchLabel")}
+        </span>
+        <div className={styles.groupNameField}>
+          <input
+            onChange={(event) => setSearchQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void runSearch();
+              }
+            }}
+            placeholder={t("widget.chat.social.searchPlaceholder")}
+            value={searchQuery}
+          />
+          <button onClick={() => void runSearch()} type="button">
+            {t("widget.chat.social.searchCta")}
+          </button>
+        </div>
+        {searchState.kind === "searching" ? <span className={styles.statusText}>{t("widget.chat.search.searching")}</span> : null}
+        {searchState.kind === "empty" ? <span className={styles.statusText}>{t("widget.chat.search.empty")}</span> : null}
+        {searchState.kind === "ready" ? (
+          <div className={styles.chatFriendRow}>
+            <i className={styles.pickerAvatar} aria-hidden="true">
+              {searchState.result.name.slice(0, 1)}
+            </i>
+            <span>{searchState.result.name}</span>
+            <button
+              disabled={sentTo === searchState.result.bubliId}
+              onClick={() => void sendRequest(searchState.result.bubliId)}
+              type="button"
+            >
+              {sentTo === searchState.result.bubliId ? t("widget.chat.search.sent") : t("widget.chat.search.sendRequest")}
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      <div className={styles.socialCard}>
+        <span className={styles.socialKicker}>
+          <Users aria-hidden size={12} strokeWidth={2} />
+          {t("widget.chat.friends.title")}
+        </span>
+        <div className={styles.rowList}>
+          {friends.map((friend) => (
+            <button
+              className={styles.chatPickerItem}
+              disabled={directBusyId === friend.userId}
+              key={friend.userId}
+              onClick={() => void startDirect(friend.userId)}
+              type="button"
+            >
+              <i className={styles.pickerAvatar} aria-hidden="true">
+                {friend.name.slice(0, 1)}
+              </i>
+              <span>{directBusyId === friend.userId ? t("widget.chat.newRoom.creating") : friend.name}</span>
+            </button>
+          ))}
+          {friends.length === 0 ? <span className={styles.statusText}>{t("widget.chat.friends.empty")}</span> : null}
+        </div>
+      </div>
+
+      {receivedRequests.length > 0 || sentRequests.length > 0 ? (
+        <div className={styles.socialCard}>
+          <span className={styles.socialKicker}>
+            <Inbox aria-hidden size={12} strokeWidth={2} />
+            {t("widget.chat.requests.title")}
+          </span>
+          {receivedRequests.map((request) => (
+            <div className={styles.chatFriendRow} key={request.id}>
+              <i className={styles.pickerAvatar} aria-hidden="true">
+                {request.requesterName.slice(0, 1)}
+              </i>
+              <span>{request.requesterName}</span>
+              <span className={styles.itemActions}>
+                <button
+                  aria-label={t("widget.chat.requests.accept")}
+                  disabled={busyRequestId === request.id}
+                  onClick={() => void respond(request.id, "accept")}
+                  type="button"
+                >
+                  <Check aria-hidden size={12} strokeWidth={2.2} />
+                </button>
+                <button
+                  aria-label={t("widget.chat.requests.reject")}
+                  disabled={busyRequestId === request.id}
+                  onClick={() => void respond(request.id, "reject")}
+                  type="button"
+                >
+                  <X aria-hidden size={12} strokeWidth={2.2} />
+                </button>
+              </span>
+            </div>
+          ))}
+          {sentRequests.map((request) => (
+            <div className={styles.chatFriendRow} key={request.id}>
+              <i className={styles.pickerAvatar} aria-hidden="true">
+                {request.receiverName.slice(0, 1)}
+              </i>
+              <span>{request.receiverName}</span>
+              <b>{t("widget.chat.requests.waiting")}</b>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -2564,6 +3035,15 @@ function BubbleBody({
   bubble,
   timerMode,
   timerActionNotice,
+  chatScope,
+  onChatScopeChange,
+  selectedPeerChatRoomId,
+  onSelectPeerChatRoom,
+  onCreateDirectRoom,
+  onCreateGroupRoom,
+  onSearchFriend,
+  onSendFriendRequest,
+  onRespondFriendRequest,
   onItemStateChange,
   onCreateMemo,
   onCreateSchedule,
@@ -2589,6 +3069,15 @@ function BubbleBody({
   bubble: WidgetPreviewBubble;
   timerMode?: WidgetTimerMode | null;
   timerActionNotice?: DesktopWidgetBubbleProps["timerActionNotice"];
+  chatScope?: DesktopWidgetBubbleProps["chatScope"];
+  onChatScopeChange?: DesktopWidgetBubbleProps["onChatScopeChange"];
+  selectedPeerChatRoomId?: DesktopWidgetBubbleProps["selectedPeerChatRoomId"];
+  onSelectPeerChatRoom?: DesktopWidgetBubbleProps["onSelectPeerChatRoom"];
+  onCreateDirectRoom?: DesktopWidgetBubbleProps["onCreateDirectRoom"];
+  onCreateGroupRoom?: DesktopWidgetBubbleProps["onCreateGroupRoom"];
+  onSearchFriend?: DesktopWidgetBubbleProps["onSearchFriend"];
+  onSendFriendRequest?: DesktopWidgetBubbleProps["onSendFriendRequest"];
+  onRespondFriendRequest?: DesktopWidgetBubbleProps["onRespondFriendRequest"];
   onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
   onCreateMemo?: DesktopWidgetBubbleProps["onCreateMemo"];
   onCreateSchedule?: DesktopWidgetBubbleProps["onCreateSchedule"];
@@ -2627,6 +3116,15 @@ function BubbleBody({
     return (
       <ChatBody
         bubble={bubble}
+        chatScope={chatScope}
+        onChatScopeChange={onChatScopeChange}
+        selectedPeerChatRoomId={selectedPeerChatRoomId}
+        onSelectPeerChatRoom={onSelectPeerChatRoom}
+        onCreateDirectRoom={onCreateDirectRoom}
+        onCreateGroupRoom={onCreateGroupRoom}
+        onSearchFriend={onSearchFriend}
+        onSendFriendRequest={onSendFriendRequest}
+        onRespondFriendRequest={onRespondFriendRequest}
         onItemStateChange={onItemStateChange}
         onLeaveVoice={onLeaveVoice}
         onMarkChatRead={onMarkChatRead}
@@ -3055,6 +3553,15 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
   bubble,
   clickThrough,
   mode,
+  chatScope,
+  onChatScopeChange,
+  selectedPeerChatRoomId,
+  onSelectPeerChatRoom,
+  onCreateDirectRoom,
+  onCreateGroupRoom,
+  onSearchFriend,
+  onSendFriendRequest,
+  onRespondFriendRequest,
   onClose,
   onAnalyzeResource,
   onDeleteMemo,
@@ -3277,6 +3784,15 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
                 bubble={activeData}
                 timerMode={timerModeForGhost}
                 timerActionNotice={timerActionNotice}
+                chatScope={chatScope}
+                onChatScopeChange={onChatScopeChange}
+                selectedPeerChatRoomId={selectedPeerChatRoomId}
+                onSelectPeerChatRoom={onSelectPeerChatRoom}
+                onCreateDirectRoom={onCreateDirectRoom}
+                onCreateGroupRoom={onCreateGroupRoom}
+                onSearchFriend={onSearchFriend}
+                onSendFriendRequest={onSendFriendRequest}
+                onRespondFriendRequest={onRespondFriendRequest}
                 onAnalyzeResource={onAnalyzeResource}
                 onDeleteMemo={onDeleteMemo}
                 onDownloadResource={onDownloadResource}

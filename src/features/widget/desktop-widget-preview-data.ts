@@ -1,4 +1,6 @@
+import type { WidgetChatRoomResponse, WidgetFriendResponse } from "@/features/widget/api/widgetDisplayApi";
 import type { WidgetBubbleType } from "@/lib/tauri/commands";
+import type { FriendRequestApiResponse } from "@/types/api/friend";
 
 export type WidgetBubbleAccent = "blue" | "lilac" | "pearl" | "rose";
 
@@ -41,6 +43,16 @@ export type WidgetPreviewBubble = {
   accent: WidgetBubbleAccent;
   actionLabel: string;
   chatRoomId?: string;
+  /** 소통 버블 전용: 1:1/그룹 ↔ 프로젝트룸 모드, 1:1/그룹 목록·선택 상태·친구 요청. */
+  chatScope?: "direct" | "room";
+  currentUserId?: string | null;
+  myBubliId?: string | null;
+  peerRooms?: WidgetChatRoomResponse[];
+  selectedPeerChatRoomId?: string | null;
+  friendRequests?: FriendRequestApiResponse[];
+  friends?: WidgetFriendResponse[];
+  /** 현재 활성 프로젝트룸이 있는지 — 프로젝트룸 모드 빈 상태 판단용. */
+  hasProjectRoomScope?: boolean;
   compactLabel: string;
   id: WidgetBubbleType;
   inputPlaceholder?: string;

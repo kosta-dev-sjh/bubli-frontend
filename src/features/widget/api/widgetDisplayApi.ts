@@ -1,6 +1,8 @@
 import { apiRequest } from "@/lib/api/client";
+import { ApiClientError } from "@/lib/api/errors";
 import type { AgentJobResponse } from "@/types/api/agent";
 import type { PageResponse } from "@/types/api/common";
+import type { FriendApiResponse, FriendRequestApiResponse, FriendSearchApiResponse } from "@/types/api/friend";
 import type { ResourceDownloadUrlResponse } from "@/types/api/resource";
 import type { TimeLogResponse } from "@/types/api/timer";
 import { withWidgetDevAuthHeaders } from "./widgetAuthHeaders";
@@ -109,7 +111,7 @@ export type WidgetNotificationResponse = {
 };
 
 export type WidgetChatRoomResponse = {
-  chatType: "ROOM" | "DIRECT";
+  chatType: "ROOM" | "DIRECT" | "GROUP";
   createdAt: string;
   id: string;
   name: string | null;
@@ -134,14 +136,9 @@ export type WidgetChatMessageResponse = {
   };
 };
 
-export type WidgetFriendResponse = {
-  acceptedAt?: string | null;
-  avatarUrl?: string | null;
-  bubliId: string;
-  name: string;
-  userId?: string;
-  friendUserId?: string;
-};
+// 실제 백엔드 응답과 동일한 형태(userId 필수)라 별도 타입을 두지 않고 재사용한다 —
+// 위젯 전용으로 다시 선언하면 chatType처럼 필드가 슬쩍 어긋나는 문제가 반복된다.
+export type WidgetFriendResponse = FriendApiResponse;
 
 export type WidgetTimeLogResponse = TimeLogResponse;
 
@@ -407,6 +404,22 @@ export const widgetDisplayApi = {
 
   listFriends() {
     return widgetDisplayRequest<WidgetFriendResponse[]>("/api/friends");
+  },
+
+  listFriendRequests() {
+    return widgetDisplayRequest<FriendRequestApiResponse[]>("/api/friend-requests");
+  },
+
+  async searchFriend(bubliId: string) {
+    const query = new URLSearchParams({ bubliId }).toString();
+    try {
+      return await widgetDisplayRequest<FriendSearchApiResponse>(`/api/friends/search?${query}`);
+    } catch (error) {
+      if (error instanceof ApiClientError && error.status === 404) {
+        return null;
+      }
+      throw error;
+    }
   },
 
   getVoiceRoom(voiceRoomId: string) {
