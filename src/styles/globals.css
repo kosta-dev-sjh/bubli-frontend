@@ -21727,6 +21727,24 @@ body[data-bubli-surface="hybrid-app"] {
   overflow: hidden;
 }
 
+/* Tauri의 WKWebView는 backdrop-filter 블러 반경이 클수록 합성 비용이 급격히 커진다 —
+   탭을 옮길 때마다 새로 마운트되는 .bubli-surface 패널들의 블러를 매번 다시 계산해야
+   해서 반경이 클수록(18px) 눈에 띄게 버벅인다. 하이브리드 표면에서만 반경을 줄여
+   유리 질감은 유지하면서 비용을 낮춘다(웹은 그대로 18px 유지). */
+html[data-bubli-surface="hybrid-app"] {
+  --surface-blur: 8px;
+}
+
+/* body는 하이브리드 표면에서 애초에 스크롤되지 않으므로(overflow:hidden, 스크롤은
+   .bubli-main-scroll 내부에서만 일어난다) background-attachment: fixed는 시각적으로
+   아무 차이가 없으면서, 탭 전환 등 리페인트가 있을 때마다 5겹 radial-gradient
+   배경을 뷰포트 기준으로 매번 다시 합성하게 만든다 — Tauri의 WKWebView에서 이
+   비용이 눈에 띄는 깜빡임/버벅임으로 나타난다. 스크롤 자체가 안 일어나니
+   scroll로 바꿔도 렌더 결과는 동일하고 합성 비용만 없앤다. */
+body[data-bubli-surface="hybrid-app"] {
+  background-attachment: scroll;
+}
+
 body[data-bubli-surface="hybrid-app"] .bubli-app-layout {
   height: 100dvh;
   min-height: 0;
