@@ -328,12 +328,20 @@ fn widget_pointer_inside_rects(rects: &[WidgetInteractiveRect], x: f64, y: f64) 
 }
 
 fn widget_pointer_scale(window: &WebviewWindow) -> f64 {
+    // 창 자체의 backing scale을 우선한다. current_monitor()는 프로그램적 이동이나 경계
+    // 드래그 직후 이전 모니터를 계속 반환할 수 있어서 배율이 다른 듀얼 모니터에서
+    // 로컬 좌표가 절반/두 배로 왜곡됐고 그 결과 커서가 항상 "투명 영역"으로 오판돼
+    // 클릭 통과가 고정(창 조작 불능)되는 회귀를 만들었다.
     window
-        .current_monitor()
+        .scale_factor()
         .ok()
-        .flatten()
-        .map(|monitor| monitor.scale_factor())
-        .or_else(|| window.scale_factor().ok())
+        .or_else(|| {
+            window
+                .current_monitor()
+                .ok()
+                .flatten()
+                .map(|monitor| monitor.scale_factor())
+        })
         .unwrap_or(1.0)
         .max(0.5)
 }
@@ -2734,7 +2742,19 @@ fn move_widget_windows_to_monitor(
         let Some(window) = app.get_webview_window(&label) else {
             continue;
         };
-        let position = widget_screen_position(&app, &monitor_state, widget)?;
+        // 대상 모니터 원점 + 방금 클램프한 로컬 좌표로 전역 좌표를 직접 계산한다.
+        // widget_screen_position은 "창 중심이 실제로 놓인 모니터"를 다시 판정하는데
+        // 이동 직전 창은 아직 원래 모니터에 있어 그 재판정이 창을 도로 끌어와
+        // 모니터 경계에 붙여버렸다(이동이 경계까지만 가던 버그의 원인).
+        let position = if widget_position_is_unset(&widget.position) {
+            widget_screen_position(&app, &monitor_state, widget)?
+        } else {
+            let origin = target_monitor.position();
+            LogicalPosition::new(
+                origin.x as f64 / scale + widget.position.x as f64,
+                origin.y as f64 / scale + widget.position.y as f64,
+            )
+        };
         // 이동 grace를 미리 열어 커서 폴러가 이동 중 클릭 통과를 켜지 않게 한다.
         note_widget_window_moved(&label);
         #[cfg(not(target_os = "macos"))]
