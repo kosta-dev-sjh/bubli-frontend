@@ -1337,6 +1337,8 @@ function DesktopWidgetSurface() {
     withWidgetDisplayLoadState(buildEmptyDisplayBubbles(t, requestedRoomId), "loading"),
   );
   const [activeVoiceRoomId, setActiveVoiceRoomId] = useState<string | null>(devVoiceRoomId);
+  // 발신자 링백 판단용 — 최근 로드된 통화방을 들고 있는다(참여자·상태·개설자).
+  const [activeVoiceRoom, setActiveVoiceRoom] = useState<WidgetVoiceRoomResponse | null>(null);
   const [agentRevision, setAgentRevision] = useState(0);
   const [communicationRevision, setCommunicationRevision] = useState(0);
   const [itemStateOverrides, setItemStateOverrides] = useState<Record<string, WidgetItemStateAction>>({});
@@ -1892,6 +1894,7 @@ function DesktopWidgetSurface() {
       const friendsValue = friendsResult.status === "fulfilled" ? friendsResult.value : null;
       const roomValue = roomResult.status === "fulfilled" ? roomResult.value : null;
       const voiceValue = voiceResult.status === "fulfilled" ? voiceResult.value : null;
+      setActiveVoiceRoom(voiceValue);
       const projectRoomsValue = projectRoomsResult.status === "fulfilled" ? projectRoomsResult.value : null;
       const notifications = notificationsValue?.items ?? [];
       const rooms = chatRoomsValue?.items ?? [];
@@ -3134,6 +3137,24 @@ function DesktopWidgetSurface() {
     startCallRingtone();
     return () => stopCallRingtone();
   }, [incomingVoiceCall]);
+
+  // 발신자(전화 건 사람) 링백 — 내가 만든 OPEN 통화방에 나 혼자만 참여 중이면 상대가 받을 때까지 울린다.
+  // 수신자 쪽 통화음(incomingVoiceCall)과 대칭. 상대가 참여하거나 45초가 지나면 멈춘다.
+  const isWidgetRingingBack =
+    activeVoiceRoom?.status === "OPEN" &&
+    Boolean(currentUserId) &&
+    activeVoiceRoom?.createdByUserId === currentUserId &&
+    (activeVoiceRoom?.participants.filter((participant) => participant.status === "JOINED").length ?? 0) <= 1;
+
+  useEffect(() => {
+    if (!isWidgetRingingBack) return;
+    startCallRingtone();
+    const timeoutId = window.setTimeout(() => stopCallRingtone(), 45_000);
+    return () => {
+      window.clearTimeout(timeoutId);
+      stopCallRingtone();
+    };
+  }, [isWidgetRingingBack]);
 
   const dismissIncomingVoiceCall = useCallback(() => {
     if (!incomingVoiceCall) return;
