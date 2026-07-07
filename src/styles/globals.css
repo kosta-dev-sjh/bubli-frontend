@@ -10009,6 +10009,7 @@ html {
   gap: 16px;
 }
 .landing-nav__brand {
+  flex: 0 0 auto;
   font-size: 22px;
   font-weight: 860;
   color: var(--color-brand);
@@ -10016,12 +10017,16 @@ html {
 }
 .landing-nav__links {
   display: flex;
-  /* 언어 전환(ko→en/ja)으로 라벨이 길어져도 바 밖으로 삐져나오지 않도록
-     간격·여백을 뷰포트에 맞춰 줄이고, 링크 묶음이 축소될 수 있게 min-width:0을 준다. */
+  /* 언어 전환(ko→en/ja)으로 라벨이 길어져도 바 밖으로 삐져나오지 않게 한다.
+     - 간격·여백·폰트를 뷰포트에 맞춰 줄이고(clamp),
+     - 링크 묶음은 늘어나지 않고(flex 0) 좁아지면 줄어들며(min-width:0),
+     - 그래도 남으면 자기 영역 안에서 잘리게(overflow:hidden) 해 CTA를 덮거나 바 밖으로 삐져나오지 않게 한다.
+     CTA는 margin-left:auto로 항상 오른쪽에 고정된다. */
   gap: clamp(10px, 1.6vw, 24px);
   margin-left: clamp(12px, 2vw, 30px);
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
+  overflow: hidden;
 }
 .landing-nav__links a {
   font-size: clamp(12.5px, 1.05vw, 14px);
@@ -10042,6 +10047,8 @@ html {
   right: 0;
 }
 .landing-nav__cta {
+  flex: 0 0 auto;
+  margin-left: auto;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -10458,7 +10465,9 @@ html {
   position: absolute;
   left: 0;
   right: 100%;
-  bottom: -5px;
+  /* 언어 라벨이 길어져 링크 묶음이 overflow:hidden으로 잘릴 때 밑줄이 사라지지 않도록
+     활성 밑줄과 같은 bottom:0에 둔다(링크 하단 padding 7px가 텍스트와의 간격을 만든다). */
+  bottom: 0;
   height: 2px;
   border-radius: 2px;
   background: linear-gradient(90deg, var(--bubble-blue), var(--signal-agent));
