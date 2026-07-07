@@ -19,6 +19,10 @@ export const voiceApi = {
     return apiRequest<VoiceRoomResponse>(`/api/voice/rooms/${voiceRoomId}`);
   },
 
+  getOpenRoomByChatRoomId(chatRoomId: string) {
+    return apiRequest<VoiceRoomResponse>(`/api/voice/rooms?chatRoomId=${encodeURIComponent(chatRoomId)}`);
+  },
+
   getToken(voiceRoomId: string) {
     return apiRequest<VoiceTokenResponse>(`/api/voice/rooms/${voiceRoomId}/token`, {
       method: "POST",

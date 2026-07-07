@@ -11,7 +11,7 @@ import {
   type WidgetTutorialSceneKind,
 } from "@/features/onboarding/components/widget-tutorial";
 import {
-  completeTutorial,
+  completeWidgetTutorial,
   readStoredOnboarding,
   saveDesktopWidgetStartupPreference,
   type DesktopWidgetStartupMode,
@@ -130,7 +130,7 @@ export default function DesktopWidgetOnboardingPage() {
     const stored = readStoredOnboarding();
     if (stored?.userId) {
       saveDesktopWidgetStartupPreference(stored.userId, mode);
-      completeTutorial(stored.userId);
+      completeWidgetTutorial(stored.userId);
     }
 
     void applyStartupMode(mode);

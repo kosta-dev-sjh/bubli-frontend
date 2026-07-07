@@ -102,12 +102,10 @@ function roomSwitchHref(
   searchParams: ReadonlyURLSearchParams,
   nextRoomId: string,
 ): string | null {
-  // 룸 채팅(/app/chat?mode=room): 룸을 바꾸면 채팅도 새 룸으로. 1:1/그룹(mode=direct/group)은
-  // 프로젝트룸에 묶이지 않으므로 제외 — 안 그러면 1:1·그룹 탭을 보다가 룸을 바꾸면 원치 않게
-  // 프로젝트룸 탭으로 튕겨나갔다.
+  // 룸 채팅(/app/chat?mode=room): 룸을 바꾸면 채팅도 새 룸으로. 다이렉트 메시지(mode=direct, 1:1/그룹
+  // 통합 탭)는 룸에 안 묶이므로 제외.
   if (pathname === "/app/chat") {
-    const mode = searchParams.get("mode");
-    if (mode === "direct" || mode === "group") return null;
+    if (searchParams.get("mode") === "direct") return null;
     if (searchParams.get("roomId") === nextRoomId) return null;
     return `/app/chat?mode=room&roomId=${encodeURIComponent(nextRoomId)}`;
   }
@@ -587,6 +585,12 @@ export function AppShell({ children }: AppShellProps) {
         void notificationApi.markRead(notification.id).catch(() => undefined);
       }
 
+      // 발신자가 내가 받기 전에 전화를 취소함 — 수신 전화 팝업을 계속 띄워둘 이유가 없다.
+      if (notification.sourceType === "VOICE_CALL_CANCELED" && notification.sourceId) {
+        setIncomingVoiceCall((current) => (current?.chatRoomId === notification.sourceId ? null : current));
+        void notificationApi.markRead(notification.id).catch(() => undefined);
+      }
+
       if (notification.sourceType === "MESSAGE" && notification.sourceId) {
         pushNotificationToast("message", notification, notification.sourceId);
       }
@@ -663,10 +667,11 @@ export function AppShell({ children }: AppShellProps) {
     if (!incomingVoiceCall) return;
     const call = incomingVoiceCall;
     // 상대(발신자)에게 거절했음을 알려야 마이크가 켜진 채로 대기하는 발신자 화면을 자동으로 끊을 수 있다.
-    // 이미 열려 있는 방을 그대로 반환하는 createRoom("join-or-create")으로 방 id를 얻는다 — 참여자로
-    // 등록되지는 않으므로(방이 이미 있으면 참여자를 추가하지 않음) 내 마이크가 켜지지 않는다.
+    // createRoom("있으면 join, 없으면 create")으로 방 id를 구하면, 타이밍 등으로 기존 방을 못 찾을 때
+    // 새 방을 만들어버려(그리고 "통화를 시작했습니다" 알림까지 잘못 나가) 거절 신호 자체가 새어나갔다.
+    // 부작용 없는 조회 전용 엔드포인트로 방 id만 가져온다.
     void voiceApi
-      .createRoom({ chatRoomId: call.chatRoomId })
+      .getOpenRoomByChatRoomId(call.chatRoomId)
       .then((room) => voiceApi.decline(room.id))
       .catch(() => undefined);
     void notificationApi.markRead(call.notificationId).catch(() => undefined);
@@ -691,12 +696,15 @@ export function AppShell({ children }: AppShellProps) {
         selectedChatRoomId: call.chatRoomId,
         voice: { kind: "ready", room },
       });
-      try {
-        const token = await voiceApi.getToken(room.id);
-        await connectLiveKitRoom(room.id, token);
-      } catch {
-        // 오디오 연결 실패는 조용히 무시 — 채팅방에서 "보이스 참여" 버튼으로 재시도 가능
-      }
+      // 오디오 연결(ICE/DTLS 협상)은 몇 초 걸릴 수 있어 기다리지 않고 먼저 화면을 옮긴다 —
+      // 이걸 기다리게 하면 수락을 눌러도 오디오가 붙을 때까지 수신 전화 팝업에 갇혀 있어,
+      // 보이스 방으로 들어가는 게 몇 초씩 늦어 보였다.
+      void voiceApi
+        .getToken(room.id)
+        .then((token) => connectLiveKitRoom(room.id, token))
+        .catch(() => {
+          // 오디오 연결 실패는 조용히 무시 — 채팅방에서 "보이스 참여" 버튼으로 재시도 가능
+        });
     } catch {
       // 룸 생성/조회 자체가 실패한 경우 — 채팅방으로 이동해 상태 확인하도록 둔다
     } finally {
@@ -1046,7 +1054,7 @@ export function AppShell({ children }: AppShellProps) {
       }
       if (room?.chatType === "GROUP") {
         voiceStore.update({ selectedChatRoomId: chatRoomId });
-        return { isProjectRoom: false, route: "/app/chat?mode=group" };
+        return { isProjectRoom: false, route: "/app/chat?mode=direct" };
       }
     } catch {
       // 조회 실패 시 1:1/그룹으로 간주하고 진행 — 최소한 소통 화면까지는 이동시킨다
@@ -1189,11 +1197,7 @@ export function AppShell({ children }: AppShellProps) {
       current.kind === "ready"
         ? {
             ...current,
-            notifications: current.notifications.map((item) =>
-              item.id === notificationId && item.status !== "ARCHIVED"
-                ? { ...item, status: "ARCHIVED" as const }
-                : item,
-            ),
+            notifications: current.notifications.filter((item) => item.id !== notificationId),
           }
         : current,
     );

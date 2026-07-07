@@ -26,6 +26,7 @@ import {
 } from "@/features/widget/api/widgetDisplayApi";
 import { agentApi } from "@/features/agent/api/agentApi";
 import { authApi } from "@/features/auth/api/authApi";
+import { resolveResourceDownloadUrl } from "@/features/resources/components/resource-board-common";
 import { ApiClientError } from "@/lib/api/errors";
 import {
   widgetApi,
@@ -56,6 +57,7 @@ import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
 import { setWidgetWindowDragLocked, tauriCommands, waitForPendingWidgetUsageEventRecords, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetInteractiveRect, type WidgetWindowBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import { emitWidgetDataChanged, listenWidgetDataChanged, listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { defaultTauriStartupOptimizationConfig, readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
 import { readCachedWidgetRoomNames, readWidgetSummary, writeCachedWidgetRoomNames, type WidgetRoomNameMap } from "@/lib/widget";
 import { syncActiveProjectRoomFromWidgetContext } from "@/lib/workspace-active-room";
 import { getChatRealtimeClient } from "@/lib/websocket/chat-realtime";
@@ -389,6 +391,21 @@ function formatDue(t: TranslateFn, value?: string | null) {
   return t("widget.due.past");
 }
 
+// 마감(d-day)이 있는 투두 칩에 붙일 D-n 태그. 오늘=D-DAY, 남았으면 D-n, 지났으면 D+n.
+function formatDDay(value?: string | null) {
+  if (!value) return "";
+  const due = new Date(value);
+  if (Number.isNaN(due.getTime())) return "";
+  const now = new Date();
+  const dayMs = 24 * 60 * 60 * 1000;
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const target = new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime();
+  const diff = Math.round((target - start) / dayMs);
+  if (diff === 0) return "D-DAY";
+  if (diff > 0) return `D-${diff}`;
+  return `D+${-diff}`;
+}
+
 // 마감 칩 톤: 지남/오늘/내일/이후 — formatDue와 같은 날짜 기준(로컬 자정)으로 계산한다.
 function widgetDueTone(value?: string | null): WidgetPreviewItem["dueTone"] {
   if (!value) return undefined;
@@ -718,13 +735,23 @@ function buildDisplayBubbles(input: {
   const chatRoute = input.roomId ? `/app/project-rooms/${encodeURIComponent(input.roomId)}/chat` : "/app/chat";
   const scheduleRoute = roomScopedRoute("/app/calendar", input.roomId);
   const personalScheduleRoute = roomScopedRoute("/app/calendar", null);
-  // 작업(WORK) 타이머는 그 룸에만 귀속 — 전역(개인) 위젯에서는 룸 타이머를 숨기고 개인(roomId 없음) 타이머만 보인다.
-  const runningFallback = input.dashboard?.runningTimer ?? null;
-  const activeTimer = input.timer ?? (!isRoomScoped && runningFallback?.roomId == null ? runningFallback : null);
-  const scheduleSource = isRoomScoped ? input.schedules : (input.dashboard?.todaySchedules.length ? input.dashboard.todaySchedules : input.schedules);
+  // 실행 중(또는 일시정지) 타이머는 사용자당 1개뿐이라, 위젯 스코프와 무관하게 타이머 버블에 항상 노출한다.
+  // 다른 룸에 걸린 타이머도 여기서 바로 종료할 수 있어야 "안 보여서 멈추지도 못하는" 데드락
+  // (새 start가 서버에서 409로 막힘)이 생기지 않는다. 어느 룸 타이머인지는 아래 timer row의 roomName 라벨로 구분한다.
+  const activeTimer = input.timer ?? input.dashboard?.runningTimer ?? null;
+  // 실행 중 타이머가 귀속된 "그 룸"의 이름(현재 위젯 스코프가 아니라 타이머 자신의 룸 기준).
+  const activeTimerRoomLabel = activeTimer?.roomId
+    ? (input.roomNames?.[activeTimer.roomId] ?? (activeTimer.roomId === input.roomId ? (input.room?.name ?? null) : null))
+    : null;
+  // 캘린더는 오늘뿐 아니라 향후 일정 전체(14일 창)가 보여야 하므로, 전체 목록(input.schedules)을
+  // 우선한다. 예전엔 오늘 일정이 있으면 todaySchedules(오늘만)가 전체를 가려, 캘린더에 이번주·다음주
+  // 일정이 아예 안 뜨던 문제가 있었다. 전체가 비었을 때만 오늘 목록으로 폴백한다.
+  const scheduleSource = isRoomScoped
+    ? input.schedules
+    : (input.schedules.length ? input.schedules : (input.dashboard?.todaySchedules ?? []));
   const personalScheduleSource = isRoomScoped
     ? (input.personalSchedules ?? [])
-    : (input.dashboard?.todaySchedules.length ? input.dashboard.todaySchedules : input.schedules);
+    : (input.schedules.length ? input.schedules : (input.dashboard?.todaySchedules ?? []));
 
   // ---------- TODO: 개인 TODO + 나에게 할당된 룸 태스크 병합 ----------
   // 제품 모델: 룸 태스크에 내가 담당자로 지정되면 개인 TODO에도 따라온다(백엔드
@@ -799,7 +826,8 @@ function buildDisplayBubbles(input: {
         ? input.roomNames?.[task.roomId] ?? t("widget.todo.roomFallback")
         : undefined,
     sourceKind,
-    status: formatDue(t, task.dueAt) || taskStatusLabel(t, task.status),
+    // 마감이 있으면 칩에 D-n 태그(D-DAY/D-3/D+2). 마감 없으면 상태 라벨.
+    status: formatDDay(task.dueAt) || taskStatusLabel(t, task.status),
   });
   // 내 할 일: 미완료(마감 섹션 정렬) → 완료(최근 수정순, 하단).
   const myOpenTasks = myTasksSource
@@ -1039,6 +1067,8 @@ function buildDisplayBubbles(input: {
               id: activeTimer.id,
               kind: "time",
               label: activeTimer.timerType === "WORK" ? t("widget.timer.workTimer") : t("widget.timer.generalTimer"),
+              // 타이머가 귀속된 룸 이름(다른 룸에 걸린 타이머를 개인/다른 룸 스코프에서 볼 때 구분용).
+              roomName: activeTimerRoomLabel ?? undefined,
               status: activeTimer.status,
               timerDurationSeconds: activeTimer.durationSeconds ?? null,
               timerLastStartedAt: activeTimer.lastStartedAt ?? null,
@@ -1270,7 +1300,14 @@ function resolveWidgetContextFromSummary(
   return current ?? { mode: "ROOM", selectedRoomId: requested };
 }
 
-async function readWidgetDisplaySummary(requestedRoomId?: string | null): Promise<WidgetSummaryResponse | null> {
+type WidgetDisplaySummaryReadOptions = {
+  refreshServerOnCacheHit?: boolean;
+};
+
+async function readWidgetDisplaySummary(
+  requestedRoomId?: string | null,
+  options: WidgetDisplaySummaryReadOptions = {},
+): Promise<WidgetSummaryResponse | null> {
   if (isTauriRuntime()) {
     const cacheResult = await readWidgetSummary({
       fetchServerSummary: () => Promise.reject(new Error("local widget summary cache empty")),
@@ -1278,26 +1315,28 @@ async function readWidgetDisplaySummary(requestedRoomId?: string | null): Promis
     }).catch(() => null);
 
     if (cacheResult?.status === "ready") {
-      void readWidgetSummary({ preferLocalCache: false, selectedRoomId: requestedRoomId })
-        .then((serverResult) => {
-          if (serverResult.status !== "failed") return;
-          void tauriCommands
-            .recordWidgetUsageEvent({
-              bubbleType: "bar",
-              eventType: `summary:server-refresh-failed:${serverResult.fallbackReason ?? "unknown"}`,
-              occurredAt: new Date().toISOString(),
-            })
-            .catch(() => undefined);
-        })
-        .catch(() => {
-          void tauriCommands
-            .recordWidgetUsageEvent({
-              bubbleType: "bar",
-              eventType: "summary:server-refresh-error",
-              occurredAt: new Date().toISOString(),
-            })
-            .catch(() => undefined);
-        });
+      if (options.refreshServerOnCacheHit) {
+        void readWidgetSummary({ preferLocalCache: false, selectedRoomId: requestedRoomId })
+          .then((serverResult) => {
+            if (serverResult.status !== "failed") return;
+            void tauriCommands
+              .recordWidgetUsageEvent({
+                bubbleType: "bar",
+                eventType: `summary:server-refresh-failed:${serverResult.fallbackReason ?? "unknown"}`,
+                occurredAt: new Date().toISOString(),
+              })
+              .catch(() => undefined);
+          })
+          .catch(() => {
+            void tauriCommands
+              .recordWidgetUsageEvent({
+                bubbleType: "bar",
+                eventType: "summary:server-refresh-error",
+                occurredAt: new Date().toISOString(),
+              })
+              .catch(() => undefined);
+          });
+      }
       if (widgetSummaryMatchesRequestedRoom(cacheResult.data, requestedRoomId)) {
         return cacheResult.data;
       }
@@ -1317,6 +1356,7 @@ function DesktopWidgetSurface() {
   const isBubbleBar = requestedSurface === "bar";
   const isMenuOrb = requestedSurface === "menu";
   const isWidgetChrome = isBubbleBar || isMenuOrb;
+  const [startupOptimization, setStartupOptimization] = useState(defaultTauriStartupOptimizationConfig);
   const requestedBubble = getRequestedBubble(requestedSurface);
   const currentWindowBubble: WidgetWindowBubbleType = isBubbleBar ? "bar" : isMenuOrb ? "menu" : requestedBubble;
   const requestedMode = getRequestedMode(searchParams.get("mode"));
@@ -1329,12 +1369,15 @@ function DesktopWidgetSurface() {
   const [activeBubble, setActiveBubble] = useState<WidgetBubbleType>(requestedBubble);
   const [mode, setMode] = useState<WidgetWindowMode>(requestedMode);
   const [alwaysOnTop, setAlwaysOnTop] = useState(true);
-  // 핀 고정(상단 고정)을 켜면 이 창의 위치도 잠근다 — 드래그 헬퍼가 이 값을 읽어 이동을 막는다.
+  // 핀 고정(상단 고정)을 켜면 콘텐츠 버블의 위치를 잠근다 — 드래그 헬퍼가 이 값을 읽어 이동을 막는다.
+  // 단, 원형 메뉴(오브)와 바는 사용자가 자유롭게 옮겨야 하는 크롬이라 항상 잠금에서 제외한다
+  // (오브는 alwaysOnTop이 기본 true라, 잠그면 이동이 아예 막혀버린다).
   useEffect(() => {
-    setWidgetWindowDragLocked(alwaysOnTop);
-  }, [alwaysOnTop]);
+    setWidgetWindowDragLocked(!isWidgetChrome && alwaysOnTop);
+  }, [alwaysOnTop, isWidgetChrome]);
   const [clickThrough, setClickThrough] = useState(false);
   const [windowVisible, setWindowVisible] = useState(true);
+  const [barFullDisplayDelayElapsed, setBarFullDisplayDelayElapsed] = useState(false);
   const [widgetContext, setWidgetContext] = useState<WidgetContextResponse | null>(
     requestedRoomId ? widgetContextForRoomId(requestedRoomId) : null,
   );
@@ -1370,6 +1413,8 @@ function DesktopWidgetSurface() {
   const [orbSuggestionNonce, setOrbSuggestionNonce] = useState(0);
   const orbPrevSuggestionCountRef = useRef(0);
   const [timerSnapshot, setTimerSnapshot] = useState<TimeLogResponse | null>(null);
+  // 타이머 시작/종료 실패 안내(권한 없음·이미 실행 중 등). 잠깐 떴다가 자동으로 사라진다.
+  const [timerActionNotice, setTimerActionNotice] = useState<string | null>(null);
   const [activeTimerHeartbeatId, setActiveTimerHeartbeatId] = useState<string | null>(null);
   const [voiceConnectionLabel, setVoiceConnectionLabel] = useState<string | null>(null);
   const [voiceMicMuted, setVoiceMicMuted] = useState(false);
@@ -1397,6 +1442,42 @@ function DesktopWidgetSurface() {
   const requestDisplayRefresh = useCallback(() => {
     setDisplayRefreshRevision((current) => current + 1);
   }, []);
+
+  useEffect(() => {
+    if (!isTauri) return;
+    let cancelled = false;
+
+    void readTauriStartupOptimizationConfig().then((config) => {
+      if (!cancelled) setStartupOptimization(config);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isTauri]);
+
+  const shouldDeferBarFullDisplay =
+    isTauri && isBubbleBar && startupOptimization.deferBarFullDisplayUntilAfterFirstPaint;
+  const barFullDisplayReady =
+    !shouldDeferBarFullDisplay || (widgetSessionReady && windowVisible && barFullDisplayDelayElapsed);
+
+  useEffect(() => {
+    if (!shouldDeferBarFullDisplay || !widgetSessionReady || !windowVisible || barFullDisplayDelayElapsed) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setBarFullDisplayDelayElapsed(true);
+    }, startupOptimization.deferredBarFullDisplayDelayMs);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [
+    barFullDisplayDelayElapsed,
+    shouldDeferBarFullDisplay,
+    startupOptimization.deferredBarFullDisplayDelayMs,
+    widgetSessionReady,
+    windowVisible,
+  ]);
 
   // 창별 상호작용 rect 보고(투명 영역 클릭 통과). 브라우저 미리보기에서는 동작하지 않는다.
   useWidgetInteractiveRectReporting(isTauri && mounted && widgetSessionReady && windowVisible);
@@ -1820,7 +1901,7 @@ function DesktopWidgetSurface() {
 
     async function loadDisplayApiState() {
       let selectedRoomId = selectedWidgetRoomId;
-      const summary = await readWidgetDisplaySummary(selectedRoomId);
+      const summary = await readWidgetDisplaySummary(selectedRoomId, { refreshServerOnCacheHit: isBubbleBar });
       if (summary?.context) {
         selectedRoomId = selectedRoomId ?? (!widgetContextInitialized ? normalizeWidgetRoomId(summary.context.selectedRoomId) : null);
         if (!cancelled) {
@@ -1828,9 +1909,9 @@ function DesktopWidgetSurface() {
         }
       }
 
-      const loadFullDisplay = isBubbleBar;
+      const loadFullDisplay = isBubbleBar && barFullDisplayReady;
       const shouldLoadBubbleData = (...bubbleTypes: WidgetBubbleType[]) =>
-        loadFullDisplay || bubbleTypes.includes(activeBubble);
+        loadFullDisplay || (!isWidgetChrome && bubbleTypes.includes(activeBubble));
       const voiceRoomId = activeVoiceRoomId;
       const loadDashboard = shouldLoadBubbleData("timer", "todo", "schedule", "agent", "alert");
       const loadTasks = shouldLoadBubbleData("todo");
@@ -1997,18 +2078,9 @@ function DesktopWidgetSurface() {
           : selectedRoomId
             ? []
             : (summaryDashboard?.todayTasks ?? []);
-      const activeTimerCandidate = timerSnapshot?.status === "PAUSED" ? timerSnapshot : (dashboard?.runningTimer ?? timerSnapshot);
-      // 룸 컨텍스트: 그 룸 타이머만. 개인 컨텍스트: 룸에 귀속되지 않은(개인) 타이머만 — 룸 작업타이머는 전역에 노출하지 않는다.
-      const activeTimer =
-        activeTimerCandidate == null
-          ? null
-          : selectedRoomId
-            ? activeTimerCandidate.roomId === selectedRoomId
-              ? activeTimerCandidate
-              : null
-            : activeTimerCandidate.roomId == null
-              ? activeTimerCandidate
-              : null;
+      // 실행 중(또는 일시정지) 타이머는 사용자당 1개뿐이라, 위젯 스코프와 무관하게 항상 노출한다.
+      // (다른 룸에 걸린 타이머도 어디서든 바로 종료할 수 있어야 데드락이 안 생긴다. 룸 구분은 라벨로.)
+      const activeTimer = timerSnapshot?.status === "PAUSED" ? timerSnapshot : (dashboard?.runningTimer ?? timerSnapshot);
       const messageItems = messages?.items ?? cachedMessages;
       const schedules = schedulesValue?.items ?? (selectedRoomId ? [] : (summaryDashboard?.todaySchedules ?? []));
       const tasks = tasksValue?.items ?? (selectedRoomId ? [] : (summaryDashboard?.todayTasks ?? []));
@@ -2087,7 +2159,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [activeBubble, activeVoiceRoomId, agentRevision, communicationRevision, currentUserId, displayRefreshRevision, isBubbleBar, isMenuOrb, isTauri, itemStateOverrides, memoRevision, notificationRevision, resourceRevision, scheduleRevision, selectedWidgetRoomId, t, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContextInitialized, widgetSessionReady]);
+  }, [activeBubble, activeVoiceRoomId, agentRevision, barFullDisplayReady, communicationRevision, currentUserId, displayRefreshRevision, isBubbleBar, isMenuOrb, isTauri, isWidgetChrome, itemStateOverrides, memoRevision, notificationRevision, resourceRevision, scheduleRevision, selectedWidgetRoomId, t, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContextInitialized, widgetSessionReady]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;
@@ -2564,11 +2636,15 @@ function DesktopWidgetSurface() {
       }
 
       const result = await widgetDisplayApi.getResourceDownloadUrl(item.id);
+      const url = resolveResourceDownloadUrl(result);
+      if (!url) {
+        throw new Error("Download URL is empty");
+      }
       // Tauri 웹뷰에서는 window.open(_blank)이 막히므로 OS 기본 브라우저로 연다(웹은 새 탭 유지).
       if (isTauri) {
-        await tauriCommands.openExternalUrl(result.url).catch(() => undefined);
+        await tauriCommands.openExternalUrl(url).catch(() => undefined);
       } else {
-        window.open(result.url, "_blank", "noopener,noreferrer");
+        window.open(url, "_blank", "noopener,noreferrer");
       }
 
       if (isTauri) {
@@ -2867,16 +2943,18 @@ function DesktopWidgetSurface() {
   );
 
   const createWidgetSchedule = useCallback(
-    async (bubble: WidgetPreviewBubble, inlineTitle?: string) => {
+    async (bubble: WidgetPreviewBubble, inlineTitle?: string, startsAt?: string | null) => {
       const title = (inlineTitle ?? window.prompt(t("widget.schedule.prompt")) ?? "").trim();
       if (!title) return;
 
+      // 위젯 폼에서 고른 시작 시각(ISO)을 그대로 쓰고, 없으면 다음 30분으로 폴백한다.
+      const chosenStart = startsAt && !Number.isNaN(new Date(startsAt).getTime()) ? startsAt : nextWidgetScheduleStart();
       const roomId = bubble.roomId ?? null;
       const schedule = await calendarApi.createEvent({
         allDay: false,
         endsAt: null,
         roomId,
-        startsAt: nextWidgetScheduleStart(),
+        startsAt: chosenStart,
         title,
       });
 
@@ -2937,6 +3015,8 @@ function DesktopWidgetSurface() {
       setActiveTimerHeartbeatId(timeLog.status === "RUNNING" ? timeLog.id : null);
       recordLocalTimerState(timeLog);
       setTimerRevision((current) => current + 1);
+      // 액션이 성공했으면 직전 실패 안내는 지운다.
+      setTimerActionNotice(null);
     },
     [recordLocalTimerState],
   );
@@ -2945,7 +3025,7 @@ function DesktopWidgetSurface() {
     async (roomId?: string | null) => {
       const selectedRoomId = roomId?.trim() || null;
       const [summaryResult, dashboardResult] = await Promise.allSettled([
-        readWidgetDisplaySummary(selectedRoomId),
+        readWidgetDisplaySummary(selectedRoomId, { refreshServerOnCacheHit: true }),
         widgetDisplayApi.getDashboardWork(),
       ]);
       const summaryTimer =
@@ -2967,9 +3047,18 @@ function DesktopWidgetSurface() {
   const handleWidgetTimerActionError = useCallback(
     async (error: unknown, roomId?: string | null) => {
       if (error instanceof ApiClientError) {
-        // 이미 실행 중인 타이머(409)는 서버가 알려준 현재 상태를 화면에 반영하면 된다.
+        // 이미 실행 중인 타이머(409): 조용히 넘기지 말고 안내한다. 실행 중 타이머는 스코프와
+        // 무관하게 화면에 노출되므로(refresh 후), 사용자가 그 타이머를 바로 종료할 수 있다.
         // 빠른 연타나 느린 배경 갱신으로 start가 한 번 더 나가는 경우에도 dev overlay가 뜨지 않게 한다.
         if (error.status === 409 && error.code === "PERSONAL_409_001") {
+          setTimerActionNotice(t("widget.timer.alreadyRunning"));
+          await refreshTimerFromServer(roomId);
+          return;
+        }
+
+        // 룸 권한 없음(룸 멤버가 아니거나 권한이 끊긴 경우): 왜 안 되는지 명확히 안내한다.
+        if (error.status === 403) {
+          setTimerActionNotice(t("widget.timer.forbidden"));
           await refreshTimerFromServer(roomId);
           return;
         }
@@ -2983,8 +3072,15 @@ function DesktopWidgetSurface() {
       console.error("Widget timer action failed", error);
       await refreshTimerFromServer(roomId);
     },
-    [refreshTimerFromServer],
+    [refreshTimerFromServer, t],
   );
+
+  // 타이머 실패 안내는 잠깐만 보여주고 자동으로 사라진다.
+  useEffect(() => {
+    if (!timerActionNotice) return;
+    const timeoutId = window.setTimeout(() => setTimerActionNotice(null), 4200);
+    return () => window.clearTimeout(timeoutId);
+  }, [timerActionNotice]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;
@@ -3123,6 +3219,12 @@ function DesktopWidgetSurface() {
         void notificationApi.markRead(notification.id).catch(() => undefined);
       }
 
+      // 발신자가 내가 받기 전에 전화를 취소함 — 수신 전화 팝업을 계속 띄워둘 이유가 없다.
+      if (notification.sourceType === "VOICE_CALL_CANCELED" && notification.sourceId) {
+        setIncomingVoiceCall((current) => (current?.chatRoomId === notification.sourceId ? null : current));
+        void notificationApi.markRead(notification.id).catch(() => undefined);
+      }
+
       const pushToast = (kind: NotificationToastKind, chatRoomId?: string) => {
         const toastId = notification.id;
         setMessageToasts((current) =>
@@ -3190,10 +3292,11 @@ function DesktopWidgetSurface() {
     if (!incomingVoiceCall) return;
     const call = incomingVoiceCall;
     // 상대(발신자)에게 거절했음을 알려야 마이크가 켜진 채로 대기하는 발신자 화면을 자동으로 끊을 수 있다.
-    // 이미 열려 있는 방을 그대로 반환하는 createVoiceRoom("join-or-create")으로 방 id를 얻는다 — 참여자로
-    // 등록되지는 않으므로(방이 이미 있으면 참여자를 추가하지 않음) 내 마이크가 켜지지 않는다.
+    // createVoiceRoom("있으면 join, 없으면 create")으로 방 id를 구하면, 타이밍 등으로 기존 방을
+    // 못 찾을 때 새 방을 만들어버려(그리고 "통화를 시작했습니다" 알림까지 잘못 나가) 거절 신호
+    // 자체가 새어나갔다. 부작용 없는 조회 전용 엔드포인트로 방 id만 가져온다.
     void widgetCommunicationApi
-      .createVoiceRoom({ chatRoomId: call.chatRoomId })
+      .getOpenVoiceRoomByChatRoomId(call.chatRoomId)
       .then((room) => widgetCommunicationApi.declineVoiceRoom(room.id))
       .catch(() => undefined);
     void notificationApi.markRead(call.notificationId).catch(() => undefined);
@@ -3208,10 +3311,26 @@ function DesktopWidgetSurface() {
       const voiceRoom = await widgetCommunicationApi.createVoiceRoom({ chatRoomId: call.chatRoomId });
       setActiveVoiceRoomId(voiceRoom.id);
       setVoiceConnectionLabel("Voice room opened");
+      setCommunicationRevision((current) => current + 1);
+      publishWidgetDataChanged("chat");
 
-      try {
-        const token = await widgetCommunicationApi.getVoiceToken(voiceRoom.id);
-        if (token.serverUrl && token.token) {
+      if (isTauri) {
+        void tauriCommands
+          .openWidgetWindow({
+            bubbleType: "chat",
+            mode: "DEFAULT",
+            selectedRoomId: call.chatRoomId,
+            windowId: "chat",
+          })
+          .catch(() => undefined);
+      }
+
+      // 오디오 연결(ICE/DTLS 협상)은 몇 초 걸릴 수 있어 기다리지 않고 먼저 위젯을 연다 —
+      // 기다리게 하면 수락을 눌러도 오디오가 붙을 때까지 화면 전환이 몇 초씩 늦어 보였다.
+      void widgetCommunicationApi
+        .getVoiceToken(voiceRoom.id)
+        .then(async (token) => {
+          if (!token.serverUrl || !token.token) return;
           const liveKitRoom = new Room();
           liveKitRoom.on(RoomEvent.TrackSubscribed, (track) => attachWidgetRemoteAudioTrack(track));
           liveKitRoom.on(RoomEvent.TrackUnsubscribed, (track) => {
@@ -3226,24 +3345,10 @@ function DesktopWidgetSurface() {
           await liveKitRoom.localParticipant.setMicrophoneEnabled(true);
           setVoiceMicMuted(false);
           setVoiceConnectionLabel("LiveKit connected");
-        }
-      } catch {
-        setVoiceConnectionLabel("Voice room open; token failed");
-      }
-
-      setCommunicationRevision((current) => current + 1);
-      publishWidgetDataChanged("chat");
-
-      if (isTauri) {
-        await tauriCommands
-          .openWidgetWindow({
-            bubbleType: "chat",
-            mode: "DEFAULT",
-            selectedRoomId: call.chatRoomId,
-            windowId: "chat",
-          })
-          .catch(() => undefined);
-      }
+        })
+        .catch(() => {
+          setVoiceConnectionLabel("Voice room open; token failed");
+        });
     } catch {
       // 룸 생성/조회 자체가 실패한 경우 — 조용히 무시하고 알림만 닫는다
     } finally {
@@ -3594,7 +3699,7 @@ function DesktopWidgetSurface() {
           usageSummary={menuUsageSummary}
         />
         {incomingVoiceCall ? (
-          <div className="voice-call-invite" role="dialog" aria-modal="true" aria-label={t("layout.voiceCall.aria")}>
+          <div className="voice-call-invite voice-call-invite--widget" role="dialog" aria-modal="true" aria-label={t("layout.voiceCall.aria")}>
             <div className="voice-call-invite__card" data-bubli-interactive="true">
               <div className="voice-call-invite__avatar" aria-hidden="true">
                 <Phone size={26} strokeWidth={2} />
@@ -3674,6 +3779,7 @@ function DesktopWidgetSurface() {
       onToggleAlwaysOnTop={toggleAlwaysOnTop}
       onToggleVoiceMic={toggleWidgetVoiceMic}
       presentation="tauri"
+      timerActionNotice={timerActionNotice}
       windowId={windowId}
       windowVisible={windowVisible}
     />

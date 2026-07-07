@@ -83,6 +83,26 @@ type PersonalLocalFileByResourceInput = {
 
 export const PERSONAL_RESOURCES_CHANGED_EVENT = "bubli-personal-resources-changed";
 
+const ANALYZABLE_LOCAL_FILE_EXTENSIONS = new Set([
+  "csv",
+  "docx",
+  "htm",
+  "html",
+  "hwpx",
+  "json",
+  "jsonl",
+  "markdown",
+  "md",
+  "pdf",
+  "pptx",
+  "rtf",
+  "tsv",
+  "txt",
+  "xlsx",
+  "yaml",
+  "yml",
+]);
+
 // 호출 시점의 로케일로 번역하기 위해 상수 대신 함수로 둔다(모듈 로드 시점에 고정되지 않도록).
 const personalScopeMessage = () => translate("local.folder.personalOnly");
 const folderConsentMessage = () => translate("local.folder.consentRequired");
@@ -545,10 +565,44 @@ export async function syncPersonalLocalFileEventsToServer(input?: {
           .map((result) => result.resourceId as string),
       ),
     ];
+    const syncedAnalysisEvents = response.results
+      .map((result, index) => ({
+        localEvent: staged.data.events[index],
+        syncResult: result,
+      }))
+      .filter(({ localEvent, syncResult }) => {
+        return (
+          localEvent !== undefined &&
+          localEvent.eventType !== "DELETED" &&
+          localEvent.localFileId !== null &&
+          localEvent.localFileId !== undefined &&
+          syncResult.resourceId !== null &&
+          syncResult.resourceId !== undefined &&
+          syncResult.status === "SYNCED"
+        );
+      });
+    const analysisCandidates = syncedAnalysisEvents.filter(({ localEvent }) =>
+      isAnalyzableLocalFileName(localEvent?.fileName),
+    );
+    const analysisSkippedCount = syncedAnalysisEvents.length - analysisCandidates.length;
+    const analysisResults = await Promise.allSettled(
+      analysisCandidates.map(({ localEvent, syncResult }) =>
+        analyzePersonalLocalFileWithKeySentences({
+          consentGranted: input.consentGranted,
+          localFileId: localEvent.localFileId ?? "",
+          resourceId: syncResult.resourceId ?? "",
+        }),
+      ),
+    );
+    const analysisRequestedCount = analysisResults.filter(
+      (result) => result.status === "fulfilled" && result.value.status === "ready",
+    ).length;
+    const analysisFailedCount = analysisResults.length - analysisRequestedCount;
+
     const syncResult = {
-      analysisFailedCount: 0,
-      analysisRequestedCount: 0,
-      analysisSkippedCount: 0,
+      analysisFailedCount,
+      analysisRequestedCount,
+      analysisSkippedCount,
       failedCount: markResult.failedCount,
       sentCount: response.results.length,
       skippedCount,
@@ -561,7 +615,9 @@ export async function syncPersonalLocalFileEventsToServer(input?: {
     return ready(
       syncResult,
       commandName,
-      `로컬 파일 변경 ${response.results.length}건을 서버에 반영했습니다. AI 분석은 자료 상세에서 사용자가 요청할 때만 시작합니다.`,
+      analysisFailedCount > 0
+        ? `로컬 파일 변경 ${response.results.length}건을 서버에 반영했고, 중요 문장 분석 요청 ${analysisRequestedCount}건을 전달했습니다. ${analysisSkippedCount}건은 지원하지 않는 파일이라 건너뛰었고, ${analysisFailedCount}건은 실패했습니다.`
+        : `로컬 파일 변경 ${response.results.length}건을 서버에 반영했고, 중요 문장 분석 요청 ${analysisRequestedCount}건을 전달했습니다. ${analysisSkippedCount}건은 지원하지 않는 파일이라 건너뛰었습니다.`,
     );
   } catch (error) {
     const syncErrorMessage = getErrorMessage(error);
@@ -706,6 +762,11 @@ export async function getPersonalLocalFileAnalysisStatus(input?: {
   return runTauriAdapter(commandName, () =>
     tauriCommands.getLocalFileAnalysisStatus({ maxAttempts: input.maxAttempts }),
   );
+}
+
+function isAnalyzableLocalFileName(fileName?: string | null) {
+  const extension = fileName?.split(".").pop()?.toLowerCase();
+  return extension !== undefined && ANALYZABLE_LOCAL_FILE_EXTENSIONS.has(extension);
 }
 
 function notifyPersonalResourcesChanged(result: PersonalLocalFileEventsSyncResult) {

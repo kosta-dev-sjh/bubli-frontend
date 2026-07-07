@@ -9,6 +9,8 @@ import { readDesktopWidgetStartupPreference } from "@/features/onboarding/lib/on
 import { getStoredAuthSession, setStoredAuthSessionAndWaitForTauriMirror } from "@/lib/auth/auth-session";
 import { tauriCommands, type WidgetWindowOpenInput } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
+import { readWidgetSummary } from "@/lib/widget";
 import { startWidgetUsageAutoSync, stopWidgetUsageAutoSync } from "@/lib/widget/widget-usage-auto-sync";
 import {
   clearActiveProjectRoomId,
@@ -45,6 +47,8 @@ export type TauriAuthenticatedSurfaceLaunchTimeline = {
   reusedExistingWindowsAt?: string;
   selectedRoomResolvedAt?: string;
   sessionMirrorStoredAt?: string;
+  summaryPrewarmCompletedAt?: string;
+  summaryPrewarmFailedAt?: string;
   startupWindowsResolvedAt?: string;
   stoppedAt?: string;
   syncLoopsStartedAt?: string;
@@ -104,11 +108,6 @@ const desktopWidgetCascadeWindows: WidgetWindowOpenInput[] = [
   { bubbleType: "timer", mode: "DEFAULT", windowId: "timer" },
 ];
 
-const widgetOpenCommandTimeoutMs = 8_000;
-const widgetOpenRetryAttempts = 2;
-const widgetOpenRetryDelayMs = 650;
-const widgetStartupSettingsTimeoutMs = 1_500;
-
 type WidgetOpenResult =
   | { input: WidgetWindowOpenInput; status: "fulfilled" }
   | { input: WidgetWindowOpenInput; reason: unknown; status: "rejected" };
@@ -129,6 +128,19 @@ function widgetTargetFromInput(input: WidgetWindowOpenInput) {
     bubbleType: input.bubbleType,
     windowId: input.windowId ?? input.bubbleType,
   };
+}
+
+async function prewarmWidgetSummaryCache(selectedRoomId: string | null): Promise<boolean> {
+  const startupConfig = await readTauriStartupOptimizationConfig();
+  if (startupConfig.summaryPrewarmTimeoutMs <= 0) return false;
+
+  const result = await withTimeout(
+    readWidgetSummary({ preferLocalCache: false, selectedRoomId }),
+    startupConfig.summaryPrewarmTimeoutMs,
+    "Tauri widget summary prewarm timed out",
+  ).catch(() => null);
+
+  return result?.status === "ready";
 }
 
 function startupWindowRequiresVisibleWindow(input: WidgetWindowOpenInput) {
@@ -164,8 +176,9 @@ async function openWidgetWindowWithRetry(
   shouldContinue: () => boolean,
 ): Promise<WidgetOpenResult> {
   let lastReason: unknown = null;
+  const startupConfig = await readTauriStartupOptimizationConfig();
 
-  for (let attempt = 0; attempt <= widgetOpenRetryAttempts; attempt += 1) {
+  for (let attempt = 0; attempt <= startupConfig.retryAttempts; attempt += 1) {
     if (!shouldContinue()) {
       return { input, reason: new Error("Tauri widget launch cancelled"), status: "rejected" };
     }
@@ -173,14 +186,14 @@ async function openWidgetWindowWithRetry(
     try {
       await withTimeout(
         tauriCommands.openWidgetWindow({ ...input, selectedRoomId }),
-        widgetOpenCommandTimeoutMs,
+        startupConfig.openCommandTimeoutMs,
         "Tauri widget open timed out",
       );
       return { input, status: "fulfilled" };
     } catch (reason) {
       lastReason = reason;
-      if (attempt < widgetOpenRetryAttempts && shouldContinue()) {
-        await delay(widgetOpenRetryDelayMs);
+      if (attempt < startupConfig.retryAttempts && shouldContinue()) {
+        await delay(startupConfig.retryDelayMs);
       }
     }
   }
@@ -195,9 +208,9 @@ async function openWidgetWindowsWithRetry(
 ): Promise<WidgetOpenResult[]> {
   if (inputs.length === 0) return [];
   let lastReason: unknown = null;
-  const windows = inputs.map((input) => ({ ...input, selectedRoomId }));
+  const startupConfig = await readTauriStartupOptimizationConfig();
 
-  for (let attempt = 0; attempt <= widgetOpenRetryAttempts; attempt += 1) {
+  for (let attempt = 0; attempt <= startupConfig.retryAttempts; attempt += 1) {
     if (!shouldContinue()) {
       return inputs.map((input) => ({
         input,
@@ -207,12 +220,25 @@ async function openWidgetWindowsWithRetry(
     }
 
     try {
-      await withTimeout(tauriCommands.openWidgetWindows({ windows }), widgetOpenCommandTimeoutMs, "Tauri widget open timed out");
+      if (startupConfig.bubbleOpenStaggerMs > 0) {
+        for (const input of inputs) {
+          if (!shouldContinue()) throw new Error("Tauri widget launch cancelled");
+          await withTimeout(
+            tauriCommands.openWidgetWindow({ ...input, selectedRoomId }),
+            startupConfig.openCommandTimeoutMs,
+            "Tauri widget open timed out",
+          );
+          await delay(startupConfig.bubbleOpenStaggerMs);
+        }
+      } else {
+        const windows = inputs.map((input) => ({ ...input, selectedRoomId }));
+        await withTimeout(tauriCommands.openWidgetWindows({ windows }), startupConfig.openCommandTimeoutMs, "Tauri widget open timed out");
+      }
       return inputs.map((input) => ({ input, status: "fulfilled" as const }));
     } catch (reason) {
       lastReason = reason;
-      if (attempt < widgetOpenRetryAttempts && shouldContinue()) {
-        await delay(widgetOpenRetryDelayMs);
+      if (attempt < startupConfig.retryAttempts && shouldContinue()) {
+        await delay(startupConfig.retryDelayMs);
       }
     }
   }
@@ -221,9 +247,11 @@ async function openWidgetWindowsWithRetry(
 }
 
 export async function resolveLoginStartupWindows(): Promise<WidgetWindowOpenInput[]> {
+  const startupConfig = await readTauriStartupOptimizationConfig();
+  // 설정 응답 자체는 시작 창 구성에 쓰지 않는다 — 백엔드 웜업 겸 타임아웃 가드만 유지한다.
   await withTimeout(
     widgetApi.getSettings(),
-    widgetStartupSettingsTimeoutMs,
+    startupConfig.settingsTimeoutMs,
     "Tauri widget startup settings timed out",
   ).catch(() => null);
   const preference = readDesktopWidgetStartupPreference();
@@ -402,6 +430,7 @@ export function launchTauriAuthenticatedSurfaces(options: LaunchTauriAuthenticat
     const openedWindows: WidgetWindowOpenInput[] = [];
     const rejectedReasons: unknown[] = [];
     const shouldContinueLaunch = () => generation === launchGeneration;
+    let summaryPrewarmPromise: Promise<boolean> | null = null;
 
     if (barWindow) {
       if (generation !== launchGeneration) {
@@ -423,10 +452,23 @@ export function launchTauriAuthenticatedSurfaces(options: LaunchTauriAuthenticat
       }
     }
 
+    if (selectedRoomId || bubbleWindows.length > 0) {
+      summaryPrewarmPromise = prewarmWidgetSummaryCache(selectedRoomId);
+    }
+
     if (generation !== launchGeneration) {
       await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
       await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false }).catch(() => undefined);
       return;
+    }
+
+    if (summaryPrewarmPromise) {
+      const warmed = await summaryPrewarmPromise;
+      if (warmed) {
+        timeline.summaryPrewarmCompletedAt = nowIso();
+      } else {
+        timeline.summaryPrewarmFailedAt = nowIso();
+      }
     }
 
     const bubbleResults = await openWidgetWindowsWithRetry(bubbleWindows, selectedRoomId, shouldContinueLaunch);

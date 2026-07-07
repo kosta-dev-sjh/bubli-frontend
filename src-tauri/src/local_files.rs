@@ -3997,6 +3997,8 @@ fn stage_local_file_events_for_sync_for_conn(
         .clamp(1, 500);
     let folder_filter = input.and_then(|value| value.local_folder_id);
 
+    collapse_unsynced_create_delete_pairs(conn, folder_filter.as_deref(), now)?;
+
     let mut candidates = Vec::new();
     {
         let (sql, has_filter) = match &folder_filter {
@@ -4076,6 +4078,82 @@ fn stage_local_file_events_for_sync_for_conn(
         events: candidates,
         staged_at: ms_to_iso(now),
     })
+}
+
+fn collapse_unsynced_create_delete_pairs(
+    conn: &Connection,
+    local_folder_id: Option<&str>,
+    now: i64,
+) -> Result<(), String> {
+    let mut sql = String::from(
+        "SELECT DISTINCT created.local_file_id \
+         FROM local_file_events created \
+         INNER JOIN local_file_events deleted ON deleted.local_file_id = created.local_file_id \
+         INNER JOIN local_files f ON f.id = created.local_file_id \
+         INNER JOIN managed_folders m ON m.id = created.local_folder_id \
+         WHERE created.event_type = 'CREATED' \
+           AND deleted.event_type = 'DELETED' \
+           AND created.status IN ('PENDING', 'APPROVED', 'FAILED') \
+           AND deleted.status IN ('PENDING', 'APPROVED', 'FAILED') \
+           AND f.resource_id IS NULL \
+           AND m.status = 'ACTIVE' \
+           AND m.sync_enabled = 1",
+    );
+    if local_folder_id.is_some() {
+        sql.push_str(" AND created.local_folder_id = ?1");
+    }
+
+    let local_file_ids: Vec<String> = if let Some(local_folder_id) = local_folder_id {
+        let mut stmt = conn.prepare(&sql).map_err(|error| error.to_string())?;
+        let rows = stmt
+            .query_map(params![local_folder_id], |row| row.get::<_, String>(0))
+            .map_err(|error| error.to_string())?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|error| error.to_string())?
+    } else {
+        let mut stmt = conn.prepare(&sql).map_err(|error| error.to_string())?;
+        let rows = stmt
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(|error| error.to_string())?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|error| error.to_string())?
+    };
+
+    for local_file_id in local_file_ids {
+        let event_ids = {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT id FROM local_file_events \
+                     WHERE local_file_id = ?1 \
+                       AND event_type IN ('CREATED', 'DELETED') \
+                       AND status IN ('PENDING', 'APPROVED', 'FAILED')",
+                )
+                .map_err(|error| error.to_string())?;
+            let rows = stmt
+                .query_map(params![local_file_id], |row| row.get::<_, String>(0))
+                .map_err(|error| error.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|error| error.to_string())?;
+            rows
+        };
+
+        for event_id in event_ids {
+            mark_local_file_event_outbox(conn, &event_id, "SYNCED", now)?;
+            conn.execute(
+                "UPDATE local_file_events SET status = 'SYNCED' WHERE id = ?1",
+                params![event_id],
+            )
+            .map_err(|error| error.to_string())?;
+        }
+        delete_file_fts_index(conn, &local_file_id)?;
+        conn.execute(
+            "DELETE FROM local_files WHERE id = ?1",
+            params![local_file_id],
+        )
+        .map_err(|error| error.to_string())?;
+    }
+
+    Ok(())
 }
 
 /// Apply backend local-file sync results back into the local SQLite index.
@@ -5791,6 +5869,62 @@ mod tests {
         assert_eq!(local_file_count, 1);
         assert_eq!(event_status, "FAILED");
         assert_eq!(file_sync_status, "FAILED");
+    }
+
+    #[test]
+    fn unsynced_create_delete_pair_is_collapsed_before_server_stage() {
+        let conn = test_connection();
+        conn.execute(
+            "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+             VALUES ('folder-1', 'Docs', '/tmp/docs', 'ACTIVE', 1, 1, 1)",
+            [],
+        )
+        .expect("insert managed folder");
+        conn.execute(
+            "INSERT INTO local_files \
+             (id, local_folder_id, file_name, local_path, resource_id, size_bytes, sync_status, updated_at) \
+             VALUES ('file-1', 'folder-1', 'quick.txt', '/tmp/docs/quick.txt', NULL, 10, 'LOCAL_ONLY', 1)",
+            [],
+        )
+        .expect("insert local file");
+        conn.execute(
+            "INSERT INTO local_file_events \
+             (id, local_file_id, local_folder_id, event_type, file_name, local_path, size_bytes, status, created_at) \
+             VALUES \
+             ('event-created', 'file-1', 'folder-1', 'CREATED', 'quick.txt', '/tmp/docs/quick.txt', 10, 'PENDING', 1), \
+             ('event-deleted', 'file-1', 'folder-1', 'DELETED', 'quick.txt', '/tmp/docs/quick.txt', 10, 'PENDING', 2)",
+            [],
+        )
+        .expect("insert transient events");
+
+        let staged = stage_local_file_events_for_sync_for_conn(
+            &conn,
+            Some(LocalFileEventsSyncStageInput {
+                limit: Some(10),
+                local_folder_id: Some("folder-1".to_string()),
+            }),
+            30,
+        )
+        .expect("stage local file events");
+
+        let file_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM local_files WHERE id = 'file-1'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read file count");
+        let unsynced_event_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM local_file_events WHERE status != 'SYNCED'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read unsynced event count");
+
+        assert!(staged.events.is_empty());
+        assert_eq!(file_count, 0);
+        assert_eq!(unsynced_event_count, 0);
     }
 
     #[test]

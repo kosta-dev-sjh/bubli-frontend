@@ -201,7 +201,7 @@ export type DesktopWidgetBubbleProps = {
   onModeChange: (mode: WidgetWindowMode) => void;
   onOpenBubble?: (bubbleType: WidgetBubbleType) => void;
   onCreateMemo?: (bubble: WidgetPreviewBubble, body?: string) => Promise<void> | void;
-  onCreateSchedule?: (bubble: WidgetPreviewBubble, title?: string) => Promise<void> | void;
+  onCreateSchedule?: (bubble: WidgetPreviewBubble, title?: string, startsAt?: string | null) => Promise<void> | void;
   onCreateTodo?: (bubble: WidgetPreviewBubble, title?: string, options?: { forcePersonal?: boolean }) => Promise<void> | void;
   onEditTodo?: (item: WidgetPreviewItem, title: string) => Promise<void> | void;
   onDeleteTodo?: (item: WidgetPreviewItem) => Promise<void> | void;
@@ -218,6 +218,8 @@ export type DesktopWidgetBubbleProps = {
   onPrimaryTimerAction?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onToggleAlwaysOnTop: () => void;
   onToggleVoiceMic?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
+  // 타이머 시작/종료 실패 안내(권한 없음·이미 실행 중 등). 타이머 바디 위에 잠깐 표시한다.
+  timerActionNotice?: string | null;
   presentation?: "preview" | "tauri";
   // Tauri 창 식별자(리사이즈 커맨드 타깃). 프리뷰에서는 불필요.
   windowId?: string;
@@ -1374,7 +1376,15 @@ function WorkView({
   const timerStatus = timerItem?.status;
   const canPause = timerStatus === "RUNNING";
   const PrimaryIcon = timerStatus === "RUNNING" ? Square : Play;
-  const contextLabel = bubble.roomId ? t("widget.timer.workTimer") : t("widget.timer.generalTimer");
+  // 실행 중 타이머는 위젯 스코프와 무관하게 노출되므로, 라벨은 위젯 스코프가 아니라 타이머 자신을 기준으로 한다.
+  // 타이머 행이 있으면 그 행의 라벨(작업/일반)을, 다른 룸에 걸린 타이머면 그 룸 이름을 함께 보여 준다.
+  const contextLabel = timerItem
+    ? timerItem.roomName
+      ? `${timerItem.label} · ${timerItem.roomName}`
+      : timerItem.label
+    : bubble.roomId
+      ? t("widget.timer.workTimer")
+      : t("widget.timer.generalTimer");
   const primaryLabel =
     timerStatus === "RUNNING"
       ? t("widget.timerAction.stop")
@@ -1727,12 +1737,14 @@ function PersonalTimerView() {
 function TimerBody({
   bubble,
   initialMode,
+  actionNotice,
   onTimerModeChange,
   onPauseTimer,
   onPrimaryTimerAction,
 }: {
   bubble: WidgetPreviewBubble;
   initialMode?: WidgetTimerMode | null;
+  actionNotice?: string | null;
   onTimerModeChange?: (mode: WidgetTimerMode) => void;
   onPauseTimer?: DesktopWidgetBubbleProps["onPauseTimer"];
   onPrimaryTimerAction?: DesktopWidgetBubbleProps["onPrimaryTimerAction"];
@@ -1781,6 +1793,11 @@ function TimerBody({
 
   return (
     <div className={styles.body}>
+      {actionNotice ? (
+        <p className={styles.timerNotice} role="status" aria-live="polite">
+          {actionNotice}
+        </p>
+      ) : null}
       {/* 상위 탭: 시계 · 타이머 · 뽀모도로. 하나의 세그먼트 바로 읽혀야 한다(pill 3개 금지). */}
       <SegmentedControl
         ariaLabel={t("widget.timer.modeAria")}
@@ -2054,8 +2071,21 @@ function MemoBody({
 
 type ScheduleView = "list" | "week" | "month" | "wbs";
 
-// 세그먼트 순서 = 좌→우 탭. 기본값은 "월간"(달력 형태)이다.
+// 세그먼트 순서 = 좌→우 탭.
 const SCHEDULE_VIEW_ORDER: ScheduleView[] = ["list", "week", "month", "wbs"];
+
+// datetime-local 입력값("YYYY-MM-DDTHH:mm", 로컬시간)으로 변환한다.
+function toDatetimeLocalValue(date: Date): string {
+  const pad = (value: number) => `${value}`.padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+// 기본 일정 시작 = 지금에서 다음 30분 단위로 올림(제목만 입력하고 바로 추가할 때의 기본값).
+function defaultScheduleStartLocal(): string {
+  const next = new Date();
+  next.setMinutes(next.getMinutes() < 30 ? 30 : 60, 0, 0);
+  return toDatetimeLocalValue(next);
+}
 
 type ScheduleEvent = {
   allDay: boolean;
@@ -2129,7 +2159,11 @@ function ScheduleBody({
   const localeTag = String(locale);
   const [draft, setDraft] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [view, setView] = useState<ScheduleView>("month");
+  // 일정 추가 시작 시각(날짜+시간). 투두처럼 제목만 받던 걸 바꿔, 언제인지 직접 고르게 한다.
+  const [draftAt, setDraftAt] = useState<string>(() => defaultScheduleStartLocal());
+  // 좁은 위젯에서는 목록(제목·시간이 다 보임)이 기본이어야 일정이 바로 보인다. 월/주/WBS는 탭으로 전환.
+  // (월간 기본은 오늘 일정이 없으면 빈 달력처럼 보여 "일정이 안 뜬다"는 인상을 줬다.)
+  const [view, setView] = useState<ScheduleView>("list");
   const today = useMemo(() => schedStartOfDay(new Date()), []);
   const [anchor, setAnchor] = useState<Date>(() => schedStartOfDay(new Date()));
   const [selectedDay, setSelectedDay] = useState<Date>(() => schedStartOfDay(new Date()));
@@ -2145,10 +2179,15 @@ function ScheduleBody({
     const title = draft.trim();
     if (!title || !onCreateSchedule || submitting) return;
 
+    // datetime-local(로컬시간) → ISO. 값이 비었거나 잘못됐으면 기본 시작으로 폴백한다.
+    const chosen = draftAt ? new Date(draftAt) : null;
+    const startsAt = chosen && !Number.isNaN(chosen.getTime()) ? chosen.toISOString() : null;
+
     setSubmitting(true);
     try {
-      await onCreateSchedule(bubble, title);
+      await onCreateSchedule(bubble, title, startsAt);
       setDraft("");
+      setDraftAt(defaultScheduleStartLocal());
     } finally {
       setSubmitting(false);
     }
@@ -2388,6 +2427,7 @@ function ScheduleBody({
       </div>
       <form
         className={styles.input}
+        style={{ flexWrap: "wrap" }}
         onSubmit={(event) => {
           event.preventDefault();
           void saveDraftSchedule();
@@ -2400,7 +2440,17 @@ function ScheduleBody({
           maxLength={200}
           onChange={(event) => setDraft(event.target.value)}
           placeholder={bubble.inputPlaceholder ? t(bubble.inputPlaceholder as MessageKey) : t("widget.schedule.prompt")}
+          style={{ flex: "1 1 110px", minWidth: 0 }}
           value={draft}
+        />
+        {/* 일정은 "언제"가 핵심 — 투두식 제목만 받지 않고 시작 날짜·시간을 직접 고른다. */}
+        <input
+          aria-label={t("widget.schedule.quickAdd")}
+          disabled={submitting}
+          onChange={(event) => setDraftAt(event.target.value)}
+          style={{ flex: "1 1 150px", minWidth: 0 }}
+          type="datetime-local"
+          value={draftAt}
         />
         <button aria-label={t("widget.schedule.quickAdd")} disabled={submitting || !draft.trim()} type="submit">
           <Plus size={13} strokeWidth={2.1} />
@@ -2509,6 +2559,7 @@ function ResourceBody({
 function BubbleBody({
   bubble,
   timerMode,
+  timerActionNotice,
   onItemStateChange,
   onCreateMemo,
   onCreateSchedule,
@@ -2533,6 +2584,7 @@ function BubbleBody({
 }: {
   bubble: WidgetPreviewBubble;
   timerMode?: WidgetTimerMode | null;
+  timerActionNotice?: DesktopWidgetBubbleProps["timerActionNotice"];
   onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
   onCreateMemo?: DesktopWidgetBubbleProps["onCreateMemo"];
   onCreateSchedule?: DesktopWidgetBubbleProps["onCreateSchedule"];
@@ -2585,7 +2637,7 @@ function BubbleBody({
     return <AlertBody bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />;
   }
   if (bubble.id === "timer") {
-    return <TimerBody bubble={bubble} initialMode={timerMode} onTimerModeChange={onTimerModeChange} onPauseTimer={onPauseTimer} onPrimaryTimerAction={onPrimaryTimerAction} />;
+    return <TimerBody bubble={bubble} initialMode={timerMode} actionNotice={timerActionNotice} onTimerModeChange={onTimerModeChange} onPauseTimer={onPauseTimer} onPrimaryTimerAction={onPrimaryTimerAction} />;
   }
   if (bubble.id === "memo") {
     return <MemoBody bubble={bubble} onCreateMemo={onCreateMemo} onDeleteMemo={onDeleteMemo} onEditMemo={onEditMemo} />;
@@ -3021,6 +3073,7 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
   onStartVoice,
   onToggleAlwaysOnTop,
   onToggleVoiceMic,
+  timerActionNotice,
   presentation = "tauri",
   windowId,
   windowVisible = true,
@@ -3217,6 +3270,7 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
               <BubbleBody
                 bubble={activeData}
                 timerMode={timerModeForGhost}
+                timerActionNotice={timerActionNotice}
                 onAnalyzeResource={onAnalyzeResource}
                 onDeleteMemo={onDeleteMemo}
                 onDownloadResource={onDownloadResource}

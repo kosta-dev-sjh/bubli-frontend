@@ -22,6 +22,8 @@ function isHexAllowedFile(relativePath) {
 
 const ALLOWED_HEX_COLORS = new Set(
   [
+    // 타이머 액션 실패 안내(권한 없음·이미 실행 중) — dust rose
+    "#E89898",
     // 타이머(코랄)/메모(골드)/자료(브라운) 재보정 + 메뉴 잉크
     "#FF6B3D",
     "#AE3009",
