@@ -1029,22 +1029,36 @@ function ChatPageContent() {
 
   // voice 상태를 전역 store에 동기화 — AppShell 영구 바 + 탭 복귀 복원 모두 여기서
   useEffect(() => {
+    const isActiveOpenRoom = voiceState.kind === "ready" && voiceState.room.status === "OPEN";
     voiceStore.update({
       expanded: voiceExpanded,
       selectedChatRoomId,
       voice: voiceState.kind === "starting" || voiceState.kind === "blocked"
         ? { kind: "idle" }
         : voiceState,
+      // 통화가 끝났으면 "발신 중" 라벨은 더 이상 쓸 곳이 없다 — 다음 발신 때 새로 채워진다.
+      // 진행 중일 때는 키를 넣지 않아 startVoice가 채운 값을 그대로 둔다(patch가 얕은 병합이라
+      // undefined를 넣으면 오히려 지워버림).
+      ...(isActiveOpenRoom ? {} : { calleeLabel: null }),
     });
   }, [voiceState, voiceExpanded, selectedChatRoomId]);
 
-  // 열린 보이스룸의 참여자 상태를 주기적으로 갱신 (다른 멤버의 참여/퇴장 반영)
+  // 열린 보이스룸의 참여자 상태 갱신 — 서버가 참여/퇴장/종료 시 /topic/voice/{id}로 즉시 알려주므로
+  // 그걸로 반영하고, 소켓이 끊긴 경우를 대비해 훨씬 느슨한 주기로 폴링도 함께 돌린다(안전망).
+  // 예전엔 폴링(최대 12초 간격)만 있어서 상대가 전화를 끊어도 내 화면엔 최대 10초 가까이 늦게 반영됐다.
   const openVoiceRoomDbId = voiceState.kind === "ready" && voiceState.room.status === "OPEN" ? voiceState.room.id : null;
   useEffect(() => {
     if (!openVoiceRoomDbId) return;
 
-    // 링백 중(상대 응답 대기)에는 더 자주 확인해, 상대가 받으면 발신자 통화음이 빨리 멈추게 한다.
-    const intervalMs = isRingingBack ? 3000 : 12000;
+    const client = getChatRealtimeClient();
+    const unsubscribe = client.subscribe(websocketTopics.voiceRoom(openVoiceRoomDbId), (data) => {
+      const room = data as VoiceRoomResponse | null;
+      if (!room || room.id !== openVoiceRoomDbId) return;
+      setVoiceState({ kind: "ready", room });
+    });
+
+    // 링백 중(상대 응답 대기)에는 소켓 지연/유실에 대비해 좀 더 자주 안전망 폴링을 돈다.
+    const intervalMs = isRingingBack ? 3000 : 15000;
     const interval = window.setInterval(() => {
       void voiceApi
         .getRoom(openVoiceRoomDbId)
@@ -1054,7 +1068,10 @@ function ChatPageContent() {
         });
     }, intervalMs);
 
-    return () => window.clearInterval(interval);
+    return () => {
+      unsubscribe();
+      window.clearInterval(interval);
+    };
   }, [openVoiceRoomDbId, isRingingBack]);
 
   // 소셜/채팅룸/초대 상태 백그라운드 폴링 (친구 요청·초대 수락이 자동 반영)
@@ -1116,7 +1133,12 @@ function ChatPageContent() {
   }, []);
 
   useEffect(() => {
-    if (!activeChatRoomId) return;
+    if (!activeChatRoomId) {
+      // 현재 모드(1:1/그룹/프로젝트룸)에 열 대화방이 없으면 직전에 보던 다른 방의 메시지가
+      // 화면에 남아있지 않도록 비워준다(그룹 탭에 방이 없을 때 이전 1:1/룸 대화가 보이던 원인).
+      const timeoutId = window.setTimeout(() => setMessagesState({ kind: "idle" }), 0);
+      return () => window.clearTimeout(timeoutId);
+    }
 
     const timeoutId = window.setTimeout(() => {
       void loadMessages(activeChatRoomId);
@@ -1525,7 +1547,8 @@ function ChatPageContent() {
     setVoiceState({ kind: "starting" });
     setVoiceAction(null);
     setVoiceMicMuted(false);
-    voiceStore.update({ micMuted: false });
+    // 1:1/그룹 통화만 "발신 중" 팝업 대상 — 프로젝트룸 보이스는 특정 상대에게 거는 개념이 아니다.
+    voiceStore.update({ calleeLabel: selectedRoom.chatType === "ROOM" ? null : selectedRoom.name, micMuted: false });
     setVoiceNotice(null);
 
     try {
@@ -1899,17 +1922,6 @@ function ChatPageContent() {
               <UsersRound aria-hidden size={15} strokeWidth={2} />
               {t("chat.quick.manageFriends")}
             </button>
-            {selectedRoom && !activeVoiceRoom ? (
-              <button
-                className="workspace-route__quick-button workspace-route__quick-button--primary"
-                disabled={voiceState.kind === "starting" || voiceLockedByAnotherRoom}
-                onClick={() => void startVoice()}
-                type="button"
-              >
-                <Phone aria-hidden size={15} strokeWidth={2} />
-                {voiceState.kind === "starting" ? t("chat.voice.waiting") : t("chat.thread.startVoice")}
-              </button>
-            ) : null}
           </div>
         ) : null}
       </div>

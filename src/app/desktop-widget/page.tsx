@@ -105,6 +105,7 @@ const devVoiceRoomId =
 
 const WIDGET_SESSION_RESTORE_GRACE_ATTEMPTS = 6;
 const WIDGET_SESSION_RESTORE_GRACE_DELAY_MS = 250;
+const MAX_MESSAGE_TOASTS = 3;
 const TIMER_HEARTBEAT_INTERVAL_MS = 60_000;
 type WidgetItemStateAction = "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED";
 type WidgetAgentSuggestionReviewAction = "APPROVE" | "HOLD" | "REJECT";
@@ -1337,6 +1338,15 @@ function DesktopWidgetSurface() {
   const [activeVoiceRoomId, setActiveVoiceRoomId] = useState<string | null>(devVoiceRoomId);
   // 발신자 링백 판단용 — 최근 로드된 통화방을 들고 있는다(참여자·상태·개설자).
   const [activeVoiceRoom, setActiveVoiceRoom] = useState<WidgetVoiceRoomResponse | null>(null);
+  // 알림 구독 콜백(의존성 배열이 좁아 클로저가 갱신되지 않음)에서 최신 값을 읽기 위한 ref.
+  const activeVoiceRoomRef = useRef(activeVoiceRoom);
+  useEffect(() => {
+    activeVoiceRoomRef.current = activeVoiceRoom;
+  }, [activeVoiceRoom]);
+  const currentUserIdRef = useRef(currentUserId);
+  useEffect(() => {
+    currentUserIdRef.current = currentUserId;
+  }, [currentUserId]);
   const [agentRevision, setAgentRevision] = useState(0);
   const [communicationRevision, setCommunicationRevision] = useState(0);
   const [itemStateOverrides, setItemStateOverrides] = useState<Record<string, WidgetItemStateAction>>({});
@@ -3091,12 +3101,29 @@ function DesktopWidgetSurface() {
         });
       }
 
+      // 상대가 내가 건 전화를 거절함 — 마이크가 켜진 채로 대기하는 발신자 화면을 자동으로 끊는다.
+      if (notification.sourceType === "VOICE_CALL_DECLINED" && notification.sourceId) {
+        const room = activeVoiceRoomRef.current;
+        if (
+          room &&
+          room.status === "OPEN" &&
+          room.chatRoomId === notification.sourceId &&
+          room.createdByUserId === currentUserIdRef.current
+        ) {
+          void widgetCommunicationApi.endVoiceRoom(room.id).catch(() => undefined);
+          stopCallRingtone();
+        }
+        void notificationApi.markRead(notification.id).catch(() => undefined);
+      }
+
       const pushToast = (kind: NotificationToastKind, chatRoomId?: string) => {
         const toastId = notification.id;
-        setMessageToasts((current) => [
-          ...current.filter((toast) => toast.id !== toastId),
-          { chatRoomId, id: toastId, kind, senderName: notification.title, text: notification.body ?? "" },
-        ]);
+        setMessageToasts((current) =>
+          [
+            ...current.filter((toast) => toast.id !== toastId),
+            { chatRoomId, id: toastId, kind, senderName: notification.title, text: notification.body ?? "" },
+          ].slice(-MAX_MESSAGE_TOASTS),
+        );
         window.setTimeout(() => {
           setMessageToasts((current) => current.filter((toast) => toast.id !== toastId));
         }, 6_000);
@@ -3154,7 +3181,15 @@ function DesktopWidgetSurface() {
 
   const dismissIncomingVoiceCall = useCallback(() => {
     if (!incomingVoiceCall) return;
-    void notificationApi.markRead(incomingVoiceCall.notificationId).catch(() => undefined);
+    const call = incomingVoiceCall;
+    // 상대(발신자)에게 거절했음을 알려야 마이크가 켜진 채로 대기하는 발신자 화면을 자동으로 끊을 수 있다.
+    // 이미 열려 있는 방을 그대로 반환하는 createVoiceRoom("join-or-create")으로 방 id를 얻는다 — 참여자로
+    // 등록되지는 않으므로(방이 이미 있으면 참여자를 추가하지 않음) 내 마이크가 켜지지 않는다.
+    void widgetCommunicationApi
+      .createVoiceRoom({ chatRoomId: call.chatRoomId })
+      .then((room) => widgetCommunicationApi.declineVoiceRoom(room.id))
+      .catch(() => undefined);
+    void notificationApi.markRead(call.notificationId).catch(() => undefined);
     setIncomingVoiceCall(null);
   }, [incomingVoiceCall]);
 
@@ -3545,7 +3580,7 @@ function DesktopWidgetSurface() {
         />
         {incomingVoiceCall ? (
           <div className="voice-call-invite" role="dialog" aria-modal="true" aria-label={t("layout.voiceCall.aria")}>
-            <div className="voice-call-invite__card">
+            <div className="voice-call-invite__card" data-bubli-interactive="true">
               <div className="voice-call-invite__avatar" aria-hidden="true">
                 <Phone size={26} strokeWidth={2} />
               </div>
@@ -3574,6 +3609,7 @@ function DesktopWidgetSurface() {
                 <button className="message-toast__body" onClick={() => void openMessageToast(toast)} type="button">
                   <strong className="message-toast__sender">{toast.senderName}</strong>
                   <span className="message-toast__text">{toast.text}</span>
+                  <span className="message-toast__view-detail">{t("layout.messageToast.viewDetail")}</span>
                 </button>
                 <button
                   aria-label={t("layout.messageToast.dismiss")}

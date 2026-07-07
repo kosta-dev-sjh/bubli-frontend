@@ -57,8 +57,15 @@ const ko = {
   "layout.voiceCall.connecting": "연결 중",
   "layout.voiceCall.decline": "거절",
 
+  // 발신 중(링백) 팝업
+  "layout.voiceCall.outgoingAria": "발신 중인 보이스 통화",
+  "layout.voiceCall.outgoingHint": "전화를 거는 중이에요",
+  "layout.voiceCall.cancel": "취소",
+  "layout.voiceCall.declinedNotice": "상대가 전화를 거절했습니다",
+
   // 새 메시지 미리보기 토스트
   "layout.messageToast.dismiss": "닫기",
+  "layout.messageToast.viewDetail": "자세히 보기",
 
   // 상단바 알림 패널
   "layout.notifications.aria": "알림 패널",
@@ -154,7 +161,13 @@ const en: Record<Key, string> = {
   "layout.voiceCall.connecting": "Connecting",
   "layout.voiceCall.decline": "Decline",
 
+  "layout.voiceCall.outgoingAria": "Outgoing voice call",
+  "layout.voiceCall.outgoingHint": "Calling...",
+  "layout.voiceCall.cancel": "Cancel",
+  "layout.voiceCall.declinedNotice": "The other person declined the call",
+
   "layout.messageToast.dismiss": "Dismiss",
+  "layout.messageToast.viewDetail": "View details",
 
   "layout.notifications.aria": "Notifications panel",
   "layout.gate.redirecting": "Sign-in required. Redirecting to login…",
@@ -246,7 +259,13 @@ const ja: Record<Key, string> = {
   "layout.voiceCall.connecting": "接続中",
   "layout.voiceCall.decline": "拒否",
 
+  "layout.voiceCall.outgoingAria": "発信中のボイス通話",
+  "layout.voiceCall.outgoingHint": "発信中です",
+  "layout.voiceCall.cancel": "キャンセル",
+  "layout.voiceCall.declinedNotice": "相手が通話を拒否しました",
+
   "layout.messageToast.dismiss": "閉じる",
+  "layout.messageToast.viewDetail": "詳細を見る",
 
   "layout.notifications.aria": "通知パネル",
   "layout.gate.redirecting": "ログインが必要です。ログイン画面へ移動中…",

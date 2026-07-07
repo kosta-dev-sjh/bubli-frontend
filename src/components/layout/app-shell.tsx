@@ -33,11 +33,12 @@ import type { TranslateVars, MessageKey } from "@/lib/i18n";
 import {
   AUTH_SESSION_CHANGE_EVENT, getStoredAuthSession, restoreStoredAuthSessionFromTauri, clearStoredAuthSession,
 } from "@/lib/auth/auth-session";
-import { connectLiveKitRoom, onActiveSpeakersChanged } from "@/lib/livekit-client";
+import { connectLiveKitRoom, disconnectLiveKitRoom, getActiveLiveKitVoiceRoomId, onActiveSpeakersChanged } from "@/lib/livekit-client";
 import { voiceStore } from "@/lib/voice-store";
 import { projectRoomRoute } from "@/lib/project-room-routes";
 import { launchTauriAuthenticatedSurfaces, stopTauriAuthenticatedSurfaces } from "@/lib/tauri/authenticated-surfaces";
 import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
+import { tauriCommands } from "@/lib/tauri/commands";
 import { listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import {
@@ -62,6 +63,7 @@ const runtimeSmokeEnabled =
 const TAURI_SESSION_RESTORE_GRACE_ATTEMPTS = 6;
 const TAURI_SESSION_RESTORE_GRACE_DELAY_MS = 250;
 const TAURI_SESSION_RESTORE_COMMAND_TIMEOUT_MS = 1_000;
+const MAX_MESSAGE_TOASTS = 3;
 
 type AppShellProps = {
   children: ReactNode;
@@ -100,9 +102,12 @@ function roomSwitchHref(
   searchParams: ReadonlyURLSearchParams,
   nextRoomId: string,
 ): string | null {
-  // 룸 채팅(/app/chat?mode=room): 룸을 바꾸면 채팅도 새 룸으로. 다이렉트 메시지(mode=direct)는 룸에 안 묶이므로 제외.
+  // 룸 채팅(/app/chat?mode=room): 룸을 바꾸면 채팅도 새 룸으로. 1:1/그룹(mode=direct/group)은
+  // 프로젝트룸에 묶이지 않으므로 제외 — 안 그러면 1:1·그룹 탭을 보다가 룸을 바꾸면 원치 않게
+  // 프로젝트룸 탭으로 튕겨나갔다.
   if (pathname === "/app/chat") {
-    if (searchParams.get("mode") === "direct") return null;
+    const mode = searchParams.get("mode");
+    if (mode === "direct" || mode === "group") return null;
     if (searchParams.get("roomId") === nextRoomId) return null;
     return `/app/chat?mode=room&roomId=${encodeURIComponent(nextRoomId)}`;
   }
@@ -231,6 +236,8 @@ export function AppShell({ children }: AppShellProps) {
     notificationId: string;
   } | null>(null);
   const [voiceCallResponding, setVoiceCallResponding] = useState(false);
+  // 발신 중 팝업에 잠깐 띄우는 상태 문구("상대가 거절했습니다" 등) — 몇 초 뒤 자동으로 사라진다.
+  const [outgoingCallNotice, setOutgoingCallNotice] = useState<string | null>(null);
 
   // 카카오톡 스타일 실시간 미리보기 토스트 — 메시지뿐 아니라 친구 요청/수락, 룸 초대, 1:1·그룹 초대도
   // 화면 어디에 있든 우측 하단에 쌓이고, 클릭하면 종류에 맞는 화면으로 이동한다.
@@ -240,11 +247,19 @@ export function AppShell({ children }: AppShellProps) {
 
   const voiceSnap = useSyncExternalStore(voiceStore.subscribe, voiceStore.getSnapshot, voiceStore.getServerSnapshot);
   const persistVoice = voiceSnap.voice.kind === "ready" ? voiceSnap.voice : null;
+  // 내가 만든 통화방에 아직 나 혼자뿐이면(상대가 안 받음) "통화 중" 표시가 아니라 "발신 중" 표시를 보여줘야 한다.
+  const isCallerRingingBack =
+    persistVoice !== null &&
+    persistVoice.room.status === "OPEN" &&
+    readyUserId !== null &&
+    persistVoice.room.createdByUserId === readyUserId &&
+    persistVoice.room.participants.filter((p) => p.status === "JOINED").length <= 1;
   // 방 자체가 열려 있어도 내가 나간 상태(다른 사람은 통화 중)라면 내 화면에서는 통화 중으로 보이면 안 된다.
   const showVoiceFloat =
     persistVoice !== null &&
     persistVoice.room.status === "OPEN" &&
-    persistVoice.room.participants.some((p) => p.userId === readyUserId && p.status === "JOINED");
+    persistVoice.room.participants.some((p) => p.userId === readyUserId && p.status === "JOINED") &&
+    !isCallerRingingBack;
   const voiceChatLink = persistVoice
     ? persistVoice.room.roomId
       ? `/app/chat?roomId=${persistVoice.room.roomId}`
@@ -492,10 +507,12 @@ export function AppShell({ children }: AppShellProps) {
 
   function pushNotificationToast(kind: NotificationToastKind, notification: NotificationResponse, chatRoomId?: string) {
     const toastId = notification.id;
-    setMessageToasts((current) => [
-      ...current.filter((toast) => toast.id !== toastId),
-      { chatRoomId, id: toastId, kind, senderName: notification.title, text: notification.body ?? "" },
-    ]);
+    setMessageToasts((current) =>
+      [
+        ...current.filter((toast) => toast.id !== toastId),
+        { chatRoomId, id: toastId, kind, senderName: notification.title, text: notification.body ?? "" },
+      ].slice(-MAX_MESSAGE_TOASTS),
+    );
     window.setTimeout(() => {
       setMessageToasts((current) => current.filter((toast) => toast.id !== toastId));
     }, 6_000);
@@ -526,11 +543,49 @@ export function AppShell({ children }: AppShellProps) {
       playNotificationSound();
 
       if (notification.sourceType === "VOICE_CALL" && notification.sourceId) {
-        setIncomingVoiceCall({
+        const call = {
           callerName: notification.title,
           chatRoomId: notification.sourceId,
           notificationId: notification.id,
-        });
+        };
+        // 데스크톱 위젯(바)이 떠 있으면 그쪽에서 수신 전화 팝업을 보여주므로, 앱 쪽에서는
+        // 중복으로 뜨지 않게 건너뛴다 — 위젯이 꺼져 있을 때만 앱이 이 역할을 대신한다.
+        if (isTauriRuntime()) {
+          tauriCommands
+            .getWidgetWindowState({ bubbleType: "bar", windowId: "bar" })
+            .then((state) => {
+              if (!state.windowVisible) setIncomingVoiceCall(call);
+            })
+            .catch(() => setIncomingVoiceCall(call));
+        } else {
+          setIncomingVoiceCall(call);
+        }
+      }
+
+      // 상대가 내가 건 전화를 거절함 — 발신자(나) 쪽에서 자동으로 통화를 종료한다.
+      // 백엔드는 참여 상태와 무관하게 발신자를 즉시 JOINED로 만들어(수락 대기 개념이 없어서)
+      // 거절해도 방이 저절로 안 끝나므로, 이 알림이 유일한 "거절됨" 신호다.
+      if (notification.sourceType === "VOICE_CALL_DECLINED" && notification.sourceId) {
+        const activeVoice = voiceStore.getSnapshot().voice;
+        if (
+          activeVoice.kind === "ready" &&
+          activeVoice.room.status === "OPEN" &&
+          activeVoice.room.chatRoomId === notification.sourceId &&
+          activeVoice.room.createdByUserId === readyUserId
+        ) {
+          const voiceRoomId = activeVoice.room.id;
+          void voiceApi
+            .end(voiceRoomId)
+            .then((room) => voiceStore.update({ voice: { kind: "ready", room } }))
+            .catch(() => undefined);
+          if (getActiveLiveKitVoiceRoomId() === voiceRoomId) {
+            void disconnectLiveKitRoom();
+          }
+          stopCallRingtone();
+          setOutgoingCallNotice(t("layout.voiceCall.declinedNotice"));
+          window.setTimeout(() => setOutgoingCallNotice(null), 3_000);
+        }
+        void notificationApi.markRead(notification.id).catch(() => undefined);
       }
 
       if (notification.sourceType === "MESSAGE" && notification.sourceId) {
@@ -581,9 +636,41 @@ export function AppShell({ children }: AppShellProps) {
     return () => stopCallRingtone();
   }, [incomingVoiceCall]);
 
+  // 발신자(내가 건 전화) 링백 — 상대가 받거나 거절/타임아웃될 때까지 통화음을 반복 재생한다.
+  // 채팅 화면을 벗어나도(다른 탭에 있어도) 앱 전역에서 계속 들려야 하므로 여기서도 재생한다.
+  useEffect(() => {
+    if (!isCallerRingingBack) return;
+    startCallRingtone();
+    const timeoutId = window.setTimeout(() => stopCallRingtone(), 45_000);
+    return () => {
+      window.clearTimeout(timeoutId);
+      stopCallRingtone();
+    };
+  }, [isCallerRingingBack]);
+
+  const cancelOutgoingCall = useCallback(() => {
+    if (!persistVoice) return;
+    void voiceApi
+      .end(persistVoice.room.id)
+      .then((room) => voiceStore.update({ voice: { kind: "ready", room } }))
+      .catch(() => undefined);
+    if (getActiveLiveKitVoiceRoomId() === persistVoice.room.id) {
+      void disconnectLiveKitRoom();
+    }
+    stopCallRingtone();
+  }, [persistVoice]);
+
   const dismissIncomingVoiceCall = useCallback(() => {
     if (!incomingVoiceCall) return;
-    void notificationApi.markRead(incomingVoiceCall.notificationId).catch(() => undefined);
+    const call = incomingVoiceCall;
+    // 상대(발신자)에게 거절했음을 알려야 마이크가 켜진 채로 대기하는 발신자 화면을 자동으로 끊을 수 있다.
+    // 이미 열려 있는 방을 그대로 반환하는 createRoom("join-or-create")으로 방 id를 얻는다 — 참여자로
+    // 등록되지는 않으므로(방이 이미 있으면 참여자를 추가하지 않음) 내 마이크가 켜지지 않는다.
+    void voiceApi
+      .createRoom({ chatRoomId: call.chatRoomId })
+      .then((room) => voiceApi.decline(room.id))
+      .catch(() => undefined);
+    void notificationApi.markRead(call.notificationId).catch(() => undefined);
     setIncomingVoiceCall(null);
   }, [incomingVoiceCall]);
 
@@ -1380,6 +1467,24 @@ export function AppShell({ children }: AppShellProps) {
           </div>
         </div>
       ) : null}
+      {!incomingVoiceCall && (isCallerRingingBack || outgoingCallNotice) && persistVoice ? (
+        <div className="voice-call-invite" role="status" aria-label={t("layout.voiceCall.outgoingAria")}>
+          <div className="voice-call-invite__card">
+            <div className="voice-call-invite__avatar" aria-hidden="true">
+              <Phone size={26} strokeWidth={2} />
+            </div>
+            <strong className="voice-call-invite__caller">{voiceSnap.calleeLabel ?? t("layout.voiceCall.outgoingHint")}</strong>
+            <span className="voice-call-invite__hint">{outgoingCallNotice ?? t("layout.voiceCall.outgoingHint")}</span>
+            {isCallerRingingBack ? (
+              <div className="voice-call-invite__actions">
+                <button className="voice-call-invite__decline" onClick={cancelOutgoingCall} type="button">
+                  {t("layout.voiceCall.cancel")}
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
       {messageToasts.length > 0 ? (
         <div className="message-toast-stack" aria-live="polite">
           {messageToasts.map((toast) => (
@@ -1387,6 +1492,7 @@ export function AppShell({ children }: AppShellProps) {
               <button className="message-toast__body" onClick={() => void openMessageToast(toast)} type="button">
                 <strong className="message-toast__sender">{toast.senderName}</strong>
                 <span className="message-toast__text">{toast.text}</span>
+                <span className="message-toast__view-detail">{t("layout.messageToast.viewDetail")}</span>
               </button>
               <button
                 aria-label={t("layout.messageToast.dismiss")}
