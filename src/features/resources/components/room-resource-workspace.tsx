@@ -204,7 +204,7 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
   }, []);
 
   return (
-    <section className={styles.page} aria-label={t("resources.workspace.aria")}>
+    <section className={cn("resource-workspace", styles.page)} aria-label={t("resources.workspace.aria")}>
       <GlassPanel
         className={cn(styles.shell, dragActive && styles.shellDrop)}
         onDragEnter={(event) => {

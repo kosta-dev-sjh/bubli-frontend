@@ -1187,10 +1187,19 @@ function ChatPageContent() {
     return () => window.clearInterval(interval);
   }, [typingPeople]);
 
+  // URL의 ?roomId=가 가리키는 룸으로 전역 활성 룸을 동기화한다(딥링크로 곧장 들어온 경우 대비).
+  // selectedRoom/activeRoomInfo를 의존성으로 쓰면 안 된다 — 스위처가 활성 룸을 바꾼 직후,
+  // 아직 router.replace의 URL 반영이 끝나지 않은 렌더에서는 selectedRoom이 옛 룸 기준으로
+  // 계산되어 있어 이 effect가 방금 바뀐 새 룸을 도로 옛 룸으로 덮어써 버렸다
+  // (상단 스위처로 룸을 바꿔도 소통 탭에서 간헐적으로 전환이 안 되던 원인).
+  // queryRoomId + roomsState만 보고 직접 룸을 찾으면 activeRoomInfo와 순환 의존이 생기지 않는다.
   useEffect(() => {
-    if (!selectedRoom?.roomId || selectedRoom.chatType !== "ROOM") return;
-    setActiveProjectRoomId(selectedRoom.roomId, selectedRoom.name?.replace(/\s*대화$/, "") ?? t("chat.room.fallbackName"));
-  }, [currentUser, selectedRoom, t]);
+    if (!queryRoomId || roomsState.kind !== "ready") return;
+    const room = roomsState.rooms.find((item) => item.chatType === "ROOM" && item.roomId === queryRoomId);
+    if (!room?.roomId) return;
+    setActiveProjectRoomId(room.roomId, room.name?.replace(/\s*대화$/, "") ?? t("chat.room.fallbackName"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryRoomId, roomsState, t]);
 
   // 하단 근처에 있을 때만 자동 스크롤 — 과거 메시지를 읽는 중이면 위치를 유지한다.
   useEffect(() => {
