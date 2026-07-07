@@ -2969,6 +2969,12 @@ select {
   flex: 0 0 auto;
 }
 
+.workspace-route__chat-quick-actions .workspace-route__quick-button--primary {
+  border-color: rgba(55, 140, 220, 0.42);
+  color: var(--blue-ink);
+  background: rgba(215, 238, 255, 0.84);
+}
+
 .workspace-route__chat-quick-actions .workspace-route__quick-button:hover:not(:disabled),
 .workspace-route__chat-quick-actions .workspace-route__quick-button:focus-visible {
   transform: translateY(-1px);
@@ -3162,14 +3168,26 @@ select {
 }
 
 .workspace-route__chat-room {
+  grid-template-columns: minmax(0, 1fr) auto;
   width: 100%;
   border-radius: 20px;
   text-align: left;
 }
 
 .workspace-route__chat-room-select {
-  display: contents;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
   cursor: pointer;
+}
+
+.workspace-route__chat-room-select .workspace-route__main {
+  min-width: 0;
 }
 
 .workspace-route__chat-room--active {
@@ -4553,6 +4571,13 @@ button.workspace-route__friend-row:hover {
   /* 모드 탭 + 빠른 액션이 한 줄에 안 들어가면 줄바꿈 — 가로 오버플로 방지 */
   .workspace-route__chat-toolbar {
     flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+
+  .workspace-route__chat-quick-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .workspace-route__thread,
