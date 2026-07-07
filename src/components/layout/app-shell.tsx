@@ -662,10 +662,11 @@ export function AppShell({ children }: AppShellProps) {
     if (!incomingVoiceCall) return;
     const call = incomingVoiceCall;
     // 상대(발신자)에게 거절했음을 알려야 마이크가 켜진 채로 대기하는 발신자 화면을 자동으로 끊을 수 있다.
-    // 이미 열려 있는 방을 그대로 반환하는 createRoom("join-or-create")으로 방 id를 얻는다 — 참여자로
-    // 등록되지는 않으므로(방이 이미 있으면 참여자를 추가하지 않음) 내 마이크가 켜지지 않는다.
+    // createRoom("있으면 join, 없으면 create")으로 방 id를 구하면, 타이밍 등으로 기존 방을 못 찾을 때
+    // 새 방을 만들어버려(그리고 "통화를 시작했습니다" 알림까지 잘못 나가) 거절 신호 자체가 새어나갔다.
+    // 부작용 없는 조회 전용 엔드포인트로 방 id만 가져온다.
     void voiceApi
-      .createRoom({ chatRoomId: call.chatRoomId })
+      .getOpenRoomByChatRoomId(call.chatRoomId)
       .then((room) => voiceApi.decline(room.id))
       .catch(() => undefined);
     void notificationApi.markRead(call.notificationId).catch(() => undefined);
@@ -690,12 +691,15 @@ export function AppShell({ children }: AppShellProps) {
         selectedChatRoomId: call.chatRoomId,
         voice: { kind: "ready", room },
       });
-      try {
-        const token = await voiceApi.getToken(room.id);
-        await connectLiveKitRoom(room.id, token);
-      } catch {
-        // 오디오 연결 실패는 조용히 무시 — 채팅방에서 "보이스 참여" 버튼으로 재시도 가능
-      }
+      // 오디오 연결(ICE/DTLS 협상)은 몇 초 걸릴 수 있어 기다리지 않고 먼저 화면을 옮긴다 —
+      // 이걸 기다리게 하면 수락을 눌러도 오디오가 붙을 때까지 수신 전화 팝업에 갇혀 있어,
+      // 보이스 방으로 들어가는 게 몇 초씩 늦어 보였다.
+      void voiceApi
+        .getToken(room.id)
+        .then((token) => connectLiveKitRoom(room.id, token))
+        .catch(() => {
+          // 오디오 연결 실패는 조용히 무시 — 채팅방에서 "보이스 참여" 버튼으로 재시도 가능
+        });
     } catch {
       // 룸 생성/조회 자체가 실패한 경우 — 채팅방으로 이동해 상태 확인하도록 둔다
     } finally {
