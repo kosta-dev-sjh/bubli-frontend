@@ -129,7 +129,7 @@ export function PublicHomeFlow() {
   return (
     <section className="public-home-flow public-home-flow--story" aria-label={t("public.flow.aria")} ref={sectionRef}>
       <div className={cn("public-home-flow__sticky", `is-${stickyMode}`)} style={flowStyle}>
-        <video aria-hidden="true" autoPlay className="public-home-flow__video" loop muted playsInline poster="/landing/hero-bg.png">
+        <video aria-hidden="true" autoPlay className="public-home-flow__video" loop muted playsInline poster="/landing/hero-bg.jpg">
           <source src="/landing/slow-bubble-flow.mp4" type="video/mp4" />
         </video>
         <span aria-hidden="true" className="public-home-flow__veil" />

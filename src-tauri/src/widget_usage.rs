@@ -158,37 +158,57 @@ fn read_usage_metrics(
     conn: &Connection,
     summary_date: &str,
     bubble_type: &str,
-) -> Result<(i64, i64, i64), String> {
-    let (source_event_count, open_count): (i64, i64) = if let Some(next_date) =
+) -> Result<(i64, i64, i64, i64), String> {
+    let (source_event_count, open_count, interaction_count): (i64, i64, i64) = if let Some(
+        next_date,
+    ) =
         next_iso_calendar_date(summary_date)
     {
         conn.query_row(
                 "SELECT \
                    COUNT(*) AS source_event_count, \
-                   COALESCE(SUM(CASE WHEN event_type LIKE 'open%' OR event_type LIKE 'OPEN%' THEN 1 ELSE 0 END), 0) AS open_count \
+                   COALESCE(SUM(CASE WHEN lower(event_type) LIKE 'open%' THEN 1 ELSE 0 END), 0) AS open_count, \
+                   COALESCE(SUM(CASE \
+                     WHEN lower(event_type) LIKE 'open%' THEN 0 \
+                     WHEN lower(event_type) LIKE 'summary:%' THEN 0 \
+                     WHEN lower(event_type) IN ('timer:heartbeat', 'timer:recover') THEN 0 \
+                     ELSE 1 \
+                   END), 0) AS interaction_count \
                  FROM local_widget_usage_events \
                  WHERE bubble_type = ?1 AND occurred_at >= ?2 AND occurred_at < ?3",
                 params![bubble_type, summary_date, next_date],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .map_err(|error| error.to_string())?
     } else {
         conn.query_row(
                 "SELECT \
                    COUNT(*) AS source_event_count, \
-                   COALESCE(SUM(CASE WHEN lower(event_type) LIKE 'open%' THEN 1 ELSE 0 END), 0) AS open_count \
+                   COALESCE(SUM(CASE WHEN lower(event_type) LIKE 'open%' THEN 1 ELSE 0 END), 0) AS open_count, \
+                   COALESCE(SUM(CASE \
+                     WHEN lower(event_type) LIKE 'open%' THEN 0 \
+                     WHEN lower(event_type) LIKE 'summary:%' THEN 0 \
+                     WHEN lower(event_type) IN ('timer:heartbeat', 'timer:recover') THEN 0 \
+                     ELSE 1 \
+                   END), 0) AS interaction_count \
                  FROM local_widget_usage_events \
                  WHERE substr(occurred_at, 1, 10) = ?1 AND bubble_type = ?2",
                 params![summary_date, bubble_type],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .map_err(|error| error.to_string())?
     };
 
     // Raw events stay local. The server only needs aggregate counters, so for
-    // now every local event is counted as one interaction and one visible
-    // second unless a later native dwell tracker supplies a real duration.
-    Ok((source_event_count, open_count, source_event_count))
+    // now every local event is counted as one visible second unless a later
+    // native dwell tracker supplies a real duration. Open events are tracked
+    // separately and do not inflate the interaction counter.
+    Ok((
+        source_event_count,
+        open_count,
+        interaction_count,
+        source_event_count,
+    ))
 }
 
 fn next_iso_calendar_date(value: &str) -> Option<String> {
@@ -282,7 +302,8 @@ pub fn rollup_widget_usage(
 
     let mut results = Vec::with_capacity(grouped.len());
     for (date, bubble_type, count) in grouped {
-        let (_, open_count, visible_seconds) = read_usage_metrics(&conn, &date, &bubble_type)?;
+        let (_, open_count, interaction_count, visible_seconds) =
+            read_usage_metrics(&conn, &date, &bubble_type)?;
         let rollup_key = format!("{date}:{bubble_type}");
         conn.execute(
             "INSERT INTO local_widget_usage_rollups \
@@ -302,7 +323,7 @@ pub fn rollup_widget_usage(
 
         results.push(WidgetUsageRollupResult {
             bubble_type,
-            interaction_count: count,
+            interaction_count,
             open_count,
             rollup_key,
             source_event_count: count,
@@ -363,14 +384,14 @@ pub fn sync_widget_usage_summary(
             }
         }
 
-        let (_, open_count, visible_seconds) =
+        let (_, open_count, interaction_count, visible_seconds) =
             read_usage_metrics(&conn, &summary_date, &bubble_type)?;
         let payload = json!({
             "rollupKey": rollup_key,
             "bubbleType": bubble_type,
             "summaryDate": summary_date,
             "sourceEventCount": count,
-            "interactionCount": count,
+            "interactionCount": interaction_count,
             "openCount": open_count,
             "visibleSeconds": visible_seconds,
         })
@@ -396,7 +417,7 @@ pub fn sync_widget_usage_summary(
         queued += 1;
         staged_rollups.push(WidgetUsageSummaryStagedRollup {
             bubble_type,
-            interaction_count: count,
+            interaction_count,
             open_count,
             rollup_key,
             source_event_count: count,
@@ -503,7 +524,7 @@ fn mark_widget_usage_summary_failed_for_conn(
 mod tests {
     use super::{
         mark_widget_usage_summary_failed_for_conn, normalize_widget_usage_occurred_at,
-        PENDING_WIDGET_USAGE_ROLLUPS_SQL,
+        read_usage_metrics, PENDING_WIDGET_USAGE_ROLLUPS_SQL,
     };
     use rusqlite::Connection;
 
@@ -540,6 +561,42 @@ mod tests {
             normalize_widget_usage_occurred_at("not-a-date", None),
             "not-a-date"
         );
+    }
+
+    #[test]
+    fn widget_usage_metrics_exclude_passive_events_from_interactions() {
+        let conn = Connection::open_in_memory().expect("open sqlite");
+        conn.execute_batch(
+            "
+            CREATE TABLE local_widget_usage_events (
+                id TEXT PRIMARY KEY,
+                bubble_type TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                item_id TEXT,
+                item_type TEXT,
+                occurred_at TEXT NOT NULL,
+                created_at INTEGER NOT NULL
+            );
+            INSERT INTO local_widget_usage_events
+                (id, bubble_type, event_type, item_id, item_type, occurred_at, created_at)
+            VALUES
+                ('event-1', 'todo', 'open', NULL, NULL, '2026-07-07T09:00:00+09:00', 1),
+                ('event-2', 'todo', 'open:auto-login', NULL, NULL, '2026-07-07T09:01:00+09:00', 2),
+                ('event-3', 'todo', 'timer:heartbeat', 'timer-1', 'TIME_LOG', '2026-07-07T09:02:00+09:00', 3),
+                ('event-4', 'todo', 'timer:recover', 'timer-1', 'TIME_LOG', '2026-07-07T09:03:00+09:00', 4),
+                ('event-5', 'todo', 'summary:server-refresh-failed:not_tauri_runtime', NULL, NULL, '2026-07-07T09:04:00+09:00', 5),
+                ('event-6', 'todo', 'task:toggle', 'task-1', 'TASK', '2026-07-07T09:05:00+09:00', 6);
+            ",
+        )
+        .expect("seed usage events");
+
+        let (source_event_count, open_count, interaction_count, visible_seconds) =
+            read_usage_metrics(&conn, "2026-07-07", "todo").expect("read usage metrics");
+
+        assert_eq!(source_event_count, 6);
+        assert_eq!(open_count, 2);
+        assert_eq!(interaction_count, 1);
+        assert_eq!(visible_seconds, 6);
     }
 
     #[test]

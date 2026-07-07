@@ -769,7 +769,7 @@ export type WidgetWindowResizeInput = {
 };
 
 // 자동 정렬 프리셋: 격자(기본)/세로 한 열/가로 한 줄/계단식.
-export type WidgetArrangeLayout = "grid" | "column" | "row" | "cascade";
+export type WidgetArrangeLayout = "board" | "grid" | "column" | "row" | "cascade";
 
 export type WidgetArrangeInput = {
   layout?: WidgetArrangeLayout;

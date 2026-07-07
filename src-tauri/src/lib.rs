@@ -105,9 +105,11 @@ const QA_ALL_WIDGET_BUBBLES: [&str; 8] = [
 // 사용자 크기 조절 클램프: 버블별 최소 = 현재 기본 크기, 최대 = 최소 × 1.6.
 // src/features/widget/components/desktop-widget-bubble.tsx 리사이즈 핸들과 동기화한다.
 const WIDGET_USER_SIZE_MAX_SCALE: f64 = 1.6;
-// 버블 자동 정렬(arrange_widget_windows): 우상단 앵커, 24px 간격, 한 열에 2개.
+// 버블 자동 정렬(arrange_widget_windows): 우상단 앵커, 24px 간격.
 const WIDGET_ARRANGE_GAP: f64 = 24.0;
 const WIDGET_ARRANGE_ROWS_PER_COLUMN: usize = 2;
+// 계단식 세로 낙차 — 가로는 창 폭 전체만큼 떨어뜨리므로(겹침 금지) 세로 오프셋만 계단 느낌을 만든다.
+const WIDGET_CASCADE_STEP_Y: f64 = 72.0;
 
 // 사용자가 리사이즈로 정한 버블별 창 크기(논리 px). 시작 시 SQLite
 // local_widget_bubble_sizes에서 로드하고, resize_widget_window가 갱신한다.
@@ -1542,10 +1544,13 @@ fn widget_default_local_position(
         ),
         bubble_type => {
             let step = widget_default_cascade_index(bubble_type) * WIDGET_DEFAULT_MARGIN;
+            // 하단 클램프: 인덱스가 큰 버블(작은 모니터 포함)이 화면 아래로 밀려나지 않게 한다.
+            let max_y = (monitor_height - size.height - WIDGET_DEFAULT_MARGIN)
+                .max(WIDGET_DEFAULT_MARGIN);
             (
                 (monitor_width - size.width - WIDGET_DEFAULT_MARGIN - step)
                     .max(WIDGET_DEFAULT_MARGIN),
-                WIDGET_DEFAULT_MARGIN + step,
+                (WIDGET_DEFAULT_MARGIN + step).min(max_y),
             )
         }
     }
@@ -2597,7 +2602,9 @@ fn drag_widget_bar_window(
     let label = window.label().to_string();
     let is_bar_or_menu = label.ends_with("-bar") || label.ends_with("-menu");
     if !is_widget_window_label(&label) || !is_bar_or_menu {
-        return Err("drag_widget_bar_window can only be called from the bar or menu widget".to_string());
+        return Err(
+            "drag_widget_bar_window can only be called from the bar or menu widget".to_string(),
+        );
     }
 
     let scale = window
@@ -2911,12 +2918,15 @@ fn arrange_widget_windows(
         })
     });
 
-    // 정렬 프리셋: 격자(기본)/세로 한 열/가로 한 줄/계단식.
+    // 정렬 프리셋: 보드(블로그 위젯형)/격자(기본)/세로 한 열/가로 한 줄/계단식.
     let layout = input
         .as_ref()
         .and_then(|value| value.layout.as_deref())
         .unwrap_or("grid");
     let placements = match layout {
+        "board" => {
+            arrange_widget_board_placements(&targets, area_x, area_y, area_width, area_height)
+        }
         "column" => {
             arrange_widget_column_placements(&targets, area_x, area_y, area_width, area_height)
         }
@@ -3055,6 +3065,58 @@ fn arrange_widget_grid_placements(
     placements
 }
 
+/// 보드 정렬: 블로그 사이드바 위젯처럼 오른쪽 기준 2~3열 masonry로 배치한다.
+/// 서로 다른 높이의 버블도 가장 짧은 열로 들어가므로 겹치지 않고, 전체가 작업 영역 안에 남는다.
+fn arrange_widget_board_placements(
+    targets: &[WidgetWindowState],
+    area_x: f64,
+    area_y: f64,
+    area_width: f64,
+    area_height: f64,
+) -> Vec<(String, WidgetWindowPosition)> {
+    if targets.is_empty() {
+        return Vec::new();
+    }
+
+    let max_width = targets
+        .iter()
+        .map(|widget| widget_window_size(widget).width)
+        .fold(0.0_f64, f64::max)
+        .max(1.0);
+    let columns_that_fit = (((area_width - WIDGET_ARRANGE_GAP) / (max_width + WIDGET_ARRANGE_GAP))
+        .floor() as isize)
+        .max(1) as usize;
+    let column_count = columns_that_fit.min(3).min(targets.len()).max(1);
+    let right_edge = area_x + area_width - WIDGET_ARRANGE_GAP;
+    let mut column_y = vec![area_y + WIDGET_ARRANGE_GAP; column_count];
+    let mut placements: Vec<(String, WidgetWindowPosition)> = Vec::new();
+
+    for widget in targets {
+        let size = widget_window_size(widget);
+        let column_index = column_y
+            .iter()
+            .enumerate()
+            .min_by(|(_, left), (_, right)| left.total_cmp(right))
+            .map(|(index, _)| index)
+            .unwrap_or(0);
+        let x = right_edge - max_width - column_index as f64 * (max_width + WIDGET_ARRANGE_GAP);
+        let y = column_y[column_index];
+        let (x, y) =
+            clamp_point_into_work_area(x, y, &size, area_x, area_y, area_width, area_height);
+        placements.push((
+            widget_window_label(widget),
+            WidgetWindowPosition {
+                x: x.round() as i32,
+                y: y.round() as i32,
+            },
+        ));
+        column_y[column_index] =
+            (y + size.height + WIDGET_ARRANGE_GAP).min(area_y + area_height - WIDGET_ARRANGE_GAP);
+    }
+
+    placements
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ArrangeWidgetWindowsInput {
@@ -3083,7 +3145,6 @@ fn arrange_widget_column_placements(
         // 이 창을 넣으면 작업 영역 하단을 넘고, 열이 비어있지 않다면 다음 열(왼쪽)로 랩한다.
         if row_y + size.height > area_bottom && row_y > area_y + WIDGET_ARRANGE_GAP {
             column_right = column_x - WIDGET_ARRANGE_GAP;
-            column_x = column_right;
             column_width = 0.0;
             row_y = area_y + WIDGET_ARRANGE_GAP;
         }
@@ -3155,8 +3216,9 @@ fn arrange_widget_row_placements(
     placements
 }
 
-/// 계단식: 오른쪽 위에서 대각선으로 겹쳐 쌓는다(카드 덱 느낌). 대각선이 작업 영역 하단이나
-/// 좌측을 넘으려 하면 다시 우상단으로 되돌려(랩) 새 덱을 시작한다. 마지막에 클램프.
+/// 계단식: 오른쪽 위에서 왼쪽 아래로 한 칸씩 내려가는 계단 모양. 가로 간격을 창 폭 전체 +
+/// 여백으로 잡아 창끼리 절대 겹치지 않고, 세로 오프셋으로만 계단 느낌을 만든다.
+/// 한 벌(가로로 들어가는 개수)을 넘으면 아랫줄에 새 계단을 시작한다. 마지막에 클램프.
 fn arrange_widget_cascade_placements(
     targets: &[WidgetWindowState],
     area_x: f64,
@@ -3165,34 +3227,44 @@ fn arrange_widget_cascade_placements(
     area_height: f64,
 ) -> Vec<(String, WidgetWindowPosition)> {
     let mut placements: Vec<(String, WidgetWindowPosition)> = Vec::new();
-    let step = 36.0_f64;
-    let base_width = targets
+    if targets.is_empty() {
+        return placements;
+    }
+    let max_width = targets
         .iter()
         .map(|widget| widget_window_size(widget).width)
+        .fold(0.0_f64, f64::max)
+        .max(1.0);
+    let max_height = targets
+        .iter()
+        .map(|widget| widget_window_size(widget).height)
         .fold(0.0_f64, f64::max);
-    let base_x =
-        (area_x + area_width - WIDGET_ARRANGE_GAP - base_width).max(area_x + WIDGET_ARRANGE_GAP);
-    let base_y = area_y + WIDGET_ARRANGE_GAP;
-    let area_bottom = area_y + area_height - WIDGET_ARRANGE_GAP;
-    let mut deck = 0.0_f64;
-    for widget in targets {
+    let per_flight = (((area_width - WIDGET_ARRANGE_GAP) / (max_width + WIDGET_ARRANGE_GAP))
+        .floor() as isize)
+        .max(1) as usize;
+    // 세로 낙차는 작업 영역 높이 안에서만 — 낮은 화면에서는 계단을 완만하게 눕힌다.
+    let step_budget = (area_height - WIDGET_ARRANGE_GAP * 2.0 - max_height).max(0.0);
+    let step_y = if per_flight > 1 {
+        WIDGET_CASCADE_STEP_Y.min(step_budget / (per_flight - 1) as f64)
+    } else {
+        0.0
+    };
+    let flight_height = max_height + step_y * (per_flight - 1) as f64;
+
+    for (index, widget) in targets.iter().enumerate() {
         let size = widget_window_size(widget);
-        // 대각선 오프셋이 하단을 넘거나 좌측 여백을 침범하면 덱을 우상단으로 되감는다.
-        if deck > 0.0
-            && (base_y + deck + size.height > area_bottom
-                || base_x - deck < area_x + WIDGET_ARRANGE_GAP)
-        {
-            deck = 0.0;
-        }
-        let (x, y) = clamp_point_into_work_area(
-            base_x - deck,
-            base_y + deck,
-            &size,
-            area_x,
-            area_y,
-            area_width,
-            area_height,
-        );
+        let flight = index / per_flight;
+        let item = index % per_flight;
+        let x = area_x + area_width
+            - WIDGET_ARRANGE_GAP
+            - size.width
+            - item as f64 * (max_width + WIDGET_ARRANGE_GAP);
+        let y = area_y
+            + WIDGET_ARRANGE_GAP
+            + flight as f64 * (flight_height + WIDGET_ARRANGE_GAP)
+            + item as f64 * step_y;
+        let (x, y) =
+            clamp_point_into_work_area(x, y, &size, area_x, area_y, area_width, area_height);
         placements.push((
             widget_window_label(widget),
             WidgetWindowPosition {
@@ -3200,7 +3272,6 @@ fn arrange_widget_cascade_placements(
                 y: y.round() as i32,
             },
         ));
-        deck += step;
     }
     placements
 }
@@ -3914,6 +3985,56 @@ fn hide_main_window_to_tray(app: &AppHandle) -> Result<(), String> {
     window.hide().map_err(|error| error.to_string())
 }
 
+/// 앱 아이콘의 읽지 않은 알림 배지 — macOS/리눅스는 숫자 배지, 윈도우는 작업표시줄 오버레이 점.
+/// 메인 창이 닫혀 있어도(위젯만 떠 있어도) 동작하도록 아무 창으로나 폴백한다.
+#[tauri::command]
+fn set_app_badge_count(app: AppHandle, count: i64) -> Result<(), String> {
+    let count = count.max(0);
+    let Some(window) = app
+        .get_webview_window(MAIN_WINDOW_LABEL)
+        .or_else(|| app.webview_windows().values().next().cloned())
+    else {
+        return Ok(());
+    };
+
+    #[cfg(target_os = "windows")]
+    {
+        if count > 0 {
+            let _ = window.set_overlay_icon(Some(badge_overlay_image()));
+        } else {
+            let _ = window.set_overlay_icon(None);
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = window.set_badge_count(if count > 0 { Some(count) } else { None });
+    }
+
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn badge_overlay_image() -> tauri::image::Image<'static> {
+    // 16x16 dust rose(#E89898) 원 — 에셋 파일 없이 메모리에서 그린다(디자인 토큰 색 준수).
+    const SIZE: i32 = 16;
+    let mut rgba = Vec::with_capacity((SIZE * SIZE * 4) as usize);
+    let center = (SIZE as f64 - 1.0) / 2.0;
+    let radius = SIZE as f64 / 2.0 - 1.0;
+    for y in 0..SIZE {
+        for x in 0..SIZE {
+            let dx = x as f64 - center;
+            let dy = y as f64 - center;
+            if (dx * dx + dy * dy).sqrt() <= radius {
+                rgba.extend_from_slice(&[0xE8, 0x98, 0x98, 0xFF]);
+            } else {
+                rgba.extend_from_slice(&[0, 0, 0, 0]);
+            }
+        }
+    }
+    tauri::image::Image::new_owned(rgba, SIZE as u32, SIZE as u32)
+}
+
 fn setup_main_tray(app: &tauri::App) -> Result<(), String> {
     let show_item = MenuItem::with_id(app, APP_TRAY_SHOW_ID, "열기", true, None::<&str>)
         .map_err(|error| error.to_string())?;
@@ -4622,6 +4743,7 @@ pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
         .manage(Mutex::new(AppMonitorPreferenceStore::default()))
         .manage(Mutex::new(WidgetWindowStore::default()))
@@ -4707,6 +4829,7 @@ pub fn run() {
             set_widget_bar_preview_placement,
             open_onboarding_overlay,
             close_onboarding_overlay,
+            set_app_badge_count,
             set_preferred_app_monitor,
             set_widget_always_on_top,
             set_widget_click_through,
@@ -5181,8 +5304,11 @@ mod widget_runtime_tests {
             .collect();
 
         let (area_x, area_y, area_w, area_h) = (0.0_f64, 0.0_f64, 1280.0_f64, 720.0_f64);
-        for layout in ["grid", "column", "row", "cascade"] {
+        for layout in ["board", "grid", "column", "row", "cascade"] {
             let placements = match layout {
+                "board" => {
+                    arrange_widget_board_placements(&targets, area_x, area_y, area_w, area_h)
+                }
                 "column" => {
                     arrange_widget_column_placements(&targets, area_x, area_y, area_w, area_h)
                 }
@@ -5217,6 +5343,91 @@ mod widget_runtime_tests {
                     y + size.height <= area_y + area_h + 1.0,
                     "layout {layout}: {label} bottom edge {} > area bottom",
                     y + size.height
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn board_layout_places_widgets_in_right_anchored_columns() {
+        let targets: Vec<WidgetWindowState> = ["todo", "agent", "schedule", "timer"]
+            .iter()
+            .map(|bubble| default_widget_window_state(bubble, Some((*bubble).to_string())))
+            .collect();
+
+        let placements = arrange_widget_board_placements(&targets, 0.0, 0.0, 1440.0, 900.0);
+        let positions: Vec<WidgetWindowPosition> = placements
+            .iter()
+            .map(|(_, position)| position.clone())
+            .collect();
+
+        assert_eq!(placements.len(), 4);
+        assert!(positions
+            .iter()
+            .all(|position| position.x > 0 && position.y >= 24));
+        assert!(
+            positions
+                .windows(2)
+                .any(|window| window[0].x != window[1].x || window[0].y != window[1].y),
+            "board layout should not stack every widget at the same point",
+        );
+    }
+
+    #[test]
+    fn cascade_layout_does_not_rewind_to_identical_positions() {
+        let targets: Vec<WidgetWindowState> = QA_ALL_WIDGET_BUBBLES
+            .iter()
+            .map(|bubble| default_widget_window_state(bubble, Some((*bubble).to_string())))
+            .collect();
+
+        let placements = arrange_widget_cascade_placements(&targets, 0.0, 0.0, 1440.0, 900.0);
+        let unique_positions: HashSet<(i32, i32)> = placements
+            .iter()
+            .map(|(_, position)| (position.x, position.y))
+            .collect();
+
+        assert_eq!(placements.len(), targets.len());
+        assert_eq!(
+            unique_positions.len(),
+            placements.len(),
+            "cascade layout should keep each widget visibly offset",
+        );
+    }
+
+    #[test]
+    fn cascade_layout_keeps_core_widgets_non_overlapping() {
+        // 시작 프리셋(카드 덱)이 여는 핵심 버블 수준에서는 계단식도 겹침이 전혀 없어야 한다.
+        let targets: Vec<WidgetWindowState> = ["todo", "agent", "schedule", "timer"]
+            .iter()
+            .map(|bubble| default_widget_window_state(bubble, Some((*bubble).to_string())))
+            .collect();
+
+        let placements = arrange_widget_cascade_placements(&targets, 0.0, 0.0, 1440.0, 900.0);
+        assert_eq!(placements.len(), targets.len());
+
+        let rects: Vec<(f64, f64, f64, f64)> = placements
+            .iter()
+            .zip(targets.iter())
+            .map(|((_, position), widget)| {
+                let size = widget_window_size(widget);
+                (
+                    f64::from(position.x),
+                    f64::from(position.y),
+                    size.width,
+                    size.height,
+                )
+            })
+            .collect();
+
+        for (index, left) in rects.iter().enumerate() {
+            for right in rects.iter().skip(index + 1) {
+                let separated = left.0 + left.2 <= right.0
+                    || right.0 + right.2 <= left.0
+                    || left.1 + left.3 <= right.1
+                    || right.1 + right.3 <= left.1;
+                assert!(
+                    separated,
+                    "cascade windows must not overlap: {left:?} vs {right:?}",
                 );
             }
         }

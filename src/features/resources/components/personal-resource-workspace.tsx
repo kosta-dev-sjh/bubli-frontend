@@ -25,6 +25,7 @@ import {
   syncPersonalLocalFileEventsToServer,
   watchPersonalManagedFolder,
 } from "@/lib/local/managed-folder-client";
+import { notifyManagedFolderConsentChanged } from "@/lib/local/managed-folder-auto-sync";
 import { listenManagedFolderWatchEvents } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { cn } from "@/lib/utils";
@@ -421,10 +422,23 @@ export function PersonalResourceWorkspace() {
     setLocalFolderAction("select");
     setLocalFolderMessage(null);
     try {
-      const result = await selectPersonalManagedFolder({ consentGranted: localFolderConsent });
+      // 설정 화면과 동일한 정책: "폴더 선택" 클릭 자체가 로컬 폴더 사용 동의 행위다.
+      // 동의가 아직 없어도 선택 창을 막지 않고, 선택이 끝나면 동의를 서버에 자동 기록한다.
+      const alreadyConsented = localFolderConsent;
+      const result = await selectPersonalManagedFolder({ consentGranted: true });
       if (result.status !== "ready") {
         setLocalFolderMessage(result.message ?? t("settings.msg.selectFolderFirst"));
         return;
+      }
+
+      if (!alreadyConsented) {
+        try {
+          await settingsApi.updatePrivacyConsents({ localFolderEnabled: true });
+          setLocalFolderConsent(true);
+          notifyManagedFolderConsentChanged(true);
+        } catch {
+          // 동의 기록이 실패해도 이번 연결 흐름은 이어간다. 다음 로드에서 다시 시도된다.
+        }
       }
 
       setLocalFolders((current) => [
@@ -441,7 +455,7 @@ export function PersonalResourceWorkspace() {
       ]);
 
       const scanResult = await scanPersonalManagedFolder({
-        consentGranted: localFolderConsent,
+        consentGranted: true,
         localFolderId: result.data.localFolderId,
       });
       if (scanResult.status !== "ready") {
@@ -451,11 +465,11 @@ export function PersonalResourceWorkspace() {
       }
 
       const watchResult = await watchPersonalManagedFolder({
-        consentGranted: localFolderConsent,
+        consentGranted: true,
         localFolderId: result.data.localFolderId,
       });
       const syncResult = await syncPersonalLocalFileEventsToServer({
-        consentGranted: localFolderConsent,
+        consentGranted: true,
         limit: 20,
         localFolderId: result.data.localFolderId,
       });

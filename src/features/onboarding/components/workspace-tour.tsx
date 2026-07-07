@@ -25,12 +25,18 @@ type TourStepDef = {
   titleKey: MessageKey;
 };
 
+// 회원사이트 전용 코치 마크 — 위젯 설명은 별도의 위젯 튜토리얼(전체화면)로 분리했다.
+// 사이드바를 한 번에 가리키지 않고, 주요 탭을 위에서 아래로 하나씩 짚어가며 설명한다.
+// (대상이 없는 단계는 자동으로 건너뛴다 — 예: 홈 밖에서는 카드 편집 버튼 단계를 넘긴다.)
 const TOUR_STEPS: TourStepDef[] = [
   { bodyKey: "tour.sidebar.body", selector: '[data-tour="sidebar"]', titleKey: "tour.sidebar.title" },
+  { bodyKey: "tour.calendar.body", selector: '[data-tour="nav-calendar"]', titleKey: "tour.calendar.title" },
+  { bodyKey: "tour.projectRooms.body", selector: '[data-tour="nav-project-rooms"]', titleKey: "tour.projectRooms.title" },
+  { bodyKey: "tour.resources.body", selector: '[data-tour="nav-resources"]', titleKey: "tour.resources.title" },
+  { bodyKey: "tour.chat.body", selector: '[data-tour="nav-chat"]', titleKey: "tour.chat.title" },
+  { bodyKey: "tour.agent.body", selector: '[data-tour="nav-agent"]', titleKey: "tour.agent.title" },
   { bodyKey: "tour.roomSwitcher.body", selector: '[data-tour="room-switcher"]', titleKey: "tour.roomSwitcher.title" },
   { bodyKey: "tour.cardEdit.body", selector: '[data-tour="card-edit"]', titleKey: "tour.cardEdit.title" },
-  { bodyKey: "tour.agent.body", selector: '[data-tour="agent-nav"]', titleKey: "tour.agent.title" },
-  { bodyKey: "tour.desktop.body", selector: null, titleKey: "tour.desktop.title" },
 ];
 
 // 홈 이동 직후(설정 > 다시 보기) 카드 편집 버튼처럼 늦게 나타나는 대상을 기다린다.

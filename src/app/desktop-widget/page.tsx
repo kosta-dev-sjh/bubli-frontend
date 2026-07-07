@@ -53,7 +53,7 @@ import { playNotificationSound } from "@/lib/sound/notification-sound";
 import { startCallRingtone, stopCallRingtone } from "@/lib/sound/call-sound";
 import { projectRoomRoute } from "@/lib/project-room-routes";
 import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
-import { setWidgetWindowDragLocked, tauriCommands, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetInteractiveRect, type WidgetWindowBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
+import { setWidgetWindowDragLocked, tauriCommands, waitForPendingWidgetUsageEventRecords, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetInteractiveRect, type WidgetWindowBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import { emitWidgetDataChanged, listenWidgetDataChanged, listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { readCachedWidgetRoomNames, readWidgetSummary, writeCachedWidgetRoomNames, type WidgetRoomNameMap } from "@/lib/widget";
@@ -1224,6 +1224,13 @@ function dashboardFromWidgetSummary(summary: WidgetSummaryResponse | null): Widg
 
 function normalizeWidgetRoomId(roomId?: string | null) {
   return roomId?.trim() || null;
+}
+
+function todayLocalDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function widgetContextForRoomId(roomId?: string | null): WidgetContextResponse {
@@ -3423,8 +3430,16 @@ function DesktopWidgetSurface() {
     let cancelled = false;
 
     const refreshUsageSummary = () => {
-      void widgetApi
-        .getTodayUsageRollups()
+      const summaryPromise = isTauri
+        ? waitForPendingWidgetUsageEventRecords()
+            .then(() => tauriCommands.rollupWidgetUsage({ summaryDate: todayLocalDateKey() }))
+            .then((rollups) => ({
+              totalInteractionCount: rollups.reduce((total, rollup) => total + Math.max(0, rollup.interactionCount), 0),
+              totalOpenCount: rollups.reduce((total, rollup) => total + Math.max(0, rollup.openCount), 0),
+            }))
+        : widgetApi.getTodayUsageRollups();
+
+      void summaryPromise
         .then((summary) => {
           if (cancelled) return;
           if (!summary || (summary.totalOpenCount === 0 && summary.totalInteractionCount === 0)) {
@@ -3447,7 +3462,7 @@ function DesktopWidgetSurface() {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [isWidgetChrome, t, widgetSessionReady]);
+  }, [isTauri, isWidgetChrome, t, widgetSessionReady]);
 
   // 떠다니는 오브 창에서만: 에이전트 후보 제안 요약을 주기적으로 불러온다. 오브는 이 목록의
   // 길이가 늘면(=새 제안 도착) 말풍선으로 첫 줄을 잠깐 보여준다(Codex 봇 스타일).

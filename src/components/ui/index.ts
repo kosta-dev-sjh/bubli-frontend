@@ -2,8 +2,6 @@ export { Button } from "./button";
 export { Chip } from "./chip";
 export { EmptyState } from "./empty-state";
 export { GlassPanel } from "./glass-panel";
-export { PageHeading } from "./page-heading";
-export { PlaceholderPanel } from "./placeholder-panel";
 export { ProgressBar } from "./progress-bar";
 export { Ring } from "./ring";
 export type { RingSegment } from "./ring";

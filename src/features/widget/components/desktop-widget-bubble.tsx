@@ -444,57 +444,6 @@ function ItemActions({
   );
 }
 
-// 조용한 재조회 때 버블 데이터 참조가 유지되면(페이지의 deep-equal setState) 행 목록은
-// 리렌더하지 않는다 — 배경 갱신이 행 DOM을 다시 만들며 생기는 미세 깜빡임 방지.
-const ItemRows = memo(function ItemRows({
-  bubble,
-  onItemStateChange,
-  onOpenHandoff,
-}: {
-  bubble: WidgetPreviewBubble;
-  onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
-  onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
-}) {
-  const { t } = useI18n();
-  const openHandoff = (event: MouseEvent<HTMLAnchorElement>, item: WidgetPreviewItem) => {
-    if (!item.handoffUrl || !onOpenHandoff) return;
-
-    event.preventDefault();
-    void onOpenHandoff(item);
-  };
-
-  if (bubble.rows.length === 0) {
-    return <BubbleEmptyState bubble={bubble} />;
-  }
-
-  return (
-    <div className={styles.rowList}>
-      {bubble.rows.map((item) => (
-        <div className={styles.checkRow} key={item.id}>
-          <button
-            aria-label={t("widget.item.confirm")}
-            aria-pressed={item.checked ?? false}
-            className={styles.rowCheck}
-            onClick={() => onItemStateChange?.(item, "CONFIRMED")}
-            type="button"
-          >
-            <CheckCircle2 size={13} strokeWidth={2.4} />
-          </button>
-          {item.handoffUrl ? (
-            <a href={item.handoffUrl} onClick={(event) => openHandoff(event, item)} rel="noreferrer" target="_blank">
-              {item.label}
-            </a>
-          ) : (
-            <span>{item.label}</span>
-          )}
-          <b>{item.status}</b>
-          <ItemActions item={item} onItemStateChange={onItemStateChange} />
-        </div>
-      ))}
-    </div>
-  );
-});
-
 const agentReviewActions: Array<{
   action: AgentSuggestionReviewAction;
   Icon: LucideIcon;
@@ -1389,70 +1338,6 @@ function elapsedWidgetTimerLabel(item?: WidgetPreviewItem, fallback = "00:00") {
 
 // 시계 모드: HH:MM:SS 라이브(1s 인터벌) + 날짜 한 줄. start/stop 컨트롤 없음.
 // reduced-motion과 무관하게 텍스트만 갱신하므로 애니메이션 정책의 영향을 받지 않는다.
-// 플립(스플릿-플랩) 시계 — 자리값이 바뀔 때만 위→아래로 접히는 카드 애니메이션.
-// reduced-motion이면 애니메이션 없이 숫자만 즉시 교체한다.
-function FlipDigit({ digit }: { digit: string }) {
-  const prefersReducedMotion = useReducedMotion();
-  const [current, setCurrent] = useState(digit);
-  const [previous, setPrevious] = useState(digit);
-  const [flipping, setFlipping] = useState(false);
-
-  // 렌더 중 prop 변화에 맞춰 상태를 조정 — effect에서 setState하면 불필요한 추가 렌더가
-  // 발생하므로(react-hooks/set-state-in-effect), React 공식 권장 패턴대로 렌더 본문에서 처리한다.
-  if (digit !== current) {
-    setPrevious(current);
-    setCurrent(digit);
-    setFlipping(true);
-  }
-
-  if (prefersReducedMotion) {
-    return (
-      <span className={styles.flipDigit}>
-        <span className={styles.flipStatic}>{digit}</span>
-      </span>
-    );
-  }
-
-  return (
-    <span className={styles.flipDigit}>
-      <span className={[styles.flipCard, styles.flipTop].join(" ")}>
-        <span className={styles.flipCardText}>{previous}</span>
-      </span>
-      <span className={[styles.flipCard, styles.flipBottom].join(" ")}>
-        <span className={styles.flipCardText}>{current}</span>
-      </span>
-      <span
-        className={[styles.flipper, flipping ? styles.isFlipping : ""].filter(Boolean).join(" ")}
-        onAnimationEnd={() => {
-          setFlipping(false);
-          setPrevious(digit);
-        }}
-      >
-        <span className={[styles.flipCard, styles.flipTop, styles.flipperTop].join(" ")}>
-          <span className={styles.flipCardText}>{previous}</span>
-        </span>
-        <span className={[styles.flipCard, styles.flipBottom, styles.flipperBottom].join(" ")}>
-          <span className={styles.flipCardText}>{current}</span>
-        </span>
-      </span>
-    </span>
-  );
-}
-
-function FlipTime({ value, className }: { value: string; className?: string }) {
-  return (
-    <span className={[styles.flipTime, className].filter(Boolean).join(" ")} aria-label={value}>
-      {value.split("").map((char, index) =>
-        char === ":" ? (
-          <span aria-hidden="true" className={styles.flipColon} key={`c-${index}`}>:</span>
-        ) : (
-          <FlipDigit digit={char} key={`d-${index}`} />
-        ),
-      )}
-    </span>
-  );
-}
-
 function ClockView() {
   const { locale } = useI18n();
   // 라이브 클라이언트 전용 위젯이라 lazy init으로 첫 값을 렌더 시 만든다(effect 내 동기 setState 회피).
@@ -1541,46 +1426,9 @@ function WorkView({
 
 // 뽀모도로 모드: 로컬 전용 25/5 사이클. 서버 기록 없음. 진행 상태는 sqlite에 저장돼
 // 창을 닫아도 복원된다(집중↔휴식 자동전환, 사이클 카운트). 완료 시 goo 팝 신호를 재사용한다.
-// 집중/휴식 분 프리셋(집중·휴식). 선택 시 두 값을 함께 적용한다.
-const POMODORO_PRESETS: Array<{ breakMinutes: number; focusMinutes: number; labelKey: MessageKey }> = [
-  { breakMinutes: 5, focusMinutes: 25, labelKey: "widget.timer.pomodoroPreset25" },
-  { breakMinutes: 10, focusMinutes: 50, labelKey: "widget.timer.pomodoroPreset50" },
-  { breakMinutes: 3, focusMinutes: 15, labelKey: "widget.timer.pomodoroPreset15" },
-];
-
 // 집중/휴식 분을 직접 입력하는 필드 — 숫자만 허용, 범위로 클램프. +/− 스텝퍼와 함께 쓴다.
 // 진행 링 둘레(r=54): 2πr. strokeDashoffset = 둘레 × 경과비율(시간이 지날수록 링이 줄어든다).
 const POMODORO_RING_CIRCUMFERENCE = 2 * Math.PI * 54;
-
-// 작업/개인 카운트업 타이머용 원형 링 — 뽀모도로와 같은 디자인, 색만 다르게(파랑).
-// progress(0~1)는 현재 1분 내 진행(초/60)이라 매 분 한 바퀴 스윕한다.
-function TimerRing({ label, progress, time }: { label: string; progress: number; time: string }) {
-  const clamped = Math.max(0, Math.min(1, progress));
-  return (
-    <div className={[styles.pomodoroCircle, styles.timerRing].join(" ")}>
-      <svg className={styles.pomodoroSvg} viewBox="0 0 120 120" aria-hidden="true">
-        <circle className={styles.pomodoroTrack} cx="60" cy="60" r="54" />
-        <circle
-          className={styles.pomodoroProgress}
-          cx="60"
-          cy="60"
-          r="54"
-          style={{ strokeDasharray: POMODORO_RING_CIRCUMFERENCE, strokeDashoffset: POMODORO_RING_CIRCUMFERENCE * (1 - clamped) }}
-        />
-      </svg>
-      <div className={styles.pomodoroCircleContent}>
-        <strong>{time}</strong>
-        <span>{label}</span>
-      </div>
-    </div>
-  );
-}
-
-// "MM:SS"/"H:MM:SS" 문자열에서 총 초를 구해 현재 1분 내 진행률(0~1)을 만든다.
-function minuteProgressFromLabel(label: string): number {
-  const seconds = label.split(":").reduce((acc, part) => acc * 60 + (Number(part) || 0), 0);
-  return (seconds % 60) / 60;
-}
 
 function PomodoroMinuteField({
   ariaLabel,
@@ -1631,7 +1479,9 @@ function PomodoroMinuteField({
   );
 }
 
-function PomodoroView({ selectedRoomId }: { selectedRoomId: string | null }) {
+// 뽀모도로는 개인 전용 집중 타이머다 — 룸 컨텍스트가 바뀌거나 앱을 다시 켜도 이어지도록
+// 저장 칸을 항상 개인(personal)으로 고정한다. 룸별로 나누면 컨텍스트 전환 때 리셋처럼 보인다.
+function PomodoroView() {
   const { t } = useI18n();
   const prefersReducedMotion = useReducedMotion();
   const [state, setState] = useState<PomodoroState>(() => createIdlePomodoroState());
@@ -1645,7 +1495,7 @@ function PomodoroView({ selectedRoomId }: { selectedRoomId: string | null }) {
   // 재오픈 복원: 저장된 진행 상태를 읽어 실행 중이면 phaseEndsAt으로 남은 시간을 재계산한다.
   useEffect(() => {
     let cancelled = false;
-    void readPomodoroState(selectedRoomId).then((stored) => {
+    void readPomodoroState(null).then((stored) => {
       if (cancelled || !stored) return;
       setState(stored);
       if (stored.running && stored.phaseEndsAt) {
@@ -1657,15 +1507,12 @@ function PomodoroView({ selectedRoomId }: { selectedRoomId: string | null }) {
     return () => {
       cancelled = true;
     };
-  }, [selectedRoomId]);
+  }, []);
 
-  const persist = useCallback(
-    (next: PomodoroState) => {
-      setState(next);
-      void writePomodoroState(next, selectedRoomId);
-    },
-    [selectedRoomId],
-  );
+  const persist = useCallback((next: PomodoroState) => {
+    setState(next);
+    void writePomodoroState(next, null);
+  }, []);
 
   // 실행 중 1s 틱 — phaseEndsAt에 도달하면 페이즈 자동 전환(집중→휴식은 사이클 +1).
   useEffect(() => {
@@ -1897,35 +1744,36 @@ function TimerBody({
   // 룸이 있으면 작업, 없으면 개인이 기본. 사용자가 자유롭게 전환할 수 있다(강제 고정 없음).
   const [timerKind, setTimerKind] = useState<WidgetTimerKind>(selectedRoomId ? "work" : "personal");
 
-  // 선택 모드/종류 복원(재오픈).
+  // 선택 모드/종류 복원(재오픈). 탭 선택 기억은 룸과 무관하게 개인(personal) 칸 하나만 쓴다 —
+  // 룸별로 나누면 룸 전환/재시작 때 탭이 리셋된 것처럼 보인다(뽀모도로 유지 문제와 같은 뿌리).
   useEffect(() => {
     let cancelled = false;
-    void readWidgetTimerMode(selectedRoomId).then((stored) => {
+    void readWidgetTimerMode(null).then((stored) => {
       if (cancelled) return;
       if (stored) {
         setMode(stored);
         onTimerModeChange?.(stored);
       }
     });
-    void readWidgetTimerKind(selectedRoomId).then((stored) => {
+    void readWidgetTimerKind(null).then((stored) => {
       if (cancelled) return;
       if (stored) setTimerKind(stored);
     });
     return () => {
       cancelled = true;
     };
-  }, [onTimerModeChange, selectedRoomId]);
+  }, [onTimerModeChange]);
 
   const changeMode = (index: number) => {
     const next = TIMER_MODE_ORDER[index] ?? "work";
     setMode(next);
     onTimerModeChange?.(next);
-    void writeWidgetTimerMode(next, selectedRoomId);
+    void writeWidgetTimerMode(next, null);
   };
   const changeTimerKind = (index: number) => {
     const next: WidgetTimerKind = index === 1 ? "personal" : "work";
     setTimerKind(next);
-    void writeWidgetTimerKind(next, selectedRoomId);
+    void writeWidgetTimerKind(next, null);
   };
   const displayedMode: WidgetTimerMode = mode;
   // 사용자의 선택을 그대로 따른다 — 서버 타이머가 돌아도 개인 탭으로 자유롭게 전환된다(튕김 없음).
@@ -1967,7 +1815,7 @@ function TimerBody({
         </div>
       </div>
       <div style={{ display: displayedMode === "pomodoro" ? "contents" : "none" }}>
-        <PomodoroView selectedRoomId={selectedRoomId} />
+        <PomodoroView />
       </div>
     </div>
   );
@@ -2929,31 +2777,32 @@ function GhostClock() {
 }
 
 // 고스트 뽀모도로 — 뽀모도로 탭을 쓰던 사용자는 고스트에서도 뽀모도로 남은 시간/페이즈를 본다.
-function GhostPomodoro({ roomId }: { roomId: string | null }) {
+// PomodoroView와 같은 이유로 저장 칸은 항상 개인(personal) 고정이다.
+function GhostPomodoro() {
   const { t } = useI18n();
   const [state, setState] = useState<PomodoroState | null>(null);
-  const [remaining, setRemaining] = useState<number>(0);
+  // 저장 상태를 읽기 전에는 숫자를 그리지 않는다(null) — 00:00으로 "리셋된 것처럼" 보이는 문제 방지.
+  const [remaining, setRemaining] = useState<number | null>(null);
   // 최신 state를 ref로 들고 있어 tick 클로저가 낡은 값을 읽지 않게 한다(고스트 정지 버그 방지).
   const stateRef = useRef<PomodoroState | null>(null);
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
 
-  const persist = useCallback(
-    (next: PomodoroState) => {
-      setState(next);
-      void writePomodoroState(next, roomId);
-    },
-    [roomId],
-  );
+  const persist = useCallback((next: PomodoroState) => {
+    setState(next);
+    void writePomodoroState(next, null);
+  }, []);
 
   // 최초 + 창 포커스/가시성 복귀 시 저장된 뽀모도로 상태를 다시 읽어 고스트가 최신을 반영하게 한다
   // (초기 읽기 레이스나 다른 표면에서의 변경으로 고스트가 멈춰 보이는 문제 방지).
   useEffect(() => {
     let cancelled = false;
     const load = () => {
-      void readPomodoroState(roomId).then((stored) => {
-        if (!cancelled) setState(stored);
+      void readPomodoroState(null).then((stored) => {
+        // 아직 한 번도 시작하지 않았으면(저장 없음) 기본 뷰와 똑같이 대기 상태(25:00)를 보여준다.
+        // null로 두면 아래 tick이 영영 건너뛰어 00:00에 멈춰 보인다.
+        if (!cancelled) setState(stored ?? createIdlePomodoroState());
       });
     };
     load();
@@ -2967,7 +2816,7 @@ function GhostPomodoro({ roomId }: { roomId: string | null }) {
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
     };
-  }, [roomId]);
+  }, []);
 
   // 고스트에서도 뽀모도로가 계속 진행/자동전환되도록 PomodoroView와 동일한 벽시계 기반 틱을 돌린다.
   // phaseEndsAt(타임스탬프) 기준이라 탭 전환·백그라운드 스로틀에도 복귀 시 정확히 복구된다.
@@ -3010,12 +2859,14 @@ function GhostPomodoro({ roomId }: { roomId: string | null }) {
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
     };
-  }, [persist]);
+    // state를 의존성에 넣어 저장 상태가 로드되는 즉시 재계산한다 — 다음 1초 틱을 기다리며
+    // 00:00이 잠깐 보이던 문제 방지(고스트 전환 시 시간 유지).
+  }, [persist, state]);
 
   const label = (state?.phase ?? "focus") === "focus" ? t("widget.timer.pomodoroFocus") : t("widget.timer.pomodoroBreak");
   return (
     <div className={styles.ghostSignal} role="timer" aria-live="off">
-      <span className={styles.ghostMetric}>{formatMinutesSeconds(remaining)}</span>
+      <span className={styles.ghostMetric}>{remaining === null ? "--:--" : formatMinutesSeconds(remaining)}</span>
       <small className={styles.ghostSub}>{label}</small>
     </div>
   );
@@ -3034,28 +2885,29 @@ function GhostSignal({
   const isTimer = bubbleType === "timer";
   const [timerMode, setTimerMode] = useState<WidgetTimerMode | null>(null);
   const [pomodoroRunning, setPomodoroRunning] = useState(false);
-  const roomId = bubble.roomId?.trim() || null;
   const resolvedTimerMode = timerModeOverride ?? timerMode;
 
   // 타이머 버블이면 마지막으로 고른 탭(시계/타이머/뽀모도로)을 읽어 고스트에 반영한다.
+  // 탭 기억은 TimerBody와 같은 개인(personal) 칸을 읽는다.
   useEffect(() => {
     if (!isTimer || timerModeOverride) return;
     let cancelled = false;
-    void readWidgetTimerMode(roomId).then((stored) => {
+    void readWidgetTimerMode(null).then((stored) => {
       if (!cancelled) setTimerMode(stored);
     });
     return () => {
       cancelled = true;
     };
-  }, [isTimer, roomId, timerModeOverride]);
+  }, [isTimer, timerModeOverride]);
 
   // 뽀모도로가 실제로 돌고 있는지 저장 상태에서 확인한다. 돌고 있으면 탭 상태와 무관하게
   // 고스트에서도 그 카운트다운 숫자를 보여준다("고스트에서 뽀모도로 숫자가 안 보인다" 방지).
+  // 뽀모도로 저장 칸은 룸과 무관하게 항상 개인(personal)이다.
   useEffect(() => {
     if (!isTimer) return;
     let cancelled = false;
     const check = () => {
-      void readPomodoroState(roomId).then((stored) => {
+      void readPomodoroState(null).then((stored) => {
         if (!cancelled) setPomodoroRunning(Boolean(stored?.running));
       });
     };
@@ -3070,11 +2922,11 @@ function GhostSignal({
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
     };
-  }, [isTimer, roomId]);
+  }, [isTimer]);
 
   // 선택한 탭을 그대로 반영하되, 뽀모도로가 돌고 있으면 우선 뽀모도로 카운트다운을 보여준다.
   if (isTimer && (resolvedTimerMode === "pomodoro" || pomodoroRunning)) {
-    return <GhostPomodoro roomId={roomId} />;
+    return <GhostPomodoro />;
   }
   if (isTimer && resolvedTimerMode === "clock") {
     return <GhostClock />;
@@ -3459,8 +3311,9 @@ export type WidgetMenuContentProps = {
   usageSummary?: string | null;
 };
 
-// 자동 정렬 프리셋: 격자(기본)/세로 한 열/가로 한 줄/계단식.
+// 자동 정렬 프리셋: 보드(블로그 위젯형)/격자/세로 한 열/가로 한 줄/계단식.
 const arrangePresets: { labelKey: MessageKey; layout: WidgetArrangeLayout }[] = [
+  { labelKey: "widget.menu.arrangeBoard", layout: "board" },
   { labelKey: "widget.menu.arrangeGrid", layout: "grid" },
   { labelKey: "widget.menu.arrangeColumn", layout: "column" },
   { labelKey: "widget.menu.arrangeRow", layout: "row" },

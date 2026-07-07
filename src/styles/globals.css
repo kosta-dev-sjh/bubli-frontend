@@ -10116,6 +10116,46 @@ html {
   align-items: center;
   gap: 8px;
 }
+
+/* 랜딩 언어 선택 — 회원 프로필 메뉴의 언어 줄과 같은 pill 세그먼트 톤. */
+.landing-nav__locale {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid rgba(213, 228, 240, 0.8);
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.landing-nav__locale-btn {
+  border: 0;
+  background: transparent;
+  padding: 4px 10px;
+  border-radius: 999px;
+  color: var(--ink-soft, #5a6772);
+  font-size: 12px;
+  font-weight: 740;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.landing-nav__locale-btn:hover {
+  color: var(--ink, #2c3540);
+}
+
+.landing-nav__locale-btn.is-active {
+  background: rgba(142, 205, 246, 0.28);
+  color: var(--blue-ink);
+}
+
+@media (max-width: 640px) {
+  /* 좁은 화면에서는 짧은 표기만으로 줄바꿈 없이 들어가게 한다. */
+  .landing-nav__locale-btn {
+    padding: 4px 7px;
+    font-size: 11px;
+  }
+}
 .landing-nav__user {
   display: inline-flex;
   align-items: center;
@@ -13912,11 +13952,12 @@ html {
 }
 
 .activity-detection__consent strong {
+  /* 앱 개수 숫자가 동의 상태 배지보다 크게 소리치지 않도록 톤을 낮춘다(40px -> 24px). */
   color: var(--color-blue-deep);
-  font-size: 40px;
-  font-weight: 900;
+  font-size: 24px;
+  font-weight: 800;
   letter-spacing: 0;
-  line-height: 1;
+  line-height: 1.1;
 }
 
 .activity-detection__consent span {
@@ -16717,21 +16758,23 @@ html {
     min-height: 540px;
   }
 
+  /* 워크스페이스 카드(끝 64%)와 위젯 묶음(시작 66%+)이 가로로 서로 침범하지 않게 폭을 맞춘다. */
   .public-orbit-preview__workspace {
     left: 8%;
     top: 30%;
-    width: 62%;
+    width: 56%;
   }
 
   .public-orbit-preview__widgets {
     right: 5%;
-    width: min(230px, 48%);
+    width: min(200px, 30%);
   }
 }
 
 @media (max-width: 640px) {
   .public-orbit-preview {
-    min-height: 430px;
+    /* 워크스페이스 카드(top 36% + 내용 높이)가 바닥을 뚫고 잘리지 않도록 여유를 준다. */
+    min-height: 520px;
     border-radius: 30px;
   }
 
@@ -16780,7 +16823,7 @@ html {
   .public-orbit-preview__workspace {
     left: 7%;
     right: 7%;
-    top: 39%;
+    top: 36%;
     width: auto;
     transform: none;
   }
@@ -16794,23 +16837,10 @@ html {
     padding: 10px;
   }
 
+  /* 모바일에서는 워크스페이스 카드가 세로 공간을 다 쓰므로 위젯 묶음은 숨긴다 —
+     같은 자리에 겹쳐 그려지던 문제의 직접 원인. */
   .public-orbit-preview__widgets {
-    left: 10%;
-    right: 10%;
-    bottom: 6%;
-    display: flex;
-    width: auto;
-  }
-
-  .public-orbit-preview__widgets article {
-    min-width: 0;
-    flex: 1;
-    padding: 10px;
-  }
-
-  .public-orbit-preview__widgets article:nth-child(2),
-  .public-orbit-preview__widgets article:nth-child(3) {
-    transform: none;
+    display: none;
   }
 }
 

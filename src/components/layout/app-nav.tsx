@@ -38,6 +38,16 @@ const navLabelKeys: Record<(typeof siteConfig.appNav)[number]["href"], MessageKe
   "/app/settings": "nav.settings",
 };
 
+// 워크스페이스 튜토리얼(코치 마크)이 탭을 하나씩 짚어갈 수 있도록 각 탭에 data-tour 앵커를 단다.
+const navTourIds: Record<(typeof siteConfig.appNav)[number]["href"], string> = {
+  "/app/agent": "nav-agent",
+  "/app/calendar": "nav-calendar",
+  "/app/chat": "nav-chat",
+  "/app/project-rooms": "nav-project-rooms",
+  "/app/resources": "nav-resources",
+  "/app/settings": "nav-settings",
+};
+
 function isActiveNavItem(href: string, pathname: string) {
   if (href === "/app") {
     return pathname === "/app";
@@ -89,7 +99,7 @@ export function AppNav({ activeRoomId }: AppNavProps) {
           <Link
             aria-current={isActive ? "page" : undefined}
             className={cn("bubli-nav__item", isActive && "bubli-nav__item--active")}
-            data-tour={item.href === "/app/agent" ? "agent-nav" : undefined}
+            data-tour={navTourIds[item.href]}
             href={href}
             key={item.href}
           >

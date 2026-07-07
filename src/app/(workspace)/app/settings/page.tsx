@@ -14,10 +14,9 @@ import { ActivityDetectionPanel } from "@/features/activity/components";
 import { authApi } from "@/features/auth/api/authApi";
 import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { startGoogleCalendarConnect } from "@/features/calendar/api/googleCalendarAuth";
-import { OPEN_TUTORIAL_EVENT } from "@/features/onboarding";
+import { OPEN_TUTORIAL_EVENT, OPEN_WIDGET_TUTORIAL_EVENT } from "@/features/onboarding";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
-import { LocalBackupRecoveryPanel, LocalSyncOutboxPanel, TauriSyncStatusPanel } from "@/features/settings/components";
 import { isBackendWidgetBubbleType, widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { notifyUserUpdated } from "@/lib/data-changed";
@@ -1509,6 +1508,23 @@ export default function SettingsPage() {
                     {t("onboarding.settings.replayCta")}
                   </Button>
                 </div>
+                <div className={styles.row}>
+                  <div className={styles.rowText}>
+                    <strong>{t("onboarding.settings.widgetReplayTitle")}</strong>
+                    <p>{t("onboarding.settings.widgetReplayDesc")}</p>
+                  </div>
+                  <Button
+                    onClick={() => {
+                      // 데스크탑에서는 전체화면 오버레이 창, 웹에서는 전체화면 모달로 열린다.
+                      window.dispatchEvent(new Event(OPEN_WIDGET_TUTORIAL_EVENT));
+                    }}
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                  >
+                    {t("onboarding.settings.widgetReplayCta")}
+                  </Button>
+                </div>
               </div>
             </GlassPanel>
             ) : null}
@@ -1613,10 +1629,17 @@ export default function SettingsPage() {
                 {privacyRows.map((row) => {
                   // desktopOnly 행은 웹에서 상태만 보여주고 조작은 데스크톱 앱으로 안내한다.
                   const webLocked = Boolean(row.desktopOnly) && !desktopRuntime;
+                  const consented = Boolean(privacySettings[row.key]);
                   return (
                     <div className={styles.row} key={row.key}>
                       <div className={styles.rowText}>
-                        <strong>{t(row.titleKey)}</strong>
+                        <strong>
+                          {t(row.titleKey)}
+                          {/* 동의 상태를 글자로도 보여준다 — 웹에서는 토글이 잠겨 있어 배지가 유일한 상태 표시다. */}
+                          <span className={styles.consentBadge} data-on={consented ? "true" : "false"}>
+                            {consented ? t("settings.privacy.consented") : t("settings.privacy.consentNeeded")}
+                          </span>
+                        </strong>
                         <p>{t(row.descriptionKey)}</p>
                         {webLocked ? <p className={styles.desktopOnlyNote}>{t("settings.row.desktopOnlyNote")}</p> : null}
                       </div>
@@ -1749,7 +1772,8 @@ export default function SettingsPage() {
                               : ""}
                           </p>
                         </div>
-                        {/* dev PR 213 이식: 폴더별 진행률/스캔/감시/아웃박스 액션 — desktop 탭은 데스크톱 런타임에서만 렌더링된다. */}
+                        {/* 폴더 행은 자주 쓰는 액션만 남긴다 — 감시는 동기화 토글에 따라 자동 복원되고
+                            아웃박스 확인은 아래 백업 단락의 공용 행에서 한다(버튼 6개 → 4개, 줄바꿈 밀림 방지). */}
                         <div className={styles.rowControl}>
                           <button
                             aria-checked={folder.syncEnabled}
@@ -1766,12 +1790,6 @@ export default function SettingsPage() {
                           </Button>
                           <Button onClick={() => void scanManagedFolder(folder.id)} size="sm" type="button" variant="quiet">
                             {t("settings.folders.scan")}
-                          </Button>
-                          <Button disabled={!folder.syncEnabled} onClick={() => void watchManagedFolder(folder.id)} size="sm" type="button" variant="quiet">
-                            {t("settings.folders.watch")}
-                          </Button>
-                          <Button disabled={!folder.syncEnabled} onClick={() => void checkSyncOutbox(folder.id)} size="sm" type="button" variant="quiet">
-                            {t("settings.backup.outbox")}
                           </Button>
                           <Button onClick={() => void removeManagedFolder(folder)} size="sm" type="button" variant="quiet">
                             {t("settings.folders.disconnect")}
@@ -1795,15 +1813,9 @@ export default function SettingsPage() {
                   </Button>
                 </div>
 
+                {/* 백업/동기화 상태판(중첩 히어로 패널 3종)은 걷어냈다 — 빈 상태에서 0건 스캐폴드가
+                    목업처럼 보였고, 아래 실제 동작 행 4개와 역할이 겹쳐 화면만 무겁게 했다. */}
                 <h3 className={styles.subhead}>{t("settings.backup.title")}</h3>
-                <div className={styles.embeddedPanelStack}>
-                  <TauriSyncStatusPanel />
-                  <LocalSyncOutboxPanel
-                    key={privacySettings.localFolderEnabled ? "local-folder-consented" : "local-folder-blocked"}
-                    initialConsentGranted={Boolean(privacySettings.localFolderEnabled)}
-                  />
-                  <LocalBackupRecoveryPanel />
-                </div>
                 <div className={styles.rows}>
                   <div className={styles.row}>
                     <div className={styles.rowText}>

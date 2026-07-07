@@ -22,6 +22,7 @@ import { Chip } from "@/components/ui/chip";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { startGoogleCalendarConnect } from "@/features/calendar/api/googleCalendarAuth";
+import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { notifyDataChanged, useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
@@ -522,6 +523,53 @@ function CalendarPageContent() {
     return () => window.removeEventListener("pointerdown", close);
   }, [syncMenuOpen]);
 
+  // 우리 사이트에서 만든 프로젝트룸 캘린더만 격자/칩에 남기기 위한 인식 목록.
+  // 룸 캘린더는 룸 이름으로 만들어지므로 (1) 룸 이름 일치, (2) 지금 보고 있는 룸의
+  // 정확한 캘린더 id 일치로 판별한다. 계정에 딸린 다른 구글 캘린더(공휴일, 구독 등)는 걸러진다.
+  const [roomCalendarIds, setRoomCalendarIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [roomCalendarNames, setRoomCalendarNames] = useState<ReadonlySet<string>>(() => new Set());
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      if (googleConnection.kind !== "connected") {
+        if (!cancelled) {
+          setRoomCalendarIds(new Set());
+          setRoomCalendarNames(new Set());
+        }
+        return;
+      }
+      const [roomsResult, roomCalendarResult] = await Promise.allSettled([
+        projectRoomApi.list(),
+        // 룸 캘린더 매핑은 단건 조회만 있어(배치 API 없음) 지금 보고 있는 룸만 id로 확정한다.
+        selectedRoomId ? calendarApi.getRoomCalendar(selectedRoomId) : Promise.resolve(null),
+      ]);
+      if (cancelled) return;
+      const names = new Set<string>();
+      if (roomsResult.status === "fulfilled") {
+        for (const room of roomsResult.value.items) {
+          const name = room.name?.trim().toLowerCase();
+          if (name) names.add(name);
+        }
+      }
+      const ids = new Set<string>();
+      if (roomCalendarResult.status === "fulfilled" && roomCalendarResult.value?.googleCalendarId) {
+        ids.add(roomCalendarResult.value.googleCalendarId.toLowerCase());
+        const calendarName = roomCalendarResult.value.calendarName?.trim().toLowerCase();
+        if (calendarName) names.add(calendarName);
+      }
+      setRoomCalendarIds(ids);
+      setRoomCalendarNames(names);
+    };
+    // setTimeout 0: 이 파일의 다른 로드 효과와 같은 패턴 — 렌더 직후 동기 setState를 피한다.
+    const timeoutId = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [googleConnection.kind, selectedRoomId]);
+
   const events = useMemo(() => (state.kind === "ready" ? state.events : []), [state]);
   const roomEvents = useMemo(() => (state.kind === "ready" ? state.roomEvents : []), [state]);
   // 로컬 일정 + 구글 캘린더 원본 일정을 한 목록으로 합친다. 이중 표시 방지 기준:
@@ -571,6 +619,12 @@ function CalendarPageContent() {
       const calendarId = group.googleCalendarId ?? group.groupId;
       // primary 캘린더 그룹은 "개인"으로 접는다 — 별도 이메일 칩을 만들지 않는다.
       const isPrimary = isPrimaryCalendarId(calendarId, primaryCalendarIds);
+      // 개인(primary)을 제외한 구글 캘린더는 우리 프로젝트룸 캘린더로 인식된 것만 그린다.
+      // 공휴일, 구독 캘린더처럼 서비스와 무관한 캘린더가 칩으로 쏟아지는 것을 막는다.
+      const isRoomCalendar =
+        roomCalendarIds.has(calendarId.toLowerCase()) ||
+        roomCalendarNames.has((group.groupName ?? "").trim().toLowerCase());
+      if (!isPrimary && !isRoomCalendar) continue;
       const calendarColor = colorByCalendarId.get(calendarId) ?? null;
       for (const event of group.events) {
         if (event.sourceType !== "GOOGLE") continue;
@@ -594,7 +648,7 @@ function CalendarPageContent() {
     }
 
     return merged;
-  }, [events, googleCalendars, googleGroups, primaryCalendarIds, t]);
+  }, [events, googleCalendars, googleGroups, primaryCalendarIds, roomCalendarIds, roomCalendarNames, t]);
   // 출처 칩 — 고정 3종(전체/개인/프로젝트룸) 뒤에 구글 캘린더별 칩을 데이터 기준으로 만든다.
   const sourceChips = useMemo(() => {
     // 개인 칩은 연동 계정 이메일을 부제(title 툴팁)로만 노출한다 — "개인 = 내 구글 계정"임을 알리되 칩은 하나로 유지.

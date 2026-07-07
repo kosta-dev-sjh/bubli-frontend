@@ -431,10 +431,9 @@ export function AppShell({ children }: AppShellProps) {
       } catch (error) {
         if (!isCurrentRun()) return;
         if (error instanceof ApiClientError && error.status === 401) {
+          // 부트스트랩 후반(룸/위젯 컨텍스트 등) 개별 API의 401은 권한 문제일 수 있다.
+          // 세션 삭제는 신원 확인(getMe)이 401일 때만 한다 — 여기서 지우면 멀쩡한 세션까지 로그아웃된다.
           setAuthOrDesktopRedirectState();
-          if (!isTauriRuntime()) {
-            clearStoredAuthSession();
-          }
           redirectToLoginWhenTauri();
           return;
         }

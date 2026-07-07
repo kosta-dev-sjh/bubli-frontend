@@ -3,7 +3,6 @@ const ko = {
   // 네비게이션
   "nav.appLabel": "회원 앱",
   "nav.publicLabel": "공개 사이트",
-  "nav.dashboard": "홈",
   "nav.projectRooms": "프로젝트룸",
   "nav.resources": "자료보드",
   "nav.chat": "소통",
@@ -47,8 +46,6 @@ const ko = {
   // 보이스 통화 플로팅 패널
   "layout.voice.active": "보이스 통화 중",
   "layout.voice.goToChat": "소통으로 이동",
-  "layout.voice.end": "통화 종료",
-  "layout.voice.ending": "종료 중",
 
   // 보이스 통화 수신 알림(전화 오는 UI)
   "layout.voiceCall.aria": "보이스 통화 수신",
@@ -97,7 +94,7 @@ const ko = {
   "layout.switcher.empty": "아직 프로젝트룸이 없습니다.",
   "layout.switcher.nameLabel": "프로젝트룸 이름",
   "layout.switcher.namePlaceholder": "예: 브랜드 리뉴얼",
-  "layout.switcher.clientLabel": "의뢰처",
+  "layout.switcher.clientLabel": "클라이언트",
   "layout.switcher.clientPlaceholder": "선택 입력",
   "layout.switcher.filesLabel": "첨부 자료",
   "layout.switcher.filesSelected": "{count}개 선택됨",
@@ -112,7 +109,6 @@ type Key = keyof typeof ko;
 const en: Record<Key, string> = {
   "nav.appLabel": "Member app",
   "nav.publicLabel": "Public site",
-  "nav.dashboard": "Home",
   "nav.projectRooms": "Project rooms",
   "nav.resources": "Resource board",
   "nav.chat": "Chat",
@@ -152,8 +148,6 @@ const en: Record<Key, string> = {
 
   "layout.voice.active": "Voice call active",
   "layout.voice.goToChat": "Go to chat",
-  "layout.voice.end": "End call",
-  "layout.voice.ending": "Ending",
 
   "layout.voiceCall.aria": "Incoming voice call",
   "layout.voiceCall.hint": "started a voice call",
@@ -210,7 +204,6 @@ const en: Record<Key, string> = {
 const ja: Record<Key, string> = {
   "nav.appLabel": "会員アプリ",
   "nav.publicLabel": "公開サイト",
-  "nav.dashboard": "ホーム",
   "nav.projectRooms": "プロジェクトルーム",
   "nav.resources": "資料ボード",
   "nav.chat": "コミュニケーション",
@@ -250,8 +243,6 @@ const ja: Record<Key, string> = {
 
   "layout.voice.active": "ボイス通話中",
   "layout.voice.goToChat": "コミュニケーションへ",
-  "layout.voice.end": "通話終了",
-  "layout.voice.ending": "終了中",
 
   "layout.voiceCall.aria": "ボイス通話の着信",
   "layout.voiceCall.hint": "ボイス通話を開始しました",
@@ -295,7 +286,7 @@ const ja: Record<Key, string> = {
   "layout.switcher.empty": "まだプロジェクトルームがありません。",
   "layout.switcher.nameLabel": "プロジェクトルーム名",
   "layout.switcher.namePlaceholder": "例: ブランドリニューアル",
-  "layout.switcher.clientLabel": "依頼先",
+  "layout.switcher.clientLabel": "クライアント",
   "layout.switcher.clientPlaceholder": "任意入力",
   "layout.switcher.filesLabel": "添付資料",
   "layout.switcher.filesSelected": "{count}件選択",

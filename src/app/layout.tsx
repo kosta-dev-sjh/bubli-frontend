@@ -31,6 +31,10 @@ type RootLayoutProps = {
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="ko">
+      <head>
+        {/* LINE Seed 웹폰트가 CDN에서 오므로 연결을 미리 열어 첫 글꼴 표시를 앞당긴다. */}
+        <link crossOrigin="anonymous" href="https://cdn.jsdelivr.net" rel="preconnect" />
+      </head>
       <body>
         <Providers>
           <TauriRuntimeGates />

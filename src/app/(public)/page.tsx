@@ -41,7 +41,7 @@ export default function HomePage() {
           loop
           muted
           playsInline
-          poster="/landing/hero-bg.png"
+          poster="/landing/hero-bg.jpg"
         >
           <source src="/landing/ambient-loop.mp4" type="video/mp4" />
         </video>

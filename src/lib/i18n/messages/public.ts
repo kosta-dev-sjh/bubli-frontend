@@ -3,8 +3,6 @@ const ko = {
   // 히어로 / 사이트 태그라인 (siteConfig fallback을 UI에서 대체)
   "public.hero.taglineLead": "받은 자료를",
   "public.hero.taglineRest": "오늘 할 일로.",
-  "public.hero.description":
-    "업무 문서, 요구사항, 회의록을 오늘 할 일로 정리해주는 프리랜서 업무 비서",
   "public.hero.aria": "Bubli 소개",
   "public.hero.eyebrowAria": "서비스 요약",
   "public.hero.eyebrow": "프리랜서 업무를 자료에서 실행까지",
@@ -18,6 +16,7 @@ const ko = {
   "public.nav.desktop": "데스크탑 앱",
   "public.nav.download": "다운로드",
   "public.nav.faq": "FAQ",
+  "public.nav.languageAria": "언어 선택",
 
   // 로그인 세션 감지(랜딩 공통)
   "public.session.openApp": "앱으로 이동",
@@ -170,30 +169,6 @@ const ko = {
   "public.flow.outputSubReady": "확정된 일만 표시",
   "public.flow.jumpAria": "{step} 단계로 이동",
 
-  // 다운로드 페이지
-  "public.download.title": "다운로드",
-  "public.download.description": "Bubli 데스크탑 앱(macOS, Windows) 안내와 시작 방법을 정리합니다.",
-  "public.download.sectionAria": "데스크탑 앱 다운로드",
-  "public.download.introChip": "데스크탑 앱",
-  "public.download.introTitle": "웹 작업 화면 그대로, 바탕화면 버블까지",
-  "public.download.introBody":
-    "데스크탑 앱은 웹에서 쓰던 작업 화면을 그대로 열고 바탕화면 버블, 기기 폴더 감지, 빠른 캐시를 더합니다. 운영체제에 맞는 설치 파일을 내려받아 사용할 수 있습니다.",
-  "public.download.ctaLogin": "로그인하고 웹에서 시작",
-  "public.download.ctaMac": "macOS DMG 다운로드",
-  "public.download.ctaWin": "Windows 설치 파일 다운로드",
-  "public.download.macTitle": "macOS 앱",
-  "public.download.macBody": "바탕화면 버블과 기기 폴더 감지를 포함한 macOS용 데스크탑 앱입니다.",
-  "public.download.macMeta": "Bubli-macOS-0.1.2-arm64.dmg, Apple Silicon",
-  "public.download.winTitle": "Windows 앱",
-  "public.download.winBody": "같은 웹 작업 화면과 버블을 여는 Windows용 데스크탑 앱입니다.",
-  "public.download.winMeta": "Bubli-Windows-latest.exe, Windows x64",
-  "public.download.statusAvailable": "다운로드 가능",
-  "public.download.statusPreparing": "설치 파일 준비 중",
-  "public.download.securityChip": "실행 안내",
-  "public.download.securityTitle": "macOS 최초 실행 시 보안 안내가 보일 수 있습니다",
-  "public.download.securityBody":
-    "프로젝트 제출용 빌드는 Apple 공증이 적용되지 않을 수 있습니다. macOS에서 차단 안내가 보이면 앱을 우클릭한 뒤 열기를 선택하거나 시스템 설정의 개인정보 보호 및 보안에서 실행을 허용해 주세요.",
-
   // 하이브리드 앱 프레임
   "public.hybrid.aria": "웹과 앱 역할 분리",
   "public.hybrid.frame1Title": "공개 사이트",
@@ -223,8 +198,6 @@ type Key = keyof typeof ko;
 const en: Record<Key, string> = {
   "public.hero.taglineLead": "What you receive",
   "public.hero.taglineRest": "becomes today's work.",
-  "public.hero.description":
-    "A work assistant for freelancers that turns documents, requirements, and meeting notes into a work structure and lines up what you need to do today.",
   "public.hero.aria": "About Bubli",
   "public.hero.eyebrowAria": "Service summary",
   "public.hero.eyebrow": "Freelance work, from files to done",
@@ -237,6 +210,7 @@ const en: Record<Key, string> = {
   "public.nav.desktop": "Desktop app",
   "public.nav.download": "Download",
   "public.nav.faq": "FAQ",
+  "public.nav.languageAria": "Language",
 
   "public.session.openApp": "Open the app",
   "public.session.userAria": "Signed in as {name}",
@@ -378,29 +352,6 @@ const en: Record<Key, string> = {
   "public.flow.outputSubReady": "Showing only confirmed work",
   "public.flow.jumpAria": "Jump to step: {step}",
 
-  "public.download.title": "Download",
-  "public.download.description": "How to get and start with the Bubli desktop app (macOS, Windows).",
-  "public.download.sectionAria": "Desktop app download",
-  "public.download.introChip": "Desktop app",
-  "public.download.introTitle": "Your web workspace as-is, plus desktop bubbles",
-  "public.download.introBody":
-    "The desktop app opens the same web workspace as-is and adds the desktop bubble, device folder detection, and a fast cache. Download the installer that matches your operating system.",
-  "public.download.ctaLogin": "Log in and start on the web",
-  "public.download.ctaMac": "Download macOS DMG",
-  "public.download.ctaWin": "Download Windows installer",
-  "public.download.macTitle": "macOS app",
-  "public.download.macBody": "The macOS desktop app with the desktop bubble and device folder detection.",
-  "public.download.macMeta": "Bubli-macOS-0.1.2-arm64.dmg, Apple Silicon",
-  "public.download.winTitle": "Windows app",
-  "public.download.winBody": "The Windows desktop app that opens the same web workspace and bubble.",
-  "public.download.winMeta": "Bubli-Windows-latest.exe, Windows x64",
-  "public.download.statusAvailable": "Available",
-  "public.download.statusPreparing": "Installer coming soon",
-  "public.download.securityChip": "Run guide",
-  "public.download.securityTitle": "macOS may show a security prompt on first launch",
-  "public.download.securityBody":
-    "The project submission build may not be Apple-notarized. If macOS blocks the app, Control-click the app and choose Open, or allow it in System Settings under Privacy & Security.",
-
   "public.hybrid.aria": "Web and app role separation",
   "public.hybrid.frame1Title": "Public site",
   "public.hybrid.frame1Body": "Handles the intro, feature overview, and download entry. Member data isn't shown.",
@@ -426,8 +377,6 @@ const en: Record<Key, string> = {
 const ja: Record<Key, string> = {
   "public.hero.taglineLead": "受け取った資料を、",
   "public.hero.taglineRest": "今日やることに。",
-  "public.hero.description":
-    "業務文書・要件・議事録を業務構造に変え、今日必要なことを整理するフリーランス向け業務アシスタント。",
   "public.hero.aria": "Bubli の紹介",
   "public.hero.eyebrowAria": "サービス概要",
   "public.hero.eyebrow": "フリーランスの仕事を、資料から実行まで",
@@ -440,6 +389,7 @@ const ja: Record<Key, string> = {
   "public.nav.desktop": "デスクトップアプリ",
   "public.nav.download": "ダウンロード",
   "public.nav.faq": "FAQ",
+  "public.nav.languageAria": "言語",
 
   "public.session.openApp": "アプリへ移動",
   "public.session.userAria": "{name}さんでログイン中",
@@ -580,29 +530,6 @@ const ja: Record<Key, string> = {
   "public.flow.outputSubPending": "まだ確定していない候補",
   "public.flow.outputSubReady": "確定した仕事だけ表示",
   "public.flow.jumpAria": "{step}のステップへ移動",
-
-  "public.download.title": "ダウンロード",
-  "public.download.description": "Bubli デスクトップアプリ（macOS・Windows）の案内と始め方をまとめます。",
-  "public.download.sectionAria": "デスクトップアプリのダウンロード",
-  "public.download.introChip": "デスクトップアプリ",
-  "public.download.introTitle": "ウェブの作業画面そのまま、デスクトップバブルまで",
-  "public.download.introBody":
-    "デスクトップアプリはブラウザで使う作業画面をそのまま開き、デスクトップバブル・端末フォルダ検知・高速キャッシュを加えます。OS に合うインストーラーをダウンロードして利用できます。",
-  "public.download.ctaLogin": "ログインしてウェブで開始",
-  "public.download.ctaMac": "macOS DMG をダウンロード",
-  "public.download.ctaWin": "Windows インストーラーをダウンロード",
-  "public.download.macTitle": "macOS アプリ",
-  "public.download.macBody": "デスクトップバブルと端末フォルダ検知を備えた macOS 用デスクトップアプリです。",
-  "public.download.macMeta": "Bubli-macOS-0.1.2-arm64.dmg, Apple Silicon",
-  "public.download.winTitle": "Windows アプリ",
-  "public.download.winBody": "同じウェブ作業画面とバブルを開く Windows 用デスクトップアプリです。",
-  "public.download.winMeta": "Bubli-Windows-latest.exe, Windows x64",
-  "public.download.statusAvailable": "ダウンロード可能",
-  "public.download.statusPreparing": "インストーラー準備中",
-  "public.download.securityChip": "実行案内",
-  "public.download.securityTitle": "macOS の初回起動時にセキュリティ案内が表示される場合があります",
-  "public.download.securityBody":
-    "プロジェクト提出用ビルドは Apple 公証が適用されていない場合があります。macOS がアプリをブロックした場合は、Control キーを押しながらアプリをクリックして「開く」を選ぶか、システム設定のプライバシーとセキュリティで実行を許可してください。",
 
   "public.hybrid.aria": "ウェブとアプリの役割分担",
   "public.hybrid.frame1Title": "公開サイト",

@@ -21,6 +21,8 @@ flate2 = "1"
 pdf-extract = "0.7"
 tauri = { version = "2", features = ["macos-private-api", "tray-icon"] }
 tauri-plugin-global-shortcut = "2.3.2"
+# 데스크탑 OS 알림 팝업(웹뷰에는 브라우저 Notification API가 없어서 네이티브 경로 필요).
+tauri-plugin-notification = "2"
 tauri-plugin-opener = "2"
 notify = "6"
 # On-device store for folder index, widget usage rollups, activity focus, sync outbox.

@@ -1,0 +1,339 @@
+/* 위젯 전용 전체화면 튜토리얼 — Bubli 유리 톤. 검은 스크림 대신 밝은 워터 글래스 배경.
+   토큰(var(--blue-ink)/--ink/--ink-soft/--bubble-blue)과 파스텔 워터블루/라일락만 쓴다(이모지 금지). */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 680;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 90% at 18% 6%, rgba(216, 240, 255, 0.9), transparent 60%),
+    radial-gradient(120% 90% at 88% 96%, rgba(230, 221, 248, 0.85), transparent 60%),
+    rgba(247, 249, 250, 0.82);
+  backdrop-filter: blur(22px) saturate(1.08);
+  -webkit-backdrop-filter: blur(22px) saturate(1.08);
+}
+
+.orbA,
+.orbB {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(2px);
+  pointer-events: none;
+}
+.orbA {
+  width: 240px;
+  height: 240px;
+  top: -60px;
+  left: -40px;
+  background: radial-gradient(circle at 34% 30%, rgba(158, 216, 255, 0.55), rgba(158, 216, 255, 0) 70%);
+}
+.orbB {
+  width: 300px;
+  height: 300px;
+  right: -80px;
+  bottom: -100px;
+  background: radial-gradient(circle at 40% 34%, rgba(230, 221, 248, 0.6), rgba(230, 221, 248, 0) 70%);
+}
+
+.frame {
+  position: relative;
+  width: min(720px, 92vw);
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px clamp(20px, 4vw, 40px) 26px;
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 40px 80px -44px rgba(35, 60, 90, 0.5);
+  backdrop-filter: blur(16px) saturate(1.1);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.badge {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bubble-blue) 16%, transparent);
+  color: var(--blue-ink);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+.skip {
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 10px;
+}
+.skip:hover {
+  color: var(--ink);
+  background: rgba(111, 184, 242, 0.12);
+}
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.scene {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+.svg {
+  width: min(420px, 78%);
+  height: auto;
+}
+
+.copy {
+  text-align: center;
+  max-width: 520px;
+}
+.title {
+  margin: 0 0 8px;
+  color: var(--ink);
+  font-size: clamp(20px, 2.6vw, 26px);
+  font-weight: 860;
+  line-height: 1.25;
+}
+.body {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: clamp(14px, 1.5vw, 16px);
+  line-height: 1.6;
+  font-weight: 600;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 2px;
+}
+.dots {
+  display: flex;
+  gap: 7px;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(111, 184, 242, 0.3);
+  transition: width 180ms ease, background 180ms ease;
+}
+.dotActive {
+  width: 22px;
+  background: var(--bubble-blue);
+}
+
+.buttons {
+  display: flex;
+  gap: 10px;
+}
+.ghostBtn,
+.primaryBtn {
+  border-radius: 999px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 140ms ease, box-shadow 200ms ease, background 160ms ease;
+}
+.ghostBtn {
+  border: 1px solid rgba(107, 143, 168, 0.28);
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--ink-soft);
+}
+.ghostBtn:hover {
+  color: var(--ink);
+  border-color: rgba(111, 184, 242, 0.5);
+}
+.primaryBtn {
+  border: 0;
+  background: linear-gradient(135deg, var(--bubble-blue), var(--blue-ink));
+  color: #ffffff;
+  box-shadow: 0 14px 28px -14px rgba(27, 104, 184, 0.7);
+}
+.primaryBtn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 34px -14px rgba(27, 104, 184, 0.75);
+}
+
+/* ---------- SVG 장면 요소(유리 톤) ---------- */
+/* 방울은 납작한 단색이 아니라 유리 물방울처럼 — 공용 radialGradient(defs)로 채운다.
+   (지원 안 되는 환경 대비 단색 fill을 먼저 두고 url()로 덮는다.) */
+.bubbleFill {
+  fill: rgba(215, 234, 244, 0.5);
+  fill: url(#bubli-tut-bubble);
+}
+.bubbleStroke {
+  fill: none;
+  stroke: rgba(111, 184, 242, 0.7);
+  stroke-width: 2;
+}
+.bubbleHi {
+  fill: rgba(255, 255, 255, 0.85);
+}
+.svgGlyph {
+  fill: var(--blue-ink);
+  font-size: 34px;
+  font-weight: 900;
+}
+.svgCaption {
+  fill: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 800;
+}
+.svgCaptionRoom {
+  fill: var(--blue-ink);
+  font-size: 13px;
+  font-weight: 800;
+}
+.deskLine {
+  fill: rgba(107, 143, 168, 0.22);
+}
+.canvas {
+  fill: rgba(255, 255, 255, 0.6);
+  stroke: rgba(107, 143, 168, 0.2);
+  stroke-width: 1.5;
+}
+.canvasRoom {
+  fill: rgba(215, 234, 244, 0.45);
+  stroke: rgba(111, 184, 242, 0.45);
+  stroke-width: 1.5;
+}
+.dashRing {
+  fill: none;
+  stroke: rgba(111, 184, 242, 0.55);
+  stroke-width: 2;
+  stroke-dasharray: 4 6;
+}
+.pointer {
+  stroke: rgba(111, 184, 242, 0.8);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-dasharray: 2 6;
+}
+.miniPanel,
+.previewCard {
+  fill: rgba(255, 255, 255, 0.94);
+  stroke: rgba(107, 143, 168, 0.2);
+  stroke-width: 1.5;
+}
+.miniDot {
+  fill: var(--bubble-blue);
+}
+.miniBar {
+  fill: rgba(107, 143, 168, 0.45);
+}
+.miniBarSoft {
+  fill: rgba(107, 143, 168, 0.26);
+}
+.miniBarRoom {
+  fill: rgba(111, 184, 242, 0.6);
+}
+.barPill {
+  fill: rgba(255, 255, 255, 0.9);
+  stroke: rgba(255, 255, 255, 0.85);
+  stroke-width: 1.5;
+}
+.barChip {
+  fill: rgba(215, 234, 244, 0.7);
+  stroke: rgba(111, 184, 242, 0.4);
+  stroke-width: 1.5;
+}
+.barChipDot {
+  fill: var(--blue-ink);
+}
+.modeDefault {
+  fill: rgba(255, 255, 255, 0.92);
+  stroke: rgba(107, 143, 168, 0.28);
+  stroke-width: 1.5;
+}
+.modeTranslucent {
+  fill: rgba(255, 255, 255, 0.55);
+  stroke: rgba(111, 184, 242, 0.4);
+  stroke-width: 1.5;
+}
+.modeGhost {
+  fill: rgba(255, 255, 255, 0.2);
+  stroke: rgba(111, 184, 242, 0.3);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 5;
+}
+.modeBubble {
+  fill: rgba(158, 216, 255, 0.55);
+  fill: url(#bubli-tut-bubble);
+  stroke: rgba(111, 184, 242, 0.6);
+  stroke-width: 1.5;
+}
+.check {
+  fill: none;
+  stroke: var(--blue-ink);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------- 다크 테마 ---------- */
+:global([data-theme="dark"]) .overlay {
+  background:
+    radial-gradient(120% 90% at 18% 6%, rgba(38, 74, 112, 0.7), transparent 60%),
+    radial-gradient(120% 90% at 88% 96%, rgba(58, 48, 92, 0.7), transparent 60%),
+    rgba(18, 24, 32, 0.82);
+}
+:global([data-theme="dark"]) .frame {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(28, 36, 46, 0.72);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 40px 80px -44px rgba(0, 0, 0, 0.7);
+}
+:global([data-theme="dark"]) .title {
+  color: rgba(255, 255, 255, 0.92);
+}
+:global([data-theme="dark"]) .body {
+  color: rgba(255, 255, 255, 0.68);
+}
+:global([data-theme="dark"]) .ghostBtn {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #cdd8df;
+}
+:global([data-theme="dark"]) .canvas {
+  fill: rgba(255, 255, 255, 0.06);
+  stroke: rgba(255, 255, 255, 0.14);
+}
+:global([data-theme="dark"]) .barPill,
+:global([data-theme="dark"]) .miniPanel,
+:global([data-theme="dark"]) .previewCard {
+  fill: rgba(255, 255, 255, 0.1);
+  stroke: rgba(255, 255, 255, 0.16);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dot,
+  .dotActive,
+  .primaryBtn {
+    transition: none;
+  }
+}

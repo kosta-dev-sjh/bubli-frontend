@@ -185,7 +185,21 @@ function isRefreshTokenRejected(status: number, payload: ApiResponse<AuthTokenRe
   return code === "AUTH_REFRESH_TOKEN_EXPIRED" || code === "AUTH_REFRESH_TOKEN_REUSED" || code === "AUTH_INVALID_TOKEN";
 }
 
-async function refreshAuthSessionOnce() {
+async function refreshAuthSessionOnce(): Promise<AuthRefreshResult> {
+  // 웹에서 탭을 여러 개 열면 같은 refresh 토큰으로 동시에 갱신을 시도한다. 백엔드는 refresh
+  // 토큰을 1회용으로 회전시키므로 늦은 쪽이 "재사용" 거절을 받고 공용 localStorage 세션을
+  // 지워 모든 탭이 로그아웃돼 버렸다. Web Locks로 탭 간 갱신을 직렬화한다.
+  if (typeof navigator !== "undefined" && navigator.locks) {
+    try {
+      return await navigator.locks.request("bubli-auth-refresh", () => performAuthRefresh());
+    } catch {
+      return performAuthRefresh();
+    }
+  }
+  return performAuthRefresh();
+}
+
+async function performAuthRefresh(): Promise<AuthRefreshResult> {
   const refreshToken = getAuthRefreshToken();
   if (!refreshToken) {
     clearStoredAuthSession();
@@ -216,6 +230,11 @@ async function refreshAuthSessionOnce() {
     }
 
     if (isRefreshTokenRejected(response.status, payload)) {
+      // 거절이더라도 다른 탭이 방금 세션을 회전시켰다면(저장된 토큰이 우리가 보낸 것과 다름)
+      // 그 새 세션을 그대로 쓴다 — 세션을 지우면 멀쩡히 로그인된 다른 탭까지 로그아웃된다.
+      if (getAuthRefreshToken() !== refreshToken) {
+        return "refreshed";
+      }
       clearStoredAuthSession();
       return "invalid";
     }

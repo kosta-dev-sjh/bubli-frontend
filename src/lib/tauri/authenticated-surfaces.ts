@@ -5,8 +5,9 @@ import { startManagedFolderAutoSync, stopManagedFolderAutoSync } from "@/lib/loc
 import { authApi } from "@/features/auth/api/authApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { widgetApi } from "@/features/widget/api/widgetApi";
+import { readDesktopWidgetStartupPreference } from "@/features/onboarding/lib/onboarding-storage";
 import { getStoredAuthSession, setStoredAuthSessionAndWaitForTauriMirror } from "@/lib/auth/auth-session";
-import { tauriCommands, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowOpenInput } from "@/lib/tauri/commands";
+import { tauriCommands, type WidgetWindowOpenInput } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { startWidgetUsageAutoSync, stopWidgetUsageAutoSync } from "@/lib/widget/widget-usage-auto-sync";
 import {
@@ -15,7 +16,6 @@ import {
   restoreActiveProjectRoomFromTauri,
   seedActiveProjectRoomId,
 } from "@/lib/workspace-active-room";
-import type { WidgetBubbleSettingResponse, WidgetBubbleType as ApiWidgetBubbleType } from "@/types/api/widget";
 
 let launchRequested = false;
 let launchPromise: Promise<void> | null = null;
@@ -91,29 +91,18 @@ export function readTauriAuthenticatedSurfacesLaunchTimeline(): TauriAuthenticat
 }
 
 const loginStartupBarWindow: WidgetWindowOpenInput = { bubbleType: "bar", mode: "DEFAULT", windowId: "bar" };
-// 원형 오브 메뉴 창도 로그인 시 함께 띄운다 — 인라인 바 메뉴와 공존한다(팀 재논의로 PR 429의 제거를 되돌림).
-const loginStartupMenuWindow: WidgetWindowOpenInput = { bubbleType: "menu", mode: "DEFAULT", windowId: "menu" };
-const loginStartupWindows: WidgetWindowOpenInput[] = [
-  loginStartupBarWindow,
-  loginStartupMenuWindow,
+const loginStartupWindows: WidgetWindowOpenInput[] = [loginStartupBarWindow];
+const desktopWidgetBoardWindows: WidgetWindowOpenInput[] = [
+  { bubbleType: "todo", mode: "DEFAULT", windowId: "todo" },
   { bubbleType: "agent", mode: "DEFAULT", windowId: "agent" },
-  { bubbleType: "alert", mode: "DEFAULT", windowId: "alert" },
-  { bubbleType: "chat", mode: "DEFAULT", windowId: "chat" },
-  { bubbleType: "memo", mode: "DEFAULT", windowId: "memo" },
   { bubbleType: "schedule", mode: "DEFAULT", windowId: "schedule" },
   { bubbleType: "timer", mode: "DEFAULT", windowId: "timer" },
-  { bubbleType: "todo", mode: "DEFAULT", windowId: "todo" },
 ];
-const backendBubbleToLocal: Record<ApiWidgetBubbleType, Exclude<WidgetBubbleType, "bar" | "menu">> = {
-  AGENT: "agent",
-  ALERT: "alert",
-  CHAT: "chat",
-  MEMO: "memo",
-  RESOURCE: "resource",
-  SCHEDULE: "schedule",
-  TIMER: "timer",
-  TODO: "todo",
-};
+const desktopWidgetCascadeWindows: WidgetWindowOpenInput[] = [
+  { bubbleType: "todo", mode: "DEFAULT", windowId: "todo" },
+  { bubbleType: "agent", mode: "DEFAULT", windowId: "agent" },
+  { bubbleType: "timer", mode: "DEFAULT", windowId: "timer" },
+];
 
 const widgetOpenCommandTimeoutMs = 8_000;
 const widgetOpenRetryAttempts = 2;
@@ -231,67 +220,20 @@ async function openWidgetWindowsWithRetry(
   return inputs.map((input) => ({ input, reason: lastReason, status: "rejected" as const }));
 }
 
-function getVisibleLoginStartupModeFromSetting(setting: WidgetBubbleSettingResponse): WidgetWindowMode {
-  // Login startup opens enabled widgets visibly; minimized mode is restored through widget bar/settings flows.
-  if (setting.ghostMode) return "GHOST";
-  if (setting.opacity !== null && setting.opacity !== undefined && setting.opacity < 0.95) {
-    return "TRANSLUCENT";
-  }
-  return "DEFAULT";
-}
-
-function getLoginStartupBubbles(settings: WidgetBubbleSettingResponse[]): WidgetWindowOpenInput[] {
-  const enabledByBubble = new Map<Exclude<WidgetBubbleType, "bar" | "menu">, WidgetBubbleSettingResponse>();
-  const sortedStartupBubbles: Array<
-    WidgetWindowOpenInput & {
-      bubbleType: Exclude<WidgetBubbleType, "bar" | "menu">;
-    }
-  > = [];
-
-  for (const startupWindow of loginStartupWindows) {
-    if (startupWindow.bubbleType === undefined || startupWindow.bubbleType === "bar" || startupWindow.bubbleType === "menu") {
-      continue;
-    }
-
-    const bubbleWithType = startupWindow as WidgetWindowOpenInput & {
-      bubbleType: Exclude<WidgetBubbleType, "bar" | "menu">;
-    };
-    sortedStartupBubbles.push(bubbleWithType);
-  }
-
-  for (const setting of settings) {
-    const localType = backendBubbleToLocal[setting.bubbleType];
-    if (!localType) continue;
-    enabledByBubble.set(localType, setting);
-  }
-
-  const startupBubbles: WidgetWindowOpenInput[] = [loginStartupMenuWindow];
-  for (const bubble of sortedStartupBubbles) {
-    const setting = enabledByBubble.get(bubble.bubbleType);
-    startupBubbles.push({
-      bubbleType: bubble.bubbleType,
-      mode: setting?.enabled ? getVisibleLoginStartupModeFromSetting(setting) : "DEFAULT",
-      windowId: bubble.windowId,
-    });
-  }
-
-  return startupBubbles;
-}
-
 export async function resolveLoginStartupWindows(): Promise<WidgetWindowOpenInput[]> {
-  const settings = await withTimeout(
+  await withTimeout(
     widgetApi.getSettings(),
     widgetStartupSettingsTimeoutMs,
     "Tauri widget startup settings timed out",
   ).catch(() => null);
-  if (!settings) {
-    return loginStartupWindows;
+  const preference = readDesktopWidgetStartupPreference();
+  if (preference.mode === "board") {
+    return [loginStartupBarWindow, ...desktopWidgetBoardWindows];
   }
-
-  const startupBubbles = getLoginStartupBubbles(settings.bubbles);
-  if (startupBubbles.length === 0) return loginStartupWindows;
-
-  return [loginStartupBarWindow, ...startupBubbles];
+  if (preference.mode === "cascade") {
+    return [loginStartupBarWindow, ...desktopWidgetCascadeWindows];
+  }
+  return loginStartupWindows;
 }
 
 async function resolveLaunchSelectedRoomId() {
@@ -521,6 +463,14 @@ export function launchTauriAuthenticatedSurfaces(options: LaunchTauriAuthenticat
     void tauriCommands
       .seedWidgetBarItems({ selectedRoomId })
       .catch(() => undefined);
+
+    const startupPreference = readDesktopWidgetStartupPreference();
+    if (startupPreference.mode === "board" && bubbleWindows.length > 0) {
+      void tauriCommands.arrangeWidgetWindows({ layout: "board" }).catch(() => undefined);
+    }
+    if (startupPreference.mode === "cascade" && bubbleWindows.length > 0) {
+      void tauriCommands.arrangeWidgetWindows({ layout: "cascade" }).catch(() => undefined);
+    }
 
     for (const input of openedWindows) {
       const bubbleType = input.bubbleType;
