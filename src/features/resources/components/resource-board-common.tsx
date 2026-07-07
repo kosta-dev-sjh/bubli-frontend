@@ -28,6 +28,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { agentApi } from "@/features/agent/api/agentApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
+import { getApiBaseUrl } from "@/lib/api/client";
 import { ApiClientError } from "@/lib/api/errors";
 import { notifyDataChanged } from "@/lib/data-changed";
 import { documentTypeLabelKey } from "@/lib/document-type-label";
@@ -40,10 +41,12 @@ import { tauriCommands, type LocalFileByResourceIdResult } from "@/lib/tauri/com
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import type { GeneratedDocumentResponse } from "@/types/api/agent";
 import type {
   AiDocumentResponse,
   AiDocumentStatus,
   ResourceCommentResponse,
+  ResourceDownloadUrlResponse,
   ResourceRelationResponse,
   ResourceResponse,
   ResourceStatus,
@@ -445,13 +448,48 @@ export function toneForStatus(status: ResourceStatus) {
 // 데스크탑 앱에서는 OS 기본 브라우저로 여는 네이티브 커맨드를 사용한다(웹은 새 탭 유지).
 export async function openResourceDownload(resourceId: string) {
   const response = await resourcesApi.getDownloadUrl(resourceId);
+  const url = resolveResourceDownloadUrl(response);
+
+  if (!url) {
+    throw new Error("Download URL is empty");
+  }
 
   if (isTauriRuntime()) {
-    await tauriCommands.openExternalUrl(response.url);
+    await tauriCommands.openExternalUrl(url);
     return;
   }
 
-  window.open(response.url, "_blank", "noopener,noreferrer");
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.rel = "noopener noreferrer";
+  anchor.target = "_blank";
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+}
+
+export function resolveResourceDownloadUrl(response: ResourceDownloadUrlResponse) {
+  const rawUrl = (response.downloadUrl ?? response.url)?.trim();
+  if (!rawUrl) {
+    return "";
+  }
+  if (/^(?:[a-z][a-z0-9+.-]*:)?\/\//i.test(rawUrl) || rawUrl.startsWith("blob:") || rawUrl.startsWith("data:")) {
+    return rawUrl;
+  }
+  return new URL(rawUrl, getApiBaseUrl()).toString();
+}
+
+export async function downloadGeneratedDocument(documentId: string) {
+  const result = await agentApi.exportGeneratedDocument(documentId);
+  const url = URL.createObjectURL(result.blob);
+  const anchor = document.createElement("a");
+
+  anchor.href = url;
+  anchor.download = result.fileName;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /* ---------- 범위 세그먼트: 개인 | 프로젝트룸 ---------- */
@@ -666,6 +704,47 @@ export function ResourceRow({
           type="button"
         >
           <Trash2 aria-hidden size={15} strokeWidth={2} />
+        </button>
+      </span>
+    </li>
+  );
+}
+
+export function GeneratedDocumentRow({
+  document,
+  selected,
+  onDownload,
+  onSelect,
+}: {
+  document: GeneratedDocumentResponse;
+  selected: boolean;
+  onDownload: () => void;
+  onSelect: () => void;
+}) {
+  const { t } = useI18n();
+  const typeLabel = document.documentType?.trim() || t("resources.common.documentDraft");
+  const summary = document.contentMarkdown?.trim().split(/\r?\n/).find(Boolean) ?? typeLabel;
+
+  return (
+    <li className={cn(styles.row, selected && styles.rowSelected)}>
+      <button aria-pressed={selected} className={styles.rowMain} onClick={onSelect} title={document.title} type="button">
+        <span aria-hidden="true" className={cn(styles.glyph, glyphClassName("markdown"))}>
+          <FileText aria-hidden size={17} strokeWidth={2} />
+        </span>
+        <span className={styles.rowText}>
+          <b className={styles.rowName}>{document.title}</b>
+          <span className={styles.rowMeta}>
+            {t("agent.page.tagGeneratedDocument")} · {typeLabel} · {formatDate(document.updatedAt || document.createdAt, t)}
+          </span>
+          <span className={styles.rowMeta}>{summary}</span>
+        </span>
+      </button>
+      <StatusBadge className={styles.rowChip} tone="success">
+        {t("agent.page.tagGeneratedDocument")}
+      </StatusBadge>
+      <span aria-label={t("resources.common.rowActionsAria", { title: document.title })} className={styles.rowActions} role="group">
+        <button aria-label={t("resources.common.download")} className={styles.iconButton} onClick={onDownload} title={t("resources.common.download")} type="button">
+          <Download aria-hidden size={15} strokeWidth={2} />
         </button>
       </span>
     </li>

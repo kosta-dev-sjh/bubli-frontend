@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
+import { agentApi } from "@/features/agent/api/agentApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { notifyDataChanged, useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
@@ -14,11 +15,14 @@ import { projectRoomRoute } from "@/lib/project-room-routes";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { cn } from "@/lib/utils";
 import { shouldUseWorkspacePreviewData, workspacePreviewRoomResources } from "@/lib/workspace-preview-data";
+import type { GeneratedDocumentResponse } from "@/types/api/agent";
 import type { ResourceResponse } from "@/types/api/resource";
 
 import { LocalIndexedFileSearchPanel } from "./local-indexed-file-search-panel";
 import { ResourceAiSearchPanel } from "./resource-ai-search-panel";
 import {
+  downloadGeneratedDocument,
+  GeneratedDocumentRow,
   getErrorMessage,
   isResourceAnalysisPending,
   openResourceDownload,
@@ -35,7 +39,7 @@ const EMPTY_RESOURCES: ResourceResponse[] = [];
 
 type RoomState =
   | { kind: "loading" }
-  | { kind: "ready"; resources: ResourceResponse[] }
+  | { generatedDocuments: GeneratedDocumentResponse[]; kind: "ready"; resources: ResourceResponse[] }
   | { kind: "auth" }
   | { kind: "error"; message: string };
 
@@ -73,15 +77,18 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
 
   const loadResources = useCallback(async () => {
     try {
-      const page = await resourcesApi.listRoomResources(roomId);
-      setState({ kind: "ready", resources: page.items });
+      const [page, generatedDocumentPage] = await Promise.all([
+        resourcesApi.listRoomResources(roomId),
+        agentApi.listRoomGeneratedDocuments(roomId),
+      ]);
+      setState({ generatedDocuments: generatedDocumentPage.items, kind: "ready", resources: page.items });
       setSelectedResourceId((current) => (current && page.items.some((resource) => resource.id === current) ? current : null));
     } catch (error) {
       const message = getErrorMessage(error, t);
       if (message !== "AUTH_REQUIRED" && shouldUseWorkspacePreviewData()) {
         const matched = workspacePreviewRoomResources.filter((resource) => resource.roomId === roomId);
         const resources = matched.length ? matched : workspacePreviewRoomResources;
-        setState({ kind: "ready", resources });
+        setState({ generatedDocuments: [], kind: "ready", resources });
         setSelectedResourceId((current) => (current && resources.some((resource) => resource.id === current) ? current : null));
         return;
       }
@@ -117,6 +124,7 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
   }, []);
 
   const resources = useMemo(() => (state.kind === "ready" ? state.resources : EMPTY_RESOURCES), [state]);
+  const generatedDocuments = useMemo(() => (state.kind === "ready" ? state.generatedDocuments : []), [state]);
 
   useEffect(() => {
     if (state.kind !== "ready" || !resources.some(isResourceAnalysisPending)) {
@@ -154,6 +162,17 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
       return `${resource.title} ${versionName} ${resource.status}`.toLowerCase().includes(term);
     });
   }, [query, resources]);
+
+  const filteredGeneratedDocuments = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    if (!term) {
+      return generatedDocuments;
+    }
+
+    return generatedDocuments.filter((document) =>
+      `${document.title} ${document.documentType} ${document.contentMarkdown}`.toLowerCase().includes(term),
+    );
+  }, [generatedDocuments, query]);
 
   const selectedResource = selectedResourceId ? filteredResources.find((resource) => resource.id === selectedResourceId) ?? null : null;
   const canShowBoard = state.kind !== "auth" && state.kind !== "error";
@@ -198,6 +217,17 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
     }
   }, [t]);
 
+  const handleGeneratedDocumentDownload = useCallback(async (document: GeneratedDocumentResponse) => {
+    try {
+      await downloadGeneratedDocument(document.id);
+    } catch (error) {
+      setUploadState({
+        kind: "error",
+        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : t("agent.page.errorExportDocument"),
+      });
+    }
+  }, [t]);
+
   const sendPreviewIntent = useCallback((resourceId: string, kind: ResourcePreviewIntent["kind"]) => {
     setSelectedResourceId(resourceId);
     setPreviewIntent((current) => ({ kind, token: (current?.token ?? 0) + 1 }));
@@ -232,7 +262,9 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
         <header className={styles.header}>
           <h1 className={styles.title}>{t("resources.workspace.title")}</h1>
           <span className={styles.count}>
-            {state.kind === "loading" ? t("resources.workspace.totalUnknown") : t("resources.workspace.totalCount", { count: resources.length })}
+            {state.kind === "loading"
+              ? t("resources.workspace.totalUnknown")
+              : t("resources.workspace.totalCount", { count: resources.length + generatedDocuments.length })}
           </span>
           <span className={styles.headerSpacer} aria-hidden="true" />
           <ResourceScopeSwitch activeScope="room" roomHref={projectRoomRoute(roomId, "resources")} roomLabel={t("resources.common.roomFallback")} />
@@ -348,7 +380,7 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
                     </div>
                   ))}
                 </div>
-              ) : filteredResources.length === 0 ? (
+              ) : filteredResources.length === 0 && filteredGeneratedDocuments.length === 0 ? (
                 <div className={styles.empty} role="status">
                   <strong>{t("resources.workspace.emptyRoomTitle")}</strong>
                   <p>{t("resources.workspace.emptyRoomDesc")}</p>
@@ -367,6 +399,15 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
                 </div>
               ) : (
                 <ul className={styles.rows}>
+                  {filteredGeneratedDocuments.map((document) => (
+                    <GeneratedDocumentRow
+                      document={document}
+                      key={`generated-${document.id}`}
+                      onDownload={() => void handleGeneratedDocumentDownload(document)}
+                      onSelect={() => setSelectedResourceId(null)}
+                      selected={false}
+                    />
+                  ))}
                   {filteredResources.map((resource) => (
                     <ResourceRow
                       key={resource.id}

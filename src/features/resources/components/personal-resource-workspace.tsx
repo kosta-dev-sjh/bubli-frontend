@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
+import { agentApi } from "@/features/agent/api/agentApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
 import { useDataRefresh } from "@/lib/data-changed";
@@ -31,11 +32,14 @@ import { cn } from "@/lib/utils";
 import { ACTIVE_PROJECT_ROOM_CHANGE_EVENT, getActiveProjectRoomId } from "@/lib/workspace-active-room";
 import { shouldUseWorkspacePreviewData, workspacePreviewPersonalResources } from "@/lib/workspace-preview-data";
 import type { LocalFilePreviewResult, LocalFileSearchResult, ManagedFolderListItem } from "@/lib/tauri/commands";
+import type { GeneratedDocumentResponse } from "@/types/api/agent";
 import type { ResourceResponse } from "@/types/api/resource";
 
 import { ResourceAiSearchPanel } from "./resource-ai-search-panel";
 import {
+  downloadGeneratedDocument,
   formatDate,
+  GeneratedDocumentRow,
   getErrorMessage,
   isResourceAnalysisPending,
   openResourceDownload,
@@ -52,7 +56,7 @@ const windowsInstallerHref = "/downloads/windows/Bubli-Windows-latest.exe";
 
 type PersonalState =
   | { kind: "loading" }
-  | { kind: "ready"; resources: ResourceResponse[] }
+  | { generatedDocuments: GeneratedDocumentResponse[]; kind: "ready"; resources: ResourceResponse[] }
   | { kind: "auth" }
   | { kind: "error"; message: string };
 
@@ -89,14 +93,17 @@ export function PersonalResourceWorkspace() {
 
   const loadResources = useCallback(async () => {
     try {
-      const page = await resourcesApi.listPersonal();
-      setState({ kind: "ready", resources: page.items });
+      const [page, generatedDocumentPage] = await Promise.all([
+        resourcesApi.listPersonal(),
+        agentApi.listGeneratedDocuments(),
+      ]);
+      setState({ generatedDocuments: generatedDocumentPage.items, kind: "ready", resources: page.items });
       setSelectedResourceId((current) => (current && page.items.some((resource) => resource.id === current) ? current : null));
     } catch (error) {
       const message = getErrorMessage(error, t);
       if (message !== "AUTH_REQUIRED" && shouldUseWorkspacePreviewData()) {
         const resources = workspacePreviewPersonalResources;
-        setState({ kind: "ready", resources });
+        setState({ generatedDocuments: [], kind: "ready", resources });
         setSelectedResourceId((current) => (current && resources.some((resource) => resource.id === current) ? current : null));
         return;
       }
@@ -180,6 +187,7 @@ export function PersonalResourceWorkspace() {
   useDataRefresh({ domains: [], onRefresh: revalidateResources });
 
   const resources = useMemo(() => (state.kind === "ready" ? state.resources : EMPTY_RESOURCES), [state]);
+  const generatedDocuments = useMemo(() => (state.kind === "ready" ? state.generatedDocuments : []), [state]);
 
   useEffect(() => {
     let cancelled = false;
@@ -261,6 +269,17 @@ export function PersonalResourceWorkspace() {
       return `${resource.title} ${versionName} ${resource.status}`.toLowerCase().includes(term);
     });
   }, [query, resources]);
+
+  const filteredGeneratedDocuments = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    if (!term) {
+      return generatedDocuments;
+    }
+
+    return generatedDocuments.filter((document) =>
+      `${document.title} ${document.documentType} ${document.contentMarkdown}`.toLowerCase().includes(term),
+    );
+  }, [generatedDocuments, query]);
 
   useEffect(() => {
     const term = query.trim();
@@ -525,6 +544,15 @@ export function PersonalResourceWorkspace() {
     }
   }, [t]);
 
+  const handleGeneratedDocumentDownload = useCallback(async (document: GeneratedDocumentResponse) => {
+    setActionError(null);
+    try {
+      await downloadGeneratedDocument(document.id);
+    } catch (error) {
+      setActionError(error instanceof Error && error.message !== "Failed to fetch" ? error.message : t("agent.page.errorExportDocument"));
+    }
+  }, [t]);
+
   const sendPreviewIntent = useCallback((resourceId: string, kind: ResourcePreviewIntent["kind"]) => {
     setSelectedResourceId(resourceId);
     setPreviewIntent((current) => ({ kind, token: (current?.token ?? 0) + 1 }));
@@ -536,7 +564,9 @@ export function PersonalResourceWorkspace() {
         <header className={styles.header}>
           <h1 className={styles.title}>{t("resources.workspace.title")}</h1>
           <span className={styles.count}>
-            {state.kind === "loading" ? t("resources.workspace.totalUnknown") : t("resources.workspace.totalCount", { count: resources.length })}
+            {state.kind === "loading"
+              ? t("resources.workspace.totalUnknown")
+              : t("resources.workspace.totalCount", { count: resources.length + generatedDocuments.length })}
           </span>
           <span className={styles.headerSpacer} aria-hidden="true" />
           <ResourceScopeSwitch activeScope="personal" roomHref={roomBoardHref} roomLabel={t("resources.common.roomFallback")} />
@@ -710,7 +740,7 @@ export function PersonalResourceWorkspace() {
                     </div>
                   ))}
                 </div>
-              ) : filteredResources.length === 0 ? (
+              ) : filteredResources.length === 0 && filteredGeneratedDocuments.length === 0 ? (
                 <div className={styles.empty} role="status">
                   <strong>{isTauri ? t("resources.workspace.emptyPersonalTitleTauri") : t("resources.workspace.emptyPersonalTitleWeb")}</strong>
                   <p>{isTauri ? t("resources.workspace.emptyPersonalDescTauri") : t("resources.workspace.emptyPersonalDescWeb")}</p>
@@ -725,6 +755,15 @@ export function PersonalResourceWorkspace() {
                 </div>
               ) : (
                 <ul className={styles.rows}>
+                  {filteredGeneratedDocuments.map((document) => (
+                    <GeneratedDocumentRow
+                      document={document}
+                      key={`generated-${document.id}`}
+                      onDownload={() => void handleGeneratedDocumentDownload(document)}
+                      onSelect={() => setSelectedResourceId(null)}
+                      selected={false}
+                    />
+                  ))}
                   {filteredResources.map((resource) => (
                     <ResourceRow
                       key={resource.id}
