@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  backfillPersonalLocalFileAnalyses,
   listPersonalManagedFolders,
   scanPersonalManagedFolder,
   syncPersonalLocalFileEventsToServer,
@@ -19,6 +20,7 @@ const WATCH_EVENT_SYNC_DEBOUNCE_MS = 400;
 let syncIntervalId: number | null = null;
 let syncInFlight = false;
 let syncInFlightPromise: Promise<void> | null = null;
+let analysisBackfillHasRun = false;
 let startupScanHasRun = false;
 let pendingFullSyncRequested = false;
 let stopRequested = false;
@@ -132,6 +134,7 @@ export async function stopManagedFolderAutoSync(input?: ManagedFolderAutoSyncSto
 
   syncInFlight = false;
   syncInFlightPromise = null;
+  analysisBackfillHasRun = false;
   startupScanHasRun = false;
   pendingFullSyncRequested = false;
   pendingFolderSyncIds.clear();
@@ -167,6 +170,7 @@ export function notifyManagedFolderConsentChanged(enabled: boolean) {
     pendingFullSyncRequested = false;
     pendingFolderSyncIds.clear();
     clearPendingWatchEventSyncs();
+    analysisBackfillHasRun = false;
     startupScanHasRun = false;
     detachManagedFolderWatchListener();
     if (isTauriRuntime()) {
@@ -319,6 +323,12 @@ async function syncManagedFolderEventsOnce(localFolderId?: string) {
         });
       }
 
+      await backfillPersonalLocalFileAnalyses({
+        consentGranted,
+        limit: analysisBackfillHasRun ? 1 : 3,
+        maxAttempts: 3,
+      });
+      analysisBackfillHasRun = true;
     } catch {
       cachedConsent = null;
       cachedConsentCheckedAt = 0;
