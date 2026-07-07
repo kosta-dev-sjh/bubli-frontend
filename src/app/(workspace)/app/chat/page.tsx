@@ -100,6 +100,7 @@ type VoiceState =
   | { kind: "blocked"; message: string };
 
 type VoiceAction = "join" | "mic" | "leave" | "end";
+type ChatRoomMode = "direct" | "group" | "room";
 
 type RoomInviteState =
   | { kind: "idle" }
@@ -441,6 +442,11 @@ function voiceParticipantStatusLabel(t: TranslateFn, status: VoiceParticipantRes
   return t("chat.participant.disconnected");
 }
 
+function isSameVoiceTarget(voiceRoom: VoiceRoomResponse, chatRoom: ChatRoomResponse) {
+  if (chatRoom.chatType === "ROOM") return Boolean(chatRoom.roomId && voiceRoom.roomId === chatRoom.roomId);
+  return voiceRoom.chatRoomId === chatRoom.id;
+}
+
 function parseBubliCommand(t: TranslateFn, text: string): AgentCommandDraft | null {
   const match = text.trim().match(/^\/bubli(?:\s+(.+))?$/i);
   if (!match) return null;
@@ -671,7 +677,7 @@ function ChatPageContent() {
     });
   }, []);
 
-  const roomMode: "direct" | "room" = queryMode === "direct" ? "direct" : "room";
+  const roomMode: ChatRoomMode = queryMode === "room" ? "room" : queryMode === "group" ? "group" : "direct";
 
   // 상단바에서 고른 활성 프로젝트룸을 따라간다 — 룸 모드 대화는 이 룸 하나로 한정된다(Jitsi처럼 방에 들어가야 보이는 구조).
   const [activeRoomInfo, setActiveRoomInfo] = useState<{ id: string | null; label: string | null }>(() => ({
@@ -696,9 +702,16 @@ function ChatPageContent() {
   const scopedProjectRoomId = queryRoomId ?? activeRoomInfo.id;
 
   const directRooms = useMemo(
-    () => (roomsState.kind === "ready" ? roomsState.rooms.filter((room) => room.chatType === "DIRECT" || room.chatType === "GROUP") : []),
+    () => (roomsState.kind === "ready" ? roomsState.rooms.filter((room) => room.chatType === "DIRECT") : []),
     [roomsState],
   );
+
+  const groupRooms = useMemo(
+    () => (roomsState.kind === "ready" ? roomsState.rooms.filter((room) => room.chatType === "GROUP") : []),
+    [roomsState],
+  );
+
+  const peerRooms = roomMode === "group" ? groupRooms : directRooms;
 
   const scopedRoomChat = useMemo(() => {
     if (roomsState.kind !== "ready" || !scopedProjectRoomId) return null;
@@ -708,9 +721,9 @@ function ChatPageContent() {
   const activeChatRoomId = useMemo(() => {
     if (roomsState.kind !== "ready") return null;
     if (roomMode === "room") return scopedRoomChat?.id ?? null;
-    if (selectedChatRoomId && directRooms.some((room) => room.id === selectedChatRoomId)) return selectedChatRoomId;
-    return directRooms[0]?.id ?? null;
-  }, [directRooms, roomMode, roomsState.kind, scopedRoomChat, selectedChatRoomId]);
+    if (selectedChatRoomId && peerRooms.some((room) => room.id === selectedChatRoomId)) return selectedChatRoomId;
+    return peerRooms[0]?.id ?? null;
+  }, [peerRooms, roomMode, roomsState.kind, scopedRoomChat, selectedChatRoomId]);
 
   const selectedRoom = useMemo(() => {
     if (roomsState.kind !== "ready") return null;
@@ -734,10 +747,10 @@ function ChatPageContent() {
   const selectedGroupFriendCount = selectedGroupMemberIds.length;
   const currentUser = profileState.kind === "ready" ? profileState.user : null;
   const myBubliId = currentUser?.bubliId ?? "";
-  const selectedProjectRoomId = selectedRoom?.chatType === "ROOM" && selectedRoom.roomId ? selectedRoom.roomId : scopedProjectRoomId;
+  const selectedProjectRoomId = selectedRoom?.chatType === "ROOM" && selectedRoom.roomId ? selectedRoom.roomId : null;
   const selectedAgentRoomId = selectedRoom?.chatType === "ROOM" && selectedRoom.roomId ? selectedRoom.roomId : null;
   const selectedProjectRoomName =
-    selectedRoom?.chatType === "ROOM" ? selectedRoom.name?.replace(/\s*대화$/, "") ?? activeRoomInfo.label ?? t("chat.room.fallbackName") : activeRoomInfo.label;
+    selectedRoom?.chatType === "ROOM" ? selectedRoom.name?.replace(/\s*대화$/, "") ?? activeRoomInfo.label ?? t("chat.room.fallbackName") : null;
   const pendingAgentCommand = useMemo(() => parseBubliCommand(t, draft), [draft, t]);
   // /bubli 자동완성 — 프로젝트룸 대화에서만 연다(1:1/그룹에는 에이전트가 없다).
   // 완성 텍스트를 넣은 뒤 커서를 끝으로 옮겨 이어서 본문을 입력하게 한다.
@@ -769,16 +782,25 @@ function ChatPageContent() {
     return t("chat.typing.one", { name: names[0] ?? t("chat.participant.fallbackName") });
   }, [activeChatRoomId, agentTypingActive, typingPeople, t]);
   const pendingRoomInvitations = roomInvitationsState.kind === "ready" ? roomInvitationsState.invitations.filter((invitation) => invitation.status === "PENDING") : [];
+  const joinedOpenVoiceRoom =
+    voiceState.kind === "ready" &&
+    voiceState.room.status === "OPEN" &&
+    currentUser?.id &&
+    voiceState.room.participants.some((p) => p.userId === currentUser.id && p.status === "JOINED")
+      ? voiceState.room
+      : null;
   // 보이스는 채팅방별로 독립 — 프로젝트룸은 roomId, 1:1/그룹은 chatRoomId로 매칭
   const activeVoiceRoom =
     voiceState.kind === "ready" &&
     voiceState.room.status === "OPEN" &&
     selectedRoom &&
-    (selectedRoom.chatType === "ROOM"
-      ? voiceState.room.roomId === selectedRoom.roomId
-      : voiceState.room.chatRoomId === selectedRoom.id)
+    isSameVoiceTarget(voiceState.room, selectedRoom)
       ? voiceState.room
       : null;
+  const activeLiveKitVoiceRoomId = getActiveLiveKitVoiceRoomId();
+  const voiceLockedByAnotherRoom =
+    Boolean(joinedOpenVoiceRoom && selectedRoom && !isSameVoiceTarget(joinedOpenVoiceRoom, selectedRoom)) ||
+    Boolean(activeLiveKitVoiceRoomId && selectedRoom && activeLiveKitVoiceRoomId !== activeVoiceRoom?.id);
   const isInVoice = activeVoiceRoom !== null && activeVoiceRoom.participants.some(
     (p) => p.userId === currentUser?.id && p.status === "JOINED"
   );
@@ -1069,6 +1091,32 @@ function ChatPageContent() {
   }, [currentUser]);
 
   useEffect(() => {
+    if (roomMode === "room" || roomsState.kind !== "ready" || !selectedChatRoomId) return;
+    const selected = roomsState.rooms.find((room) => room.id === selectedChatRoomId);
+    if (selected?.chatType === "GROUP" && roomMode !== "group") router.replace("/app/chat?mode=group");
+    if (selected?.chatType === "DIRECT" && roomMode !== "direct") router.replace("/app/chat?mode=direct");
+  }, [roomMode, roomsState, router, selectedChatRoomId]);
+
+  useEffect(() => {
+    return voiceStore.subscribe(() => {
+      const snapshot = voiceStore.getSnapshot();
+      const storedVoice = snapshot.voice;
+      setVoiceState((current) => {
+        if (current.kind === "starting" || current.kind === "blocked") return current;
+        if (storedVoice.kind === "starting" || storedVoice.kind === "blocked") return current;
+        return JSON.stringify(current) === JSON.stringify(storedVoice) ? current : storedVoice;
+      });
+      setVoiceExpanded((current) => (current === snapshot.expanded ? current : snapshot.expanded));
+      setVoiceMicMuted((current) => (current === snapshot.micMuted ? current : snapshot.micMuted));
+      if (snapshot.selectedChatRoomId) {
+        setSelectedChatRoomId((current) =>
+          current === snapshot.selectedChatRoomId ? current : snapshot.selectedChatRoomId,
+        );
+      }
+    });
+  }, []);
+
+  useEffect(() => {
     if (!activeChatRoomId) return;
 
     const timeoutId = window.setTimeout(() => {
@@ -1198,7 +1246,6 @@ function ChatPageContent() {
     const room = roomsState.rooms.find((item) => item.chatType === "ROOM" && item.roomId === queryRoomId);
     if (!room?.roomId) return;
     setActiveProjectRoomId(room.roomId, room.name?.replace(/\s*대화$/, "") ?? t("chat.room.fallbackName"));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queryRoomId, roomsState, t]);
 
   // 하단 근처에 있을 때만 자동 스크롤 — 과거 메시지를 읽는 중이면 위치를 유지한다.
@@ -1279,7 +1326,7 @@ function ChatPageContent() {
       setNewRoomPickerOpen(false);
       setGroupRoomName("");
       setSelectedGroupMemberIds([]);
-      if (roomMode !== "direct") router.push("/app/chat?mode=direct");
+      if (roomMode !== "group") router.push("/app/chat?mode=group");
     } catch {
       setChatRoomInviteState({ kind: "blocked", message: t("chat.notice.groupCreateFailed") });
     } finally {
@@ -1460,6 +1507,10 @@ function ChatPageContent() {
 
   const startVoice = useCallback(async () => {
     if (!selectedRoom) return;
+    if (voiceLockedByAnotherRoom) {
+      setVoiceNotice(t("chat.notice.voiceAlreadyActive"));
+      return;
+    }
     const createRequest =
       selectedRoom.chatType === "ROOM" && selectedRoom.roomId
         ? { roomId: selectedRoom.roomId }
@@ -1488,11 +1539,15 @@ function ChatPageContent() {
     } catch {
       setVoiceState({ kind: "blocked", message: t("chat.notice.voiceStartFailed") });
     }
-  }, [selectedRoom, t]);
+  }, [selectedRoom, t, voiceLockedByAnotherRoom]);
 
   // 보이스 참여: 참여 토큰으로 실제 LiveKit 오디오 연결까지 수행한다(토큰 자체는 화면에 노출하지 않음).
   const joinVoice = useCallback(async () => {
     if (!activeVoiceRoom || voiceAction) return;
+    if (voiceLockedByAnotherRoom) {
+      setVoiceNotice(t("chat.notice.voiceAlreadyActive"));
+      return;
+    }
 
     setVoiceAction("join");
     try {
@@ -1513,7 +1568,7 @@ function ChatPageContent() {
     } finally {
       setVoiceAction(null);
     }
-  }, [activeVoiceRoom, voiceAction, t]);
+  }, [activeVoiceRoom, voiceAction, t, voiceLockedByAnotherRoom]);
 
   const toggleVoiceMic = useCallback(async () => {
     if (!activeVoiceRoom || voiceAction) return;
@@ -1807,17 +1862,20 @@ function ChatPageContent() {
 
       <div className="workspace-route__chat-toolbar">
         <nav className="workspace-route__chat-mode-tabs" aria-label={t("chat.tabs.aria")}>
-          <Link className={queryMode !== "direct" ? "is-active" : ""} href={queryRoomId ? `/app/chat?roomId=${queryRoomId}&mode=room` : "/app/chat?mode=room"}>
-            {t("chat.tabs.projectRoom")}
-          </Link>
-          <Link className={queryMode === "direct" ? "is-active" : ""} href="/app/chat?mode=direct">
+          <Link className={roomMode === "direct" ? "is-active" : ""} href="/app/chat?mode=direct">
             {t("chat.tabs.direct")}
+          </Link>
+          <Link className={roomMode === "group" ? "is-active" : ""} href="/app/chat?mode=group">
+            {t("chat.tabs.group")}
+          </Link>
+          <Link className={roomMode === "room" ? "is-active" : ""} href={queryRoomId ? `/app/chat?roomId=${queryRoomId}&mode=room` : "/app/chat?mode=room"}>
+            {t("chat.tabs.projectRoom")}
           </Link>
         </nav>
 
         {roomsState.kind === "ready" ? (
           <div className="workspace-route__chat-quick-actions" aria-label={t("chat.quick.aria")}>
-            {roomMode === "direct" ? (
+            {roomMode !== "room" ? (
               <button
                 className="workspace-route__quick-button"
                 onClick={() => setNewRoomPickerOpen((open) => !open)}
@@ -1852,11 +1910,11 @@ function ChatPageContent() {
         </GlassPanel>
       ) : null}
 
-      {roomsState.kind === "ready" && (roomMode === "direct" || scopedProjectRoomId) ? (
+      {roomsState.kind === "ready" && (roomMode !== "room" || scopedProjectRoomId) ? (
         <div className={`workspace-route__chat${roomMode === "room" ? " workspace-route__chat--room-scope" : ""}`}>
-          {roomMode === "direct" ? (
+          {roomMode !== "room" ? (
             <aside className="workspace-route__section workspace-route__chat-list" aria-label={t("chat.list.aria")}>
-              {directRooms.map((room) => {
+              {peerRooms.map((room) => {
                 const selected = room.id === activeChatRoomId;
                 const leavePending = pendingLeaveRoomId === room.id;
                 const leaving = leavingRoomId === room.id;
@@ -1897,8 +1955,8 @@ function ChatPageContent() {
                   </div>
                 );
               })}
-              {directRooms.length === 0 ? (
-                <span className="workspace-route__empty">{t("chat.list.emptyDirect")}</span>
+              {peerRooms.length === 0 ? (
+                <span className="workspace-route__empty">{roomMode === "group" ? t("chat.list.emptyGroup") : t("chat.list.emptyDirect")}</span>
               ) : null}
             </aside>
           ) : null}
@@ -1918,7 +1976,7 @@ function ChatPageContent() {
                 ) : null}
                 {selectedRoom && !activeVoiceRoom ? (
                   <Button
-                    disabled={voiceState.kind === "starting"}
+                    disabled={voiceState.kind === "starting" || voiceLockedByAnotherRoom}
                     icon={<Phone aria-hidden="true" size={15} strokeWidth={2} />}
                     loading={voiceState.kind === "starting"}
                     onClick={() => void startVoice()}
@@ -2018,6 +2076,9 @@ function ChatPageContent() {
             ) : null}
             {selectedRoom && voiceState.kind === "blocked" ? (
               <div className="workspace-route__voice-status workspace-route__voice-status--blocked">{voiceState.message}</div>
+            ) : null}
+            {selectedRoom && voiceLockedByAnotherRoom ? (
+              <div className="workspace-route__voice-status workspace-route__voice-status--blocked">{t("chat.notice.voiceAlreadyActive")}</div>
             ) : null}
 
             {roomMode === "room" && !selectedRoom ? (

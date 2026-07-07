@@ -590,6 +590,11 @@ export function AppShell({ children }: AppShellProps) {
   const acceptIncomingVoiceCall = useCallback(async () => {
     if (!incomingVoiceCall || voiceCallResponding) return;
     const call = incomingVoiceCall;
+    if (showVoiceFloat) {
+      void notificationApi.markRead(call.notificationId).catch(() => undefined);
+      setIncomingVoiceCall(null);
+      return;
+    }
     setVoiceCallResponding(true);
     try {
       const room = await voiceApi.createRoom({ chatRoomId: call.chatRoomId });
@@ -614,7 +619,7 @@ export function AppShell({ children }: AppShellProps) {
       setIncomingVoiceCall(null);
       router.push("/app/chat?mode=direct");
     }
-  }, [incomingVoiceCall, router, voiceCallResponding]);
+  }, [incomingVoiceCall, router, showVoiceFloat, voiceCallResponding]);
 
   // 룸 생성/이름 변경/종료/다시 열기/멤버 변경과 알림 상태 변경이 어디에서 일어나든 스위처·탑바에 즉시 반영하고,
   // 창 포커스 복귀 시에도(데스크톱 위젯/다른 탭에서의 변경 대비) 스로틀을 걸어 재검증한다.
@@ -955,6 +960,10 @@ export function AppShell({ children }: AppShellProps) {
       const room = page.items.find((item) => item.id === chatRoomId);
       if (room?.chatType === "ROOM" && room.roomId) {
         return { isProjectRoom: true, roomId: room.roomId, route: projectRoomRoute(room.roomId, "chat") };
+      }
+      if (room?.chatType === "GROUP") {
+        voiceStore.update({ selectedChatRoomId: chatRoomId });
+        return { isProjectRoom: false, route: "/app/chat?mode=group" };
       }
     } catch {
       // 조회 실패 시 1:1/그룹으로 간주하고 진행 — 최소한 소통 화면까지는 이동시킨다
