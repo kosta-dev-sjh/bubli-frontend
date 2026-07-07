@@ -28,7 +28,7 @@ export const tauriWidgetRoute = "/desktop-widget" as const;
 
 /** Public CTAs: download and sign-in only — no member feature detail on the public site. */
 export const publicCallToActions = [
-  { id: "download-macos", role: "Get the macOS desktop app", target: "/downloads/macos/Bubli-macOS-0.1.1-arm64.dmg" },
+  { id: "download-macos", role: "Get the macOS desktop app", target: "/downloads/macos/Bubli-macOS-0.1.2-arm64.dmg" },
   { id: "download-windows", role: "Get the Windows desktop app", target: "/downloads/windows/Bubli-Windows-latest.exe" },
   { id: "sign-in", role: "Go to sign-in entry", target: "/login" },
 ] as const;

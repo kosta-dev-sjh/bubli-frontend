@@ -3177,7 +3177,6 @@ fn arrange_widget_cascade_placements(
 #[tauri::command]
 fn set_widget_room_context(
     app: AppHandle,
-    monitor_state: tauri::State<'_, AppMonitorState>,
     state: tauri::State<'_, WidgetState>,
     input: WidgetRoomContextInput,
 ) -> Result<Vec<WidgetWindowState>, String> {
@@ -3200,7 +3199,6 @@ fn set_widget_room_context(
     }
 
     for widget in &widgets {
-        apply_widget_window_state(&app, &monitor_state, widget)?;
         let label = widget_window_label(widget);
         if app.get_webview_window(&label).is_some() {
             let _ = app.emit_to(&label, WIDGET_ROOM_CONTEXT_CHANGED_EVENT, payload.clone());
@@ -3699,6 +3697,9 @@ fn start_tauri_google_oauth_loopback(
 
         match listener.accept() {
             Ok((mut stream, _address)) => {
+                stream.set_nonblocking(false).map_err(|error| {
+                    format!("could not prepare Tauri OAuth callback socket: {error}")
+                })?;
                 let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
                 let mut buffer = [0_u8; 8192];
                 let bytes_read = stream

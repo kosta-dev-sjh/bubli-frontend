@@ -142,7 +142,15 @@ function widgetTargetFromInput(input: WidgetWindowOpenInput) {
 }
 
 function startupWindowRequiresVisibleWindow(input: WidgetWindowOpenInput) {
-  return input.mode !== "MINIMIZED";
+  return input.mode !== "MINIMIZED" && input.bubbleType !== "menu";
+}
+
+function startupWindowStateIsReady(
+  input: WidgetWindowOpenInput,
+  state: Awaited<ReturnType<typeof tauriCommands.getWidgetWindowState>>,
+) {
+  if (input.bubbleType === "bar") return state.windowVisible;
+  return state.windowVisible || state.mode === "MINIMIZED";
 }
 
 async function authenticatedStartupWindowsReady(startupWindows: WidgetWindowOpenInput[]) {
@@ -151,7 +159,7 @@ async function authenticatedStartupWindowsReady(startupWindows: WidgetWindowOpen
 
     try {
       const state = await tauriCommands.getWidgetWindowState(widgetTargetFromInput(input));
-      if (!state.windowVisible) return false;
+      if (!startupWindowStateIsReady(input, state)) return false;
     } catch {
       return false;
     }
@@ -388,9 +396,11 @@ export function launchTauriAuthenticatedSurfaces(options: LaunchTauriAuthenticat
       return;
     }
 
-    if (launchedAuthenticatedSurfaces) {
-      const ready = await authenticatedStartupWindowsReady(startupWindows);
-      if (ready) {
+    const nativeAuthenticatedSurfacesEnabled = await tauriCommands.getAuthenticatedSurfacesEnabled().catch(() => false);
+    const shouldReuseExistingWindows = launchedAuthenticatedSurfaces || nativeAuthenticatedSurfacesEnabled;
+    if (shouldReuseExistingWindows) {
+      const startupWindowsReady = await authenticatedStartupWindowsReady(startupWindows);
+      if (startupWindowsReady) {
         await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: true }).catch(() => undefined);
         timeline.authGateEnabledAt = nowIso();
         timeline.authGateAfterBackendAuth = Boolean(
@@ -405,14 +415,14 @@ export function launchTauriAuthenticatedSurfaces(options: LaunchTauriAuthenticat
         startActivityAutoCapture();
         startManagedFolderAutoSync();
         startWidgetUsageAutoSync();
+        launchedAuthenticatedSurfaces = true;
         timeline.completed = true;
         timeline.reusedExistingWindowsAt = nowIso();
         timeline.barWindowOpenedAt = timeline.reusedExistingWindowsAt;
         timeline.bubbleWindowsOpenedAt = timeline.reusedExistingWindowsAt;
         timeline.firstWidgetOpenAfterBackendAuth = Boolean(
           timeline.backendAuthValidatedAt &&
-            new Date(timeline.reusedExistingWindowsAt).getTime() >=
-              new Date(timeline.backendAuthValidatedAt).getTime(),
+            new Date(timeline.reusedExistingWindowsAt).getTime() >= new Date(timeline.backendAuthValidatedAt).getTime(),
         );
         timeline.syncLoopsStartedAt = timeline.reusedExistingWindowsAt;
         timeline.launchCompletedAt = timeline.reusedExistingWindowsAt;
