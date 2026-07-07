@@ -107,7 +107,6 @@ const WIDGET_SESSION_RESTORE_GRACE_DELAY_MS = 250;
 const TIMER_HEARTBEAT_INTERVAL_MS = 60_000;
 type WidgetItemStateAction = "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED";
 type WidgetAgentSuggestionReviewAction = "APPROVE" | "HOLD" | "REJECT";
-type WidgetScopeRoomOption = { id: string; label: string };
 
 function waitForWidgetSessionRestore(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -696,7 +695,6 @@ function buildDisplayBubbles(input: {
   const isRoomScoped = Boolean(input.roomId);
   const agentRoute = roomScopedRoute("/app/agent", input.roomId);
   const chatRoute = input.roomId ? `/app/project-rooms/${encodeURIComponent(input.roomId)}/chat` : "/app/chat";
-  const resourceRoute = roomResourceRoute(input.roomId);
   const scheduleRoute = roomScopedRoute("/app/calendar", input.roomId);
   const personalScheduleRoute = roomScopedRoute("/app/calendar", null);
   // 작업(WORK) 타이머는 그 룸에만 귀속 — 전역(개인) 위젯에서는 룸 타이머를 숨기고 개인(roomId 없음) 타이머만 보인다.
@@ -927,14 +925,19 @@ function buildDisplayBubbles(input: {
       notificationLabel: unreadCount > 0 ? t("widget.signal.newAlertCount", { count: unreadCount }) : t("widget.signal.noNewAlert"),
       panelBody: unreadCount > 0 ? t("widget.alert.needCheck") : t("widget.alert.noneNow"),
       panelLabel: t("widget.alert.panelLabel"),
-      roomId: input.roomId,
-      roomLabel: label,
+      roomId: null,
+      roomLabel: t("widget.kind.notification"),
       rows: unreadNotifications.map((item) => ({
         id: item.id,
         detail: item.body ?? undefined,
         handoffLabel: item.sourceType,
-        handoffUrl: item.sourceType === "MESSAGE" ? chatRoute : item.sourceType === "RESOURCE" ? resourceRoute : agentRoute,
-        kind: item.sourceType === "MESSAGE" ? "message" : item.sourceType === "RESOURCE" ? "resource" : "agent",
+        handoffUrl:
+          item.sourceType === "MESSAGE"
+            ? "/app/chat"
+            : item.sourceType === "RESOURCE" || item.sourceType === "COMMENT"
+              ? "/app/resources"
+              : "/app/agent",
+        kind: item.sourceType === "MESSAGE" ? "message" : item.sourceType === "RESOURCE" || item.sourceType === "COMMENT" ? "resource" : "agent",
         label: item.title,
         status: item.sourceType,
       })),
@@ -1337,7 +1340,6 @@ function DesktopWidgetSurface() {
   const [voiceMicMuted, setVoiceMicMuted] = useState(false);
   const [notificationSignal, setNotificationSignal] = useState<WidgetNotificationSignal>(() => widgetDisplayLoadSignal("loading"));
   const [menuUsageSummary, setMenuUsageSummary] = useState<string | null>(null);
-  const [scopeRoomOptions, setScopeRoomOptions] = useState<WidgetScopeRoomOption[]>([]);
   // 1:1/그룹 보이스 통화 실시간 "전화 옴" 알림 — 바 창(항상 떠 있는 표면)에서만 구독/표시한다.
   const [incomingVoiceCall, setIncomingVoiceCall] = useState<{
     callerName: string;
@@ -1949,14 +1951,6 @@ function DesktopWidgetSurface() {
         roomNames = { ...roomNames, [roomValue.id]: roomValue.name };
       }
       if (cancelled) return;
-      const nextScopeRoomOptionsBase = projectRoomsValue
-        ? projectRoomsValue.items.map((room) => ({ id: room.id, label: room.name }))
-        : Object.entries(roomNames).map(([id, label]) => ({ id, label }));
-      const nextScopeRoomOptions =
-        roomValue && !nextScopeRoomOptionsBase.some((option) => option.id === roomValue.id)
-          ? [{ id: roomValue.id, label: roomValue.name }, ...nextScopeRoomOptionsBase]
-          : nextScopeRoomOptionsBase;
-      setScopeRoomOptions((current) => keepIfDeepEqual(current, nextScopeRoomOptions));
 
       const summaryDashboard = dashboardFromWidgetSummary(summary);
       const dashboard = selectedRoomId ? null : dashboardValue ?? summaryDashboard;
@@ -2458,7 +2452,7 @@ function DesktopWidgetSurface() {
               : "TASK";
 
       if (isTauri) {
-        if (item.kind === "message" || route.includes("/chat")) {
+        if (activeBubble === "chat" && (item.kind === "message" || route.includes("/chat"))) {
           await openTauriChatWidget({
             eventType: "handoff:message",
             roomId: selectedWidgetRoomId,
@@ -3436,27 +3430,6 @@ function DesktopWidgetSurface() {
     }
   }, [isTauri, selectedWidgetRoomId]);
 
-  const selectWidgetScopeRoom = useCallback(
-    async (roomId: string | null) => {
-      const selectedRoomId = roomId?.trim() || null;
-
-      try {
-        if (isTauri) {
-          await tauriCommands.setWidgetRoomContext({ selectedRoomId });
-          await widgetApi.updateContext({ selectedRoomId }).catch(() => undefined);
-        } else {
-          await widgetApi.updateContext({ selectedRoomId }).catch(() => undefined);
-        }
-        syncActiveProjectRoomFromWidgetContext(selectedRoomId);
-        setWidgetContext(widgetContextForRoomId(selectedRoomId));
-        requestDisplayRefresh();
-      } catch {
-        // Browser preview fallback.
-      }
-    },
-    [isTauri, requestDisplayRefresh],
-  );
-
   if (!mounted || !widgetSessionReady) {
     return null;
   }
@@ -3568,15 +3541,12 @@ function DesktopWidgetSurface() {
       onPrimaryTimerAction={runPrimaryTimerAction}
       onRestore={restoreCurrentWindow}
       onReviewAgentSuggestion={reviewWidgetAgentSuggestion}
-      onSelectScopeRoom={selectWidgetScopeRoom}
       onSendAgentCommand={sendWidgetAgentCommand}
       onSendChatMessage={sendWidgetChatMessage}
       onStartVoice={startWidgetVoice}
       onToggleAlwaysOnTop={toggleAlwaysOnTop}
       onToggleVoiceMic={toggleWidgetVoiceMic}
       presentation="tauri"
-      scopeRoomOptions={scopeRoomOptions}
-      selectedScopeRoomId={selectedWidgetRoomId}
       windowId={windowId}
       windowVisible={windowVisible}
     />

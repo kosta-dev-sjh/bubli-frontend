@@ -6,7 +6,6 @@ import {
   Bell,
   Check,
   CheckCircle2,
-  ChevronsUpDown,
   CircleDashed,
   CirclePause,
   Clock3,
@@ -216,16 +215,8 @@ export type DesktopWidgetBubbleProps = {
   onStartVoice?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onPauseTimer?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onPrimaryTimerAction?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
-  onSelectScopeRoom?: (roomId: string | null) => Promise<void> | void;
   onToggleAlwaysOnTop: () => void;
   onToggleVoiceMic?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
-  // 헤더 스코프 토글: 개인 ⇄ 활성 룸. 전역 위젯 컨텍스트를 전환한다(스펙: PATCH /api/widget/context는
-  // 위젯 전체가 바라보는 프로젝트룸을 저장 — 컨텍스트는 위젯 단위 전역, per-bubble 오버라이드 아님).
-  // roomAvailable=false면 비활성(활성 룸 없음). 콜백이 없으면 기존 표시전용 라벨로 폴백한다.
-  onToggleScope?: () => void;
-  scope?: { isRoom: boolean; roomAvailable: boolean; roomLabel?: string };
-  scopeRoomOptions?: Array<{ id: string; label: string }>;
-  selectedScopeRoomId?: string | null;
   presentation?: "preview" | "tauri";
   // Tauri 창 식별자(리사이즈 커맨드 타깃). 프리뷰에서는 불필요.
   windowId?: string;
@@ -410,44 +401,6 @@ function WidgetControls({
         <X size={14} strokeWidth={2} />
       </button>
     </div>
-  );
-}
-
-function WidgetScopeSelect({
-  disabled,
-  onSelect,
-  options,
-  selectedRoomId,
-}: {
-  disabled?: boolean;
-  onSelect?: (roomId: string | null) => Promise<void> | void;
-  options?: Array<{ id: string; label: string }>;
-  selectedRoomId?: string | null;
-}) {
-  const { t } = useI18n();
-  const value = selectedRoomId ?? "";
-  const roomOptions = options ?? [];
-
-  return (
-    <label className={styles.scopeSelect} onMouseDown={(event) => event.stopPropagation()}>
-      <select
-        aria-label={t("widget.scope.aria")}
-        disabled={disabled || !onSelect}
-        onChange={(event) => {
-          const nextRoomId = event.currentTarget.value.trim() || null;
-          void onSelect?.(nextRoomId);
-        }}
-        value={value}
-      >
-        {roomOptions.map((option) => (
-          <option key={option.id} value={option.id}>
-            {option.label}
-          </option>
-        ))}
-        <option value="">{t("widget.scope.personal")}</option>
-      </select>
-      <ChevronsUpDown size={12} strokeWidth={2.1} aria-hidden="true" />
-    </label>
   );
 }
 
@@ -968,39 +921,12 @@ type AgentThreadEntry = {
 
 const AGENT_THREAD_LIMIT = 10;
 const EMPTY_WIDGET_ITEMS: WidgetPreviewItem[] = [];
-type WidgetContentScope = "personal" | "room";
-type AgentCandidateScope = WidgetContentScope;
 type AgentSuggestionReviewAction = "APPROVE" | "HOLD" | "REJECT";
 type AgentTab = "ask" | "candidates" | "resources";
 const agentTabs: AgentTab[] = ["ask", "candidates", "resources"];
-const headerScopedBubbleTypes = new Set<WidgetBubbleType>(["memo"]);
-
-function rowsForContentScope(bubble: WidgetPreviewBubble, scope: WidgetContentScope) {
-  if (!bubble.roomId) return bubble.rows;
-  if (scope === "room") {
-    return bubble.roomRows ?? bubble.rows.filter((item) => item.sourceKind === "room");
-  }
-  return bubble.personalRows ?? bubble.rows.filter((item) => item.sourceKind !== "room");
-}
-
-function bubbleForContentScope(bubble: WidgetPreviewBubble, scope: WidgetContentScope): WidgetPreviewBubble {
-  if (!bubble.roomId || !headerScopedBubbleTypes.has(bubble.id)) return bubble;
-
-  const rows = rowsForContentScope(bubble, scope);
-  const isRoom = scope === "room";
-  return {
-    ...bubble,
-    metric: bubble.id === "schedule" ? rows[0]?.status ?? "0" : String(rows.length),
-    notificationLabel: rows[0]?.label ?? bubble.notificationLabel,
-    roomId: isRoom ? bubble.roomId : null,
-    roomLabel: isRoom ? bubble.roomLabel : "widget.room.personal",
-    rows,
-  };
-}
 
 function AgentBody({
   bubble,
-  candidateScope,
   onDownloadResource,
   onItemStateChange,
   onOpenHandoff,
@@ -1008,7 +934,6 @@ function AgentBody({
   onSendAgentCommand,
 }: {
   bubble: WidgetPreviewBubble;
-  candidateScope: AgentCandidateScope;
   onDownloadResource?: DesktopWidgetBubbleProps["onDownloadResource"];
   onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
   onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
@@ -1025,19 +950,16 @@ function AgentBody({
   const resourceEmptyBubble = useMemo<WidgetPreviewBubble>(
     () => ({
       ...getWidgetPreviewBubble("resource"),
-      roomId: candidateScope === "room" ? bubble.roomId : null,
-      roomLabel: candidateScope === "room" ? bubble.roomLabel : "widget.room.personal",
+      roomId: bubble.roomId,
+      roomLabel: bubble.roomLabel,
       rows: [],
     }),
-    [bubble.roomId, bubble.roomLabel, candidateScope],
+    [bubble.roomId, bubble.roomLabel],
   );
   const activeTabIndex = Math.max(0, agentTabs.indexOf(activeTab));
-  const resourceRows = bubble.resourceRows ?? [];
-  const personalResourceRows = bubble.personalResourceRows ?? EMPTY_WIDGET_ITEMS;
-  const scopedResourceRows = bubble.roomId && candidateScope === "personal" ? personalResourceRows : resourceRows;
-  const personalCandidateRows = bubble.personalCandidateRows ?? EMPTY_WIDGET_ITEMS;
-  const scopedCandidateRows = bubble.roomId && candidateScope === "personal" ? personalCandidateRows : bubble.rows;
-  const scopedCandidateLabel = candidateScope === "personal" ? t("widget.agent.personalCandidates") : t(bubble.panelLabel as MessageKey);
+  const scopedResourceRows = bubble.resourceRows ?? EMPTY_WIDGET_ITEMS;
+  const scopedCandidateRows = bubble.rows;
+  const scopedCandidateLabel = t(bubble.panelLabel as MessageKey);
   const scopedCandidateBubble = useMemo<WidgetPreviewBubble>(
     () => ({
       ...bubble,
@@ -2471,7 +2393,6 @@ function ResourceBody({
 
 function BubbleBody({
   bubble,
-  agentCandidateScope,
   timerMode,
   onItemStateChange,
   onCreateMemo,
@@ -2496,7 +2417,6 @@ function BubbleBody({
   onTimerModeChange,
 }: {
   bubble: WidgetPreviewBubble;
-  agentCandidateScope: AgentCandidateScope;
   timerMode?: WidgetTimerMode | null;
   onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
   onCreateMemo?: DesktopWidgetBubbleProps["onCreateMemo"];
@@ -2524,7 +2444,6 @@ function BubbleBody({
     return (
       <AgentBody
         bubble={bubble}
-        candidateScope={agentCandidateScope}
         onDownloadResource={onDownloadResource}
         onItemStateChange={onItemStateChange}
         onOpenHandoff={onOpenHandoff}
@@ -2949,14 +2868,11 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
   onPrimaryTimerAction,
   onRestore,
   onReviewAgentSuggestion,
-  onSelectScopeRoom,
   onSendAgentCommand,
   onSendChatMessage,
   onStartVoice,
   onToggleAlwaysOnTop,
   onToggleVoiceMic,
-  scopeRoomOptions,
-  selectedScopeRoomId,
   presentation = "tauri",
   windowId,
   windowVisible = true,
@@ -2967,10 +2883,8 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
   const Icon = active.Icon;
   const isPreview = presentation === "preview";
   const activeLabel = t(active.label);
-  const contentScope: WidgetContentScope = activeData.roomId ? "room" : "personal";
-  const agentCandidateScope: AgentCandidateScope = activeData.roomId ? "room" : "personal";
-  const canSelectScope = activeBubble === "agent" || headerScopedBubbleTypes.has(activeBubble);
-  const showScopeSelect = !isPreview && canSelectScope && Boolean(onSelectScopeRoom);
+  const activeRoomLabel = t(activeData.roomLabel as MessageKey);
+  const showHeaderContextLabel = activeBubble !== "alert";
   const shellRef = useRef<HTMLElement | null>(null);
   const [timerModeForGhost, setTimerModeForGhost] = useState<WidgetTimerMode | null>(null);
   const { onResizePointerDown, onResizePointerEnd, onResizePointerMove, resizing } = useBubbleWindowResize(
@@ -3060,8 +2974,6 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
   ]
     .filter(Boolean)
     .join(" ");
-  const bodyData = useMemo(() => bubbleForContentScope(activeData, contentScope), [activeData, contentScope]);
-
   return (
     <div className={rootClassName} data-bubli-desktop-widget>
       <section
@@ -3103,19 +3015,12 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
                   <strong>{t(activeData.label as MessageKey)}</strong>
                   {isPreview ? (
                     <small>{`${t(modeLabels[mode])} · ${t(activeData.notificationLabel as MessageKey)}`}</small>
+                  ) : showHeaderContextLabel ? (
+                    <small>{activeRoomLabel}</small>
                   ) : null}
                 </div>
               </div>
               <WidgetControls alwaysOnTop={alwaysOnTop} mode={mode} onClose={onClose} onMode={onModeChange} onPin={onToggleAlwaysOnTop} presentation={presentation} />
-              {showScopeSelect ? (
-                <div className={styles.headerScopeRow}>
-                  <WidgetScopeSelect
-                    onSelect={onSelectScopeRoom}
-                    options={scopeRoomOptions}
-                    selectedRoomId={selectedScopeRoomId === undefined ? activeData.roomId ?? null : selectedScopeRoomId}
-                  />
-                </div>
-              ) : null}
             </header>
 
             {/* 부분 동기화 실패는 회색 웰 대신 얇은 상태 한 줄로만.
@@ -3141,8 +3046,7 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
               <GhostSignal bubble={activeData} bubbleType={activeBubble} timerModeOverride={timerModeForGhost} />
             ) : (
               <BubbleBody
-                agentCandidateScope={agentCandidateScope}
-                bubble={bodyData}
+                bubble={activeData}
                 timerMode={timerModeForGhost}
                 onAnalyzeResource={onAnalyzeResource}
                 onDeleteMemo={onDeleteMemo}
