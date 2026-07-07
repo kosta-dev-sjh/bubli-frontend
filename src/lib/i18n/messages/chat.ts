@@ -28,6 +28,8 @@ const ko = {
   // 빠른 실행
   "chat.quick.aria": "친구와 초대 빠른 실행",
   "chat.quick.create": "새로 만들기",
+  "chat.quick.createDirect": "1:1 시작",
+  "chat.quick.createGroup": "그룹 만들기",
   "chat.quick.idCopied": "ID 복사됨",
   "chat.quick.copyId": "내 ID 복사",
   "chat.quick.addFriend": "친구 추가",
@@ -77,8 +79,11 @@ const ko = {
 
   // 새 채팅방
   "chat.newRoom.aria": "새 1:1 채팅방 만들기",
+  "chat.newRoom.ariaGroup": "새 그룹 채팅방 만들기",
   "chat.newRoom.title": "새 채팅방",
+  "chat.newRoom.titleGroup": "그룹 채팅방 만들기",
   "chat.newRoom.subtitle": "친구 한 명은 1:1로 열고, 여러 명을 선택하면 그룹 채팅방을 만듭니다.",
+  "chat.newRoom.subtitleGroup": "친구를 2명 이상 선택해 프로젝트룸과 독립된 그룹 채팅방을 만듭니다.",
   "chat.newRoom.friendsLoading": "친구 목록을 불러오는 중",
   "chat.newRoom.friendsOffline": "친구 목록을 불러오지 못했습니다",
   "chat.newRoom.addFriend": "친구 추가",
@@ -86,9 +91,12 @@ const ko = {
   "chat.newRoom.groupName": "그룹 이름",
   "chat.newRoom.groupNamePlaceholder": "비워두면 친구 이름으로 생성",
   "chat.newRoom.direct": "1:1",
+  "chat.newRoom.addToGroup": "그룹에 추가",
+  "chat.newRoom.selectedForGroup": "선택됨",
   "chat.newRoom.deselect": "선택 해제",
   "chat.newRoom.selectForGroup": "그룹 선택",
   "chat.newRoom.selectedCount": "{count}명 선택",
+  "chat.newRoom.minGroupSelection": "2명 이상 필요",
   "chat.newRoom.createGroup": "그룹 채팅방 만들기",
 
   // 보이스 상태 요약
@@ -818,6 +826,8 @@ const en: Record<Key, string> = {
 
   "chat.quick.aria": "Friend and invite shortcuts",
   "chat.quick.create": "Create new",
+  "chat.quick.createDirect": "Start 1:1",
+  "chat.quick.createGroup": "Create group",
   "chat.quick.idCopied": "ID copied",
   "chat.quick.copyId": "Copy my ID",
   "chat.quick.addFriend": "Add friend",
@@ -861,8 +871,11 @@ const en: Record<Key, string> = {
   "chat.roomScope.opening": "Opening the project room conversation",
 
   "chat.newRoom.aria": "Create a new 1:1 chat room",
+  "chat.newRoom.ariaGroup": "Create a new group chat room",
   "chat.newRoom.title": "New chat room",
+  "chat.newRoom.titleGroup": "Create group chat",
   "chat.newRoom.subtitle": "One friend opens a 1:1; select several to create a group chat.",
+  "chat.newRoom.subtitleGroup": "Select at least two friends to create a group chat independent of project rooms.",
   "chat.newRoom.friendsLoading": "Loading friend list",
   "chat.newRoom.friendsOffline": "Couldn't load the friend list",
   "chat.newRoom.addFriend": "Add friend",
@@ -870,9 +883,12 @@ const en: Record<Key, string> = {
   "chat.newRoom.groupName": "Group name",
   "chat.newRoom.groupNamePlaceholder": "Leave blank to use friend names",
   "chat.newRoom.direct": "1:1",
+  "chat.newRoom.addToGroup": "Add to group",
+  "chat.newRoom.selectedForGroup": "Selected",
   "chat.newRoom.deselect": "Deselect",
   "chat.newRoom.selectForGroup": "Add to group",
   "chat.newRoom.selectedCount": "{count} selected",
+  "chat.newRoom.minGroupSelection": "2 required",
   "chat.newRoom.createGroup": "Create group chat",
 
   "chat.voice.open": "Voice open",
@@ -1571,6 +1587,8 @@ const ja: Record<Key, string> = {
 
   "chat.quick.aria": "友だちと招待のクイック操作",
   "chat.quick.create": "新規作成",
+  "chat.quick.createDirect": "1:1を開始",
+  "chat.quick.createGroup": "グループ作成",
   "chat.quick.idCopied": "IDをコピーしました",
   "chat.quick.copyId": "自分のIDをコピー",
   "chat.quick.addFriend": "友だち追加",
@@ -1614,8 +1632,11 @@ const ja: Record<Key, string> = {
   "chat.roomScope.opening": "プロジェクトルームの会話を開いています",
 
   "chat.newRoom.aria": "新しい1:1チャットルームを作成",
+  "chat.newRoom.ariaGroup": "新しいグループチャットルームを作成",
   "chat.newRoom.title": "新しいチャットルーム",
+  "chat.newRoom.titleGroup": "グループチャットを作成",
   "chat.newRoom.subtitle": "友だち1人なら1:1、複数を選ぶとグループチャットを作成します。",
+  "chat.newRoom.subtitleGroup": "友だちを2名以上選んで、プロジェクトルームとは独立したグループチャットを作成します。",
   "chat.newRoom.friendsLoading": "友だち一覧を読み込み中",
   "chat.newRoom.friendsOffline": "友だち一覧を読み込めませんでした",
   "chat.newRoom.addFriend": "友だち追加",
@@ -1623,9 +1644,12 @@ const ja: Record<Key, string> = {
   "chat.newRoom.groupName": "グループ名",
   "chat.newRoom.groupNamePlaceholder": "空欄なら友だちの名前で作成",
   "chat.newRoom.direct": "1:1",
+  "chat.newRoom.addToGroup": "グループに追加",
+  "chat.newRoom.selectedForGroup": "選択済み",
   "chat.newRoom.deselect": "選択解除",
   "chat.newRoom.selectForGroup": "グループに追加",
   "chat.newRoom.selectedCount": "{count}名選択",
+  "chat.newRoom.minGroupSelection": "2名以上必要",
   "chat.newRoom.createGroup": "グループチャットを作成",
 
   "chat.voice.open": "ボイス開放中",

@@ -1916,6 +1916,7 @@ select {
 
 .workspace-route__empty {
   display: grid;
+  gap: 10px;
   min-height: 72px;
   place-items: center;
   border: 1px solid rgba(107, 143, 168, 0.1);
@@ -1924,6 +1925,33 @@ select {
   background: rgba(255, 255, 255, 0.36);
   font-size: 14px;
   font-weight: 820;
+}
+
+.workspace-route__inline-action {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid rgba(190, 213, 230, 0.72);
+  border-radius: 999px;
+  padding: 0 12px;
+  color: var(--blue-ink);
+  background: rgba(255, 255, 255, 0.72);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 880;
+  cursor: pointer;
+  transition:
+    transform 160ms var(--ease-out),
+    border-color 160ms var(--ease-out),
+    background 160ms var(--ease-out);
+}
+
+.workspace-route__inline-action:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(111, 184, 242, 0.58);
+  background: rgba(255, 255, 255, 0.92);
 }
 
 .workspace-route__row {
@@ -3710,6 +3738,12 @@ button.workspace-route__friend-row:hover {
 
 .workspace-route__group-select[aria-pressed="true"] {
   border-color: rgba(111, 184, 242, 0.58);
+  background: rgba(216, 240, 255, 0.74);
+}
+
+.workspace-route__group-friend-row .workspace-route__friend-actions button[aria-pressed="true"] {
+  border-color: rgba(111, 184, 242, 0.58);
+  color: var(--blue-ink);
   background: rgba(216, 240, 255, 0.74);
 }
 

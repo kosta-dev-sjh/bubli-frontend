@@ -421,6 +421,7 @@ const TYPING_START_THROTTLE_MS = 3000;
 const TYPING_IDLE_STOP_MS = 5000;
 const TYPING_ENTRY_TTL_MS = 6000;
 const NEAR_BOTTOM_THRESHOLD_PX = 96;
+const MIN_GROUP_MEMBER_COUNT = 2;
 
 function messageTime(value: string) {
   const date = new Date(value);
@@ -1301,7 +1302,7 @@ function ChatPageContent() {
   }, []);
 
   const createGroupRoom = useCallback(async () => {
-    if (roomsState.kind !== "ready" || selectedGroupMemberIds.length === 0) return;
+    if (roomsState.kind !== "ready" || selectedGroupMemberIds.length < MIN_GROUP_MEMBER_COUNT) return;
 
     const fallbackName =
       socialState.kind === "ready"
@@ -1881,7 +1882,8 @@ function ChatPageContent() {
                 onClick={() => setNewRoomPickerOpen((open) => !open)}
                 type="button"
               >
-                {t("chat.quick.create")}
+                {roomMode === "group" ? <UsersRound aria-hidden size={15} strokeWidth={2} /> : <UserPlus aria-hidden size={15} strokeWidth={2} />}
+                {roomMode === "group" ? t("chat.quick.createGroup") : t("chat.quick.createDirect")}
               </button>
             ) : null}
             <button
@@ -1956,7 +1958,15 @@ function ChatPageContent() {
                 );
               })}
               {peerRooms.length === 0 ? (
-                <span className="workspace-route__empty">{roomMode === "group" ? t("chat.list.emptyGroup") : t("chat.list.emptyDirect")}</span>
+                <span className="workspace-route__empty">
+                  {roomMode === "group" ? t("chat.list.emptyGroup") : t("chat.list.emptyDirect")}
+                  {roomMode === "group" ? (
+                    <button className="workspace-route__inline-action" onClick={() => setNewRoomPickerOpen(true)} type="button">
+                      <UsersRound aria-hidden size={14} strokeWidth={2} />
+                      {t("chat.newRoom.createGroup")}
+                    </button>
+                  ) : null}
+                </span>
               ) : null}
             </aside>
           ) : null}
@@ -2552,13 +2562,13 @@ function ChatPageContent() {
       ) : null}
 
       {newRoomPickerOpen ? (
-        <div className="workspace-route__new-room-overlay" role="dialog" aria-modal="true" aria-label={t("chat.newRoom.aria")}>
+        <div className="workspace-route__new-room-overlay" role="dialog" aria-modal="true" aria-label={roomMode === "group" ? t("chat.newRoom.ariaGroup") : t("chat.newRoom.aria")}>
           <button className="workspace-route__new-room-backdrop" onClick={() => setNewRoomPickerOpen(false)} type="button" aria-label={t("common.close")} />
           <div className="workspace-route__new-room-modal">
             <div className="workspace-route__new-room-modal-head">
               <div>
-                <strong>{t("chat.newRoom.title")}</strong>
-                <span>{t("chat.newRoom.subtitle")}</span>
+                <strong>{roomMode === "group" ? t("chat.newRoom.titleGroup") : t("chat.newRoom.title")}</strong>
+                <span>{roomMode === "group" ? t("chat.newRoom.subtitleGroup") : t("chat.newRoom.subtitle")}</span>
               </div>
               <button className="workspace-route__new-room-close" onClick={() => setNewRoomPickerOpen(false)} type="button" aria-label={t("common.close")}>
                 <X aria-hidden size={16} strokeWidth={2} />
@@ -2607,14 +2617,20 @@ function ChatPageContent() {
                           <button onClick={() => { void openDirectRoom(friend); setNewRoomPickerOpen(false); }} type="button">
                             {t("chat.newRoom.direct")}
                           </button>
+                          <button aria-pressed={selected} onClick={() => toggleGroupMember(friend.friendUserId)} type="button">
+                            {selected ? t("chat.newRoom.selectedForGroup") : t("chat.newRoom.addToGroup")}
+                          </button>
                         </div>
                       </div>
                     );
                   })}
                 </div>
                 <div className="workspace-route__group-create-actions">
-                  <span>{t("chat.newRoom.selectedCount", { count: selectedGroupFriendCount })}</span>
-                  <Button disabled={selectedGroupFriendCount === 0 || sending} loading={sending} onClick={() => void createGroupRoom()} type="button" variant="primary">
+                  <span>
+                    {t("chat.newRoom.selectedCount", { count: selectedGroupFriendCount })}
+                    {selectedGroupFriendCount < MIN_GROUP_MEMBER_COUNT ? ` · ${t("chat.newRoom.minGroupSelection")}` : ""}
+                  </span>
+                  <Button disabled={selectedGroupFriendCount < MIN_GROUP_MEMBER_COUNT || sending} loading={sending} onClick={() => void createGroupRoom()} type="button" variant="primary">
                     {t("chat.newRoom.createGroup")}
                   </Button>
                 </div>
