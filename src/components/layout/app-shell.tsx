@@ -586,6 +586,12 @@ export function AppShell({ children }: AppShellProps) {
         void notificationApi.markRead(notification.id).catch(() => undefined);
       }
 
+      // 발신자가 내가 받기 전에 전화를 취소함 — 수신 전화 팝업을 계속 띄워둘 이유가 없다.
+      if (notification.sourceType === "VOICE_CALL_CANCELED" && notification.sourceId) {
+        setIncomingVoiceCall((current) => (current?.chatRoomId === notification.sourceId ? null : current));
+        void notificationApi.markRead(notification.id).catch(() => undefined);
+      }
+
       if (notification.sourceType === "MESSAGE" && notification.sourceId) {
         pushNotificationToast("message", notification, notification.sourceId);
       }
