@@ -52,7 +52,7 @@ import { playNotificationSound } from "@/lib/sound/notification-sound";
 import { startCallRingtone, stopCallRingtone } from "@/lib/sound/call-sound";
 import { projectRoomRoute } from "@/lib/project-room-routes";
 import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
-import { tauriCommands, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetInteractiveRect, type WidgetWindowBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
+import { setWidgetWindowDragLocked, tauriCommands, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetInteractiveRect, type WidgetWindowBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import { emitWidgetDataChanged, listenWidgetDataChanged, listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { readCachedWidgetRoomNames, readWidgetSummary, writeCachedWidgetRoomNames, type WidgetRoomNameMap } from "@/lib/widget";
@@ -241,7 +241,12 @@ function widgetSettingCoordinate(value: number) {
 
 function getWidgetWindowSize(bubbleType: WidgetBubbleType, mode: WidgetWindowMode) {
   if (mode === "MINIMIZED") return { height: 92, width: 208 };
-  if (mode === "GHOST") return { height: 212, width: 212 };
+  // 고스트 창 크기는 src-tauri widget_window_size의 GHOST 분기와 동기화한다(버블별로 넉넉히).
+  if (mode === "GHOST") {
+    if (bubbleType === "timer") return { height: 232, width: 300 };
+    if (bubbleType === "todo") return { height: 300, width: 288 };
+    return { height: 212, width: 212 };
+  }
   if (bubbleType === "chat") return { height: 420 + WIDGET_WINDOW_GUTTER, width: 336 + WIDGET_WINDOW_GUTTER };
   if (bubbleType === "agent") return { height: 420 + WIDGET_WINDOW_GUTTER, width: 332 + WIDGET_WINDOW_GUTTER };
   if (bubbleType === "timer") return { height: 400 + WIDGET_WINDOW_GUTTER, width: 324 + WIDGET_WINDOW_GUTTER };
@@ -1341,6 +1346,10 @@ function DesktopWidgetSurface() {
   const [activeBubble, setActiveBubble] = useState<WidgetBubbleType>(requestedBubble);
   const [mode, setMode] = useState<WidgetWindowMode>(requestedMode);
   const [alwaysOnTop, setAlwaysOnTop] = useState(true);
+  // 핀 고정(상단 고정)을 켜면 이 창의 위치도 잠근다 — 드래그 헬퍼가 이 값을 읽어 이동을 막는다.
+  useEffect(() => {
+    setWidgetWindowDragLocked(alwaysOnTop);
+  }, [alwaysOnTop]);
   const [clickThrough, setClickThrough] = useState(false);
   const [windowVisible, setWindowVisible] = useState(true);
   const [widgetContext, setWidgetContext] = useState<WidgetContextResponse | null>(

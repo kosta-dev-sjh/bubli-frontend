@@ -1075,6 +1075,19 @@
   word-break: break-word;
 }
 
+/* 완료된 행은 남은 행과 한눈에 구분되게 배경을 낮추고 제목을 흐리게 + 취소선 처리한다. */
+.todoRowDone {
+  background: rgba(255, 255, 255, 0.4);
+}
+.todoRowDone:hover {
+  background: color-mix(in srgb, var(--acc) 5%, rgba(255, 255, 255, 0.4));
+}
+.todoRowDone span,
+.todoRowDone a {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
 /* 탭 목록이 비었을 때(예: 내 담당·미배정 룸 작업 없음) 한 줄 안내. */
 .todoEmpty {
   display: flex;
@@ -2547,11 +2560,13 @@
 .ghostSub,
 .ghostSignal strong,
 .ghostSignal small {
-  max-width: 168px;
-  overflow: hidden;
+  /* 고스트 라벨(타이머 이름·요약 등)은 잘라서 …로 만들지 않고 줄바꿈해 전부 보여준다.
+     창은 콘텐츠에 맞춰 넉넉히 커지므로(Rust widget_window_size GHOST) 여기서는 폭만 제한한다. */
+  max-width: 260px;
   text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
   color: rgba(255, 255, 255, 0.98);
   font-size: 15px;
   font-weight: 800;
@@ -4345,9 +4360,8 @@
   color: rgba(30, 41, 59, 0.95);
   background: rgba(255, 255, 255, 0.96);
 }
-.ghostTodoDone {
-  opacity: 0.72;
-}
+/* 완료 항목: 체크박스는 또렷하게 남기고(체크가 잘 보이도록) 텍스트만 흐리게 + 취소선. */
 .ghostTodoDone span {
+  opacity: 0.68;
   text-decoration: line-through;
 }

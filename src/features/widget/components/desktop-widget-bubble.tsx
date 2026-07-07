@@ -74,7 +74,7 @@ import {
   type WidgetTimerKind,
   type WidgetTimerMode,
 } from "@/lib/widget/widget-pref-client";
-import { readCurrentTauriWindowMonitorState, startWidgetWindowDragging, tauriCommands, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
+import { isWidgetWindowDragLocked, readCurrentTauriWindowMonitorState, startWidgetWindowDragging, tauriCommands, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import { isMacTauriRuntime } from "@/lib/tauri/platform";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
@@ -248,6 +248,8 @@ const widgetDragIgnoreSelector = "button, input, a, textarea, select, [contented
 // 공식 startDragging 헬퍼를 명시적으로 호출한다(브라우저 미리보기에서는 no-op).
 export function handleWidgetDragMouseDown(event: MouseEvent<HTMLElement>) {
   if (event.button !== 0) return;
+  // 핀 고정(위치 잠금) 상태면 헤더/드래그 스트립을 눌러도 움직이지 않는다.
+  if (isWidgetWindowDragLocked()) return;
   const target = event.target as HTMLElement | null;
   if (target?.closest(widgetDragIgnoreSelector)) return;
 
@@ -259,6 +261,8 @@ export function handleWidgetDragMouseDown(event: MouseEvent<HTMLElement>) {
 // 드래그로 전환해 클릭(토글)을 깨지 않는다.
 export function handleWidgetDragMouseDownDeferred(event: MouseEvent<HTMLElement>) {
   if (event.button !== 0) return;
+  // 핀 고정(위치 잠금) 상태면 드래그로 전환하지 않는다(클릭 동작은 그대로).
+  if (isWidgetWindowDragLocked()) return;
 
   const startX = event.clientX;
   const startY = event.clientY;
@@ -662,7 +666,7 @@ function TodoRows({
   const showHeads = visible.length > 1;
 
   const renderRow = (item: WidgetPreviewItem) => (
-    <div className={styles.todoRow} key={item.id}>
+    <div className={[styles.todoRow, item.checked ? styles.todoRowDone : ""].filter(Boolean).join(" ")} key={item.id}>
       <button
         aria-label={t("widget.todo.markDone", { label: item.label })}
         aria-pressed={item.checked ?? false}
@@ -2878,10 +2882,15 @@ function GhostSignal({
   if (bubbleType === "todo") {
     const rows = bubble.rows;
     const total = rows.length;
-    const doneCount = rows.filter((row) => row.checked).length;
-    const remainingCount = total - doneCount;
-    // 남은 항목을 먼저, 완료 항목을 뒤로 정렬해 상위 4개를 보여준다(완료된 것도 체크로 확인).
-    const preview = [...rows].sort((left, right) => Number(left.checked) - Number(right.checked)).slice(0, 4);
+    const remaining = rows.filter((row) => !row.checked);
+    const done = rows.filter((row) => row.checked);
+    const doneCount = done.length;
+    const remainingCount = remaining.length;
+    // 남은 항목 위주로 보여주되, 완료 항목도 최소 몇 개는 체크와 함께 항상 보이도록 슬롯을 확보한다.
+    // (완료가 4개 이상이어도 체크가 화면에서 사라지지 않게 — "고스트에서 체크표시가 빠진다" 문제 방지.)
+    const GHOST_TODO_MAX = 5;
+    const doneShown = done.slice(0, Math.min(doneCount, 2));
+    const preview = [...remaining.slice(0, GHOST_TODO_MAX - doneShown.length), ...doneShown];
     return (
       <div className={styles.ghostSignal} aria-label={t("widget.ghostAria", { label: t(bubble.label as MessageKey) })}>
         {total === 0 ? (
@@ -3093,7 +3102,8 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
               data-bubli-interactive={mode === "GHOST" ? "true" : undefined}
               onMouseDown={handleHeaderMouseDown}
             >
-              <div className={styles.title} data-tauri-drag-region>
+              {/* 핀 고정(위치 잠금) 시 OS 드래그 영역을 없애 헤더를 눌러도 창이 움직이지 않게 한다. */}
+              <div className={styles.title} data-tauri-drag-region={alwaysOnTop ? undefined : true}>
                 {/* 28px accent 아이콘 타일이 버블 아이덴티티의 앵커다. */}
                 <span className={styles.iconTile} aria-hidden="true">
                   <Icon size={15} strokeWidth={2.1} />
