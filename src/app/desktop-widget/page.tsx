@@ -389,6 +389,21 @@ function formatDue(t: TranslateFn, value?: string | null) {
   return t("widget.due.past");
 }
 
+// 마감(d-day)이 있는 투두 칩에 붙일 D-n 태그. 오늘=D-DAY, 남았으면 D-n, 지났으면 D+n.
+function formatDDay(value?: string | null) {
+  if (!value) return "";
+  const due = new Date(value);
+  if (Number.isNaN(due.getTime())) return "";
+  const now = new Date();
+  const dayMs = 24 * 60 * 60 * 1000;
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const target = new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime();
+  const diff = Math.round((target - start) / dayMs);
+  if (diff === 0) return "D-DAY";
+  if (diff > 0) return `D-${diff}`;
+  return `D+${-diff}`;
+}
+
 // 마감 칩 톤: 지남/오늘/내일/이후 — formatDue와 같은 날짜 기준(로컬 자정)으로 계산한다.
 function widgetDueTone(value?: string | null): WidgetPreviewItem["dueTone"] {
   if (!value) return undefined;
@@ -721,10 +736,15 @@ function buildDisplayBubbles(input: {
   // 작업(WORK) 타이머는 그 룸에만 귀속 — 전역(개인) 위젯에서는 룸 타이머를 숨기고 개인(roomId 없음) 타이머만 보인다.
   const runningFallback = input.dashboard?.runningTimer ?? null;
   const activeTimer = input.timer ?? (!isRoomScoped && runningFallback?.roomId == null ? runningFallback : null);
-  const scheduleSource = isRoomScoped ? input.schedules : (input.dashboard?.todaySchedules.length ? input.dashboard.todaySchedules : input.schedules);
+  // 캘린더는 오늘뿐 아니라 향후 일정 전체(14일 창)가 보여야 하므로, 전체 목록(input.schedules)을
+  // 우선한다. 예전엔 오늘 일정이 있으면 todaySchedules(오늘만)가 전체를 가려, 캘린더에 이번주·다음주
+  // 일정이 아예 안 뜨던 문제가 있었다. 전체가 비었을 때만 오늘 목록으로 폴백한다.
+  const scheduleSource = isRoomScoped
+    ? input.schedules
+    : (input.schedules.length ? input.schedules : (input.dashboard?.todaySchedules ?? []));
   const personalScheduleSource = isRoomScoped
     ? (input.personalSchedules ?? [])
-    : (input.dashboard?.todaySchedules.length ? input.dashboard.todaySchedules : input.schedules);
+    : (input.schedules.length ? input.schedules : (input.dashboard?.todaySchedules ?? []));
 
   // ---------- TODO: 개인 TODO + 나에게 할당된 룸 태스크 병합 ----------
   // 제품 모델: 룸 태스크에 내가 담당자로 지정되면 개인 TODO에도 따라온다(백엔드
@@ -799,7 +819,8 @@ function buildDisplayBubbles(input: {
         ? input.roomNames?.[task.roomId] ?? t("widget.todo.roomFallback")
         : undefined,
     sourceKind,
-    status: formatDue(t, task.dueAt) || taskStatusLabel(t, task.status),
+    // 마감이 있으면 칩에 D-n 태그(D-DAY/D-3/D+2). 마감 없으면 상태 라벨.
+    status: formatDDay(task.dueAt) || taskStatusLabel(t, task.status),
   });
   // 내 할 일: 미완료(마감 섹션 정렬) → 완료(최근 수정순, 하단).
   const myOpenTasks = myTasksSource
@@ -2860,16 +2881,18 @@ function DesktopWidgetSurface() {
   );
 
   const createWidgetSchedule = useCallback(
-    async (bubble: WidgetPreviewBubble, inlineTitle?: string) => {
+    async (bubble: WidgetPreviewBubble, inlineTitle?: string, startsAt?: string | null) => {
       const title = (inlineTitle ?? window.prompt(t("widget.schedule.prompt")) ?? "").trim();
       if (!title) return;
 
+      // 위젯 폼에서 고른 시작 시각(ISO)을 그대로 쓰고, 없으면 다음 30분으로 폴백한다.
+      const chosenStart = startsAt && !Number.isNaN(new Date(startsAt).getTime()) ? startsAt : nextWidgetScheduleStart();
       const roomId = bubble.roomId ?? null;
       const schedule = await calendarApi.createEvent({
         allDay: false,
         endsAt: null,
         roomId,
-        startsAt: nextWidgetScheduleStart(),
+        startsAt: chosenStart,
         title,
       });
 

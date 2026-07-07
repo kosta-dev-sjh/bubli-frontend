@@ -142,33 +142,49 @@ function clampMinutes(value: unknown, fallback: number, min: number, max: number
   return Math.min(max, Math.max(min, Math.round(value)));
 }
 
+// 같은 창(웹 미리보기 포함)에서 PomodoroView와 GhostPomodoro가 실행 상태를 즉시 공유하기 위한
+// 인메모리 캐시. Tauri storeWidgetPref는 재오픈·다른 창 공유용이고, 이 캐시는 Tauri가 아닌
+// 환경(웹 위젯)에서도 고스트가 "실행 중 뽀모도로 숫자"를 읽게 해준다(고스트에서 00:00만 뜨던 문제 해결).
+const pomodoroStateCache = new Map<string, PomodoroState>();
+
+function normalizePomodoroState(parsed: Partial<PomodoroState>): PomodoroState {
+  // 예전 저장본(분 필드 없음)은 기본 25/5로 채워 하위호환한다.
+  return {
+    cyclesCompleted: parsed.cyclesCompleted ?? 0,
+    phase: parsed.phase ?? "focus",
+    phaseEndsAt: parsed.phaseEndsAt ?? null,
+    remainingSeconds: parsed.remainingSeconds ?? null,
+    running: parsed.running ?? false,
+    focusMinutes: clampMinutes(parsed.focusMinutes, POMODORO_DEFAULT_FOCUS_MINUTES, POMODORO_FOCUS_MIN, POMODORO_FOCUS_MAX),
+    breakMinutes: clampMinutes(parsed.breakMinutes, POMODORO_DEFAULT_BREAK_MINUTES, POMODORO_BREAK_MIN, POMODORO_BREAK_MAX),
+  };
+}
+
 export async function readPomodoroState(selectedRoomId?: string | null): Promise<PomodoroState | null> {
-  if (!isTauriRuntime()) return null;
-  try {
-    const cached = await tauriCommands.readWidgetPref({ cacheKey: resolvePrefCacheKey(selectedRoomId), kind: POMODORO_KIND });
-    if (!cached) return null;
-    const parsed: unknown = JSON.parse(cached.valueJson);
-    if (!isPomodoroState(parsed)) return null;
-    // 예전 저장본(분 필드 없음)은 기본 25/5로 채워 하위호환한다.
-    return {
-      cyclesCompleted: parsed.cyclesCompleted ?? 0,
-      phase: parsed.phase ?? "focus",
-      phaseEndsAt: parsed.phaseEndsAt ?? null,
-      remainingSeconds: parsed.remainingSeconds ?? null,
-      running: parsed.running ?? false,
-      focusMinutes: clampMinutes(parsed.focusMinutes, POMODORO_DEFAULT_FOCUS_MINUTES, POMODORO_FOCUS_MIN, POMODORO_FOCUS_MAX),
-      breakMinutes: clampMinutes(parsed.breakMinutes, POMODORO_DEFAULT_BREAK_MINUTES, POMODORO_BREAK_MIN, POMODORO_BREAK_MAX),
-    };
-  } catch {
-    return null;
+  const cacheKey = resolvePrefCacheKey(selectedRoomId);
+  // Tauri에서는 영속 저장본을 우선(다른 창/재오픈 반영)하고, 아직 저장 전이면 인메모리로 폴백한다.
+  if (isTauriRuntime()) {
+    try {
+      const cached = await tauriCommands.readWidgetPref({ cacheKey, kind: POMODORO_KIND });
+      if (cached) {
+        const parsed: unknown = JSON.parse(cached.valueJson);
+        if (isPomodoroState(parsed)) return normalizePomodoroState(parsed);
+      }
+    } catch {
+      // 저장 읽기 실패는 인메모리 폴백으로 넘어간다.
+    }
   }
+  // 비-Tauri(웹 위젯)에서는 인메모리 캐시가 유일한 공유 경로다.
+  return pomodoroStateCache.get(cacheKey) ?? null;
 }
 
 export async function writePomodoroState(state: PomodoroState, selectedRoomId?: string | null): Promise<void> {
+  const cacheKey = resolvePrefCacheKey(selectedRoomId);
+  pomodoroStateCache.set(cacheKey, state);
   if (!isTauriRuntime()) return;
   try {
     await tauriCommands.storeWidgetPref({
-      cacheKey: resolvePrefCacheKey(selectedRoomId),
+      cacheKey,
       kind: POMODORO_KIND,
       valueJson: JSON.stringify(state),
     });

@@ -201,7 +201,7 @@ export type DesktopWidgetBubbleProps = {
   onModeChange: (mode: WidgetWindowMode) => void;
   onOpenBubble?: (bubbleType: WidgetBubbleType) => void;
   onCreateMemo?: (bubble: WidgetPreviewBubble, body?: string) => Promise<void> | void;
-  onCreateSchedule?: (bubble: WidgetPreviewBubble, title?: string) => Promise<void> | void;
+  onCreateSchedule?: (bubble: WidgetPreviewBubble, title?: string, startsAt?: string | null) => Promise<void> | void;
   onCreateTodo?: (bubble: WidgetPreviewBubble, title?: string, options?: { forcePersonal?: boolean }) => Promise<void> | void;
   onEditTodo?: (item: WidgetPreviewItem, title: string) => Promise<void> | void;
   onDeleteTodo?: (item: WidgetPreviewItem) => Promise<void> | void;
@@ -2206,8 +2206,21 @@ function MemoBody({
 
 type ScheduleView = "list" | "week" | "month" | "wbs";
 
-// 세그먼트 순서 = 좌→우 탭. 기본값은 "월간"(달력 형태)이다.
+// 세그먼트 순서 = 좌→우 탭.
 const SCHEDULE_VIEW_ORDER: ScheduleView[] = ["list", "week", "month", "wbs"];
+
+// datetime-local 입력값("YYYY-MM-DDTHH:mm", 로컬시간)으로 변환한다.
+function toDatetimeLocalValue(date: Date): string {
+  const pad = (value: number) => `${value}`.padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+// 기본 일정 시작 = 지금에서 다음 30분 단위로 올림(제목만 입력하고 바로 추가할 때의 기본값).
+function defaultScheduleStartLocal(): string {
+  const next = new Date();
+  next.setMinutes(next.getMinutes() < 30 ? 30 : 60, 0, 0);
+  return toDatetimeLocalValue(next);
+}
 
 type ScheduleEvent = {
   allDay: boolean;
@@ -2281,7 +2294,11 @@ function ScheduleBody({
   const localeTag = String(locale);
   const [draft, setDraft] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [view, setView] = useState<ScheduleView>("month");
+  // 일정 추가 시작 시각(날짜+시간). 투두처럼 제목만 받던 걸 바꿔, 언제인지 직접 고르게 한다.
+  const [draftAt, setDraftAt] = useState<string>(() => defaultScheduleStartLocal());
+  // 좁은 위젯에서는 목록(제목·시간이 다 보임)이 기본이어야 일정이 바로 보인다. 월/주/WBS는 탭으로 전환.
+  // (월간 기본은 오늘 일정이 없으면 빈 달력처럼 보여 "일정이 안 뜬다"는 인상을 줬다.)
+  const [view, setView] = useState<ScheduleView>("list");
   const today = useMemo(() => schedStartOfDay(new Date()), []);
   const [anchor, setAnchor] = useState<Date>(() => schedStartOfDay(new Date()));
   const [selectedDay, setSelectedDay] = useState<Date>(() => schedStartOfDay(new Date()));
@@ -2297,10 +2314,15 @@ function ScheduleBody({
     const title = draft.trim();
     if (!title || !onCreateSchedule || submitting) return;
 
+    // datetime-local(로컬시간) → ISO. 값이 비었거나 잘못됐으면 기본 시작으로 폴백한다.
+    const chosen = draftAt ? new Date(draftAt) : null;
+    const startsAt = chosen && !Number.isNaN(chosen.getTime()) ? chosen.toISOString() : null;
+
     setSubmitting(true);
     try {
-      await onCreateSchedule(bubble, title);
+      await onCreateSchedule(bubble, title, startsAt);
       setDraft("");
+      setDraftAt(defaultScheduleStartLocal());
     } finally {
       setSubmitting(false);
     }
@@ -2540,6 +2562,7 @@ function ScheduleBody({
       </div>
       <form
         className={styles.input}
+        style={{ flexWrap: "wrap" }}
         onSubmit={(event) => {
           event.preventDefault();
           void saveDraftSchedule();
@@ -2552,7 +2575,17 @@ function ScheduleBody({
           maxLength={200}
           onChange={(event) => setDraft(event.target.value)}
           placeholder={bubble.inputPlaceholder ? t(bubble.inputPlaceholder as MessageKey) : t("widget.schedule.prompt")}
+          style={{ flex: "1 1 110px", minWidth: 0 }}
           value={draft}
+        />
+        {/* 일정은 "언제"가 핵심 — 투두식 제목만 받지 않고 시작 날짜·시간을 직접 고른다. */}
+        <input
+          aria-label={t("widget.schedule.quickAdd")}
+          disabled={submitting}
+          onChange={(event) => setDraftAt(event.target.value)}
+          style={{ flex: "1 1 150px", minWidth: 0 }}
+          type="datetime-local"
+          value={draftAt}
         />
         <button aria-label={t("widget.schedule.quickAdd")} disabled={submitting || !draft.trim()} type="submit">
           <Plus size={13} strokeWidth={2.1} />
