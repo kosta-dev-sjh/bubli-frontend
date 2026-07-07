@@ -24,7 +24,9 @@ export function BubbleMark({ animated = false, className, size = "md", ...props 
       className={cn("bubli-mark", sizeClass[size], animated && "bubli-mark--animated", className)}
       {...props}
     >
-      <img alt="" src={BUBBLE_ASSET} />
+      {/* draggable=false: 바 브랜드/칩을 잡고 창을 끌 때 브라우저 네이티브 이미지 드래그
+          고스트가 뜨는 현상 방지(CSS -webkit-user-drag: none과 함께). */}
+      <img alt="" draggable={false} src={BUBBLE_ASSET} />
     </span>
   );
 }
