@@ -51,6 +51,7 @@ type RealOAuthQaEvent = {
   hasReportUrl?: boolean;
   isDesktopWidgetSurface?: boolean;
   isTauri?: boolean;
+  missingVisibleBubbles?: string[];
   ok?: boolean;
   pathname: string;
   reason: string;
@@ -338,6 +339,7 @@ export function TauriRealOAuthQaReporter() {
               attemptCount,
               failedChecks: latestAssertion?.failedChecks,
               failedCheckCount: latestAssertion?.failedChecks.length,
+              missingVisibleBubbles: latestAssertion?.snapshot.widgetRuntime.missingVisibleBubbles,
               ok: latestAssertion?.ok,
               pathname: pathnameRef.current,
               reason: reasonMessage,
@@ -356,6 +358,7 @@ export function TauriRealOAuthQaReporter() {
               attemptCount,
               failedCheckCount: latestAssertion.failedChecks.length,
               failedChecks: latestAssertion.failedChecks,
+              missingVisibleBubbles: latestAssertion.snapshot.widgetRuntime.missingVisibleBubbles,
               ok: latestAssertion.ok,
               pathname: pathnameRef.current,
               reason,
@@ -419,6 +422,7 @@ export function TauriRealOAuthQaReporter() {
             attemptCount,
             failedChecks: latestAssertion?.failedChecks,
             failedCheckCount: latestAssertion?.failedChecks.length,
+            missingVisibleBubbles: latestAssertion?.snapshot.widgetRuntime.missingVisibleBubbles,
             ok: latestAssertion?.ok,
             pathname: pathnameRef.current,
             reason: error instanceof Error ? error.message : String(error),

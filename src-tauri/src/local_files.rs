@@ -712,13 +712,16 @@ fn scan_managed_folder_for_conn(
         match existing {
             None => {
                 let file_id = Uuid::new_v4().to_string();
-                conn.execute(
-                    "INSERT INTO local_files \
+                let inserted = conn.execute(
+                    "INSERT OR IGNORE INTO local_files \
                      (id, local_folder_id, file_name, local_path, resource_id, size_bytes, checksum, sync_status, modified_at, updated_at) \
                      VALUES (?1, ?2, ?3, ?4, NULL, ?5, ?6, 'LOCAL_ONLY', ?7, ?8)",
                     params![file_id, input.local_folder_id, file_name, local_path, size_bytes, checksum, modified_ms, now],
                 )
                 .map_err(|error| error.to_string())?;
+                if inserted == 0 {
+                    continue;
+                }
                 upsert_file_fts_index(&conn, &file_id, &file_name, &local_path, &file)?;
                 record_event(
                     &conn,
@@ -1337,13 +1340,16 @@ fn record_watch_path_change(
             match existing {
                 None => {
                     let file_id = Uuid::new_v4().to_string();
-                    conn.execute(
-                        "INSERT INTO local_files \
+                    let inserted = conn.execute(
+                        "INSERT OR IGNORE INTO local_files \
                          (id, local_folder_id, file_name, local_path, resource_id, size_bytes, checksum, sync_status, modified_at, updated_at) \
                          VALUES (?1, ?2, ?3, ?4, NULL, ?5, ?6, 'LOCAL_ONLY', ?7, ?8)",
                         params![file_id, local_folder_id, file_name, local_path, size_bytes, checksum, modified_ms, now],
                     )
                     .map_err(|error| error.to_string())?;
+                    if inserted == 0 {
+                        return Ok(0);
+                    }
                     upsert_file_fts_index(
                         conn,
                         &file_id,
