@@ -217,6 +217,9 @@ export function NotificationCenterPanel({ autoLoad = true, initialNotifications 
       ),
     );
   }, []);
+  const removeNotification = useCallback((id: string) => {
+    setNotifications((current) => current.filter((notification) => notification.id !== id));
+  }, []);
 
   const handleMarkRead = useCallback(
     async (item: NotificationItem) => {
@@ -246,9 +249,9 @@ export function NotificationCenterPanel({ autoLoad = true, initialNotifications 
     async (item: NotificationItem) => {
       if (item.state === "dismissed") return;
 
-      const previous = notifications.find((notification) => notification.id === item.id)?.status ?? "UNREAD";
+      const previous = notifications.find((notification) => notification.id === item.id);
       setPendingItem({ action: "archive", id: item.id });
-      replaceNotification(item.id, "ARCHIVED");
+      removeNotification(item.id);
 
       if (!autoLoad) {
         setPendingItem(null);
@@ -259,12 +262,12 @@ export function NotificationCenterPanel({ autoLoad = true, initialNotifications 
         await notificationApi.archive(item.id);
         notifyDataChanged("notification", { source: NOTIFICATION_CENTER_EVENT_SOURCE });
       } catch {
-        replaceNotification(item.id, previous);
+        if (previous) setNotifications((current) => [previous, ...current]);
       } finally {
         setPendingItem(null);
       }
     },
-    [autoLoad, notifications, replaceNotification],
+    [autoLoad, notifications, removeNotification],
   );
 
   return (
@@ -294,7 +297,6 @@ export function NotificationCenterPanel({ autoLoad = true, initialNotifications 
             <div>
               <Chip selected>{t("notification.center.filterAll")}</Chip>
               <Chip>{t("notification.center.filterUnread")}</Chip>
-              <Chip>{t("notification.center.filterArchived")}</Chip>
             </div>
           </div>
           <div className="notification-center__items">
