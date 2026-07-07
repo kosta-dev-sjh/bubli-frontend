@@ -1511,17 +1511,12 @@ assertContains(
 assertContains(
   appNav,
   /"\/app\/chat"/,
-  "AppNav must keep the communication route defined for the web app.",
+  "AppNav must keep the communication route defined for both web and the hybrid Tauri app.",
 );
-assertContains(
+assertNotContains(
   appNav,
-  /useSyncExternalStore\(subscribeToTauriRuntime, isTauriRuntime, \(\) => false\)/,
-  "AppNav must detect Tauri at runtime instead of removing chat from web navigation.",
-);
-assertContains(
-  appNav,
-  /isTauri\s*\?\s*siteConfig\.appNav\.filter\(\(item\) => item\.href !== "\/app\/chat"\)\s*:\s*siteConfig\.appNav/,
-  "Hybrid Tauri app must hide only the communication tab while the web app keeps it.",
+  /item\.href !== "\/app\/chat"/,
+  "AppNav must show the communication tab in the hybrid Tauri app exactly like the web app (no Tauri-only filtering).",
 );
 
 assertContains(
