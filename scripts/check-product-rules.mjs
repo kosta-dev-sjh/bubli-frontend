@@ -88,6 +88,11 @@ const desktopCommunicationRoutePath = join(
   "src/app/(workspace)/app/desktop/communication/page.tsx",
 );
 const managedFolderClientPath = join(ROOT, "src/lib/local/managed-folder-client.ts");
+const managedFolderAutoSyncPath = join(ROOT, "src/lib/local/managed-folder-auto-sync.ts");
+const resourceBoardCommonPath = join(
+  ROOT,
+  "src/features/resources/components/resource-board-common.tsx",
+);
 const globalsCssPath = join(ROOT, "src/styles/globals.css");
 const tauriLibPath = join(ROOT, "src-tauri/src/lib.rs");
 const tauriSyncStatusPanelPath = join(
@@ -155,24 +160,43 @@ if (existsSync(managedFolderClientPath)) {
       "src/lib/local/managed-folder-client.ts: native folder watch is implemented; do not mask watch_managed_folder failures as a pending/not-wired state.",
     );
   }
-  const analyzableExtensionsBlock = text.match(
-    /const ANALYZABLE_LOCAL_FILE_EXTENSIONS = new Set\(\[([\s\S]*?)\]\);/,
-  )?.[1];
-  if (!analyzableExtensionsBlock) {
+  const syncFunctionBlock = text.match(
+    /export async function syncPersonalLocalFileEventsToServer[\s\S]*?\n}\n\nexport async function backfillPersonalLocalFileAnalyses/,
+  )?.[0];
+  if (!syncFunctionBlock) {
     failures.push(
-      "src/lib/local/managed-folder-client.ts: local-file analysis candidate extension set must stay explicit.",
+      "src/lib/local/managed-folder-client.ts: local-file event sync function must stay explicit so product rules can guard analysis side effects.",
     );
   }
-  for (const extension of ["json", "jsonl", "yaml", "yml", "html", "htm", "rtf"]) {
-    if (!analyzableExtensionsBlock?.includes(`"${extension}"`)) {
-      failures.push(
-        `src/lib/local/managed-folder-client.ts: local-file analysis candidates must include .${extension} after Tauri extraction support was added.`,
-      );
-    }
-  }
-  if (!/function isAnalyzableLocalFileName[\s\S]*ANALYZABLE_LOCAL_FILE_EXTENSIONS\.has\(extension\)/.test(text)) {
+  if (syncFunctionBlock?.includes("analyzePersonalLocalFileWithKeySentences")) {
     failures.push(
-      "src/lib/local/managed-folder-client.ts: isAnalyzableLocalFileName must use ANALYZABLE_LOCAL_FILE_EXTENSIONS for sync-time analysis filtering.",
+      "src/lib/local/managed-folder-client.ts: local-folder sync must not auto-start AI analysis; analysis must be a user-requested resource detail action.",
+    );
+  }
+  if (syncFunctionBlock?.includes("localFileAnalysisApi.create")) {
+    failures.push(
+      "src/lib/local/managed-folder-client.ts: local-folder sync must not POST local-file analysis requests.",
+    );
+  }
+}
+
+if (existsSync(managedFolderAutoSyncPath)) {
+  const text = readFileSync(managedFolderAutoSyncPath, "utf8");
+  if (text.includes("backfillPersonalLocalFileAnalyses") || text.includes("stageLocalFileAnalysisBackfill")) {
+    failures.push(
+      "src/lib/local/managed-folder-auto-sync.ts: automatic managed-folder sync must not drain local-file AI analysis backfill.",
+    );
+  }
+}
+
+if (existsSync(resourceBoardCommonPath)) {
+  const text = readFileSync(resourceBoardCommonPath, "utf8");
+  if (
+    !text.includes("findPersonalLocalFileByResourceId") ||
+    !text.includes("analyzePersonalLocalFileWithKeySentences")
+  ) {
+    failures.push(
+      "src/features/resources/components/resource-board-common.tsx: personal local-file AI analysis must remain available through the explicit resource detail action.",
     );
   }
 }
