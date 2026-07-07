@@ -79,7 +79,6 @@ const WIDGET_MENU_WIDTH: f64 = 248.0;
 // 닫힘 상태(오브만)에서는 그림자를 껐고 투명 영역이라 큰 창이 보이지 않는다.
 const WIDGET_MENU_HEIGHT: f64 = 540.0;
 const ONBOARDING_OVERLAY_WINDOW_LABEL: &str = "onboarding-overlay";
-#[cfg(target_os = "macos")]
 const ONBOARDING_OVERLAY_WINDOW_URL: &str = "desktop-widget/onboarding/";
 const WIDGET_MINIMIZED_WIDTH: f64 = 188.0;
 const WIDGET_MINIMIZED_HEIGHT: f64 = 72.0;
