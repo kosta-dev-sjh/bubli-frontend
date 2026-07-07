@@ -178,6 +178,7 @@ export type WidgetVoiceParticipantResponse = {
 };
 
 export type WidgetVoiceRoomResponse = {
+  chatRoomId?: string | null;
   createdAt: string;
   createdByUserId?: string | null;
   id: string;

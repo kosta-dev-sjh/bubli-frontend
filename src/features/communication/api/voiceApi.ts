@@ -38,6 +38,12 @@ export const voiceApi = {
     });
   },
 
+  decline(voiceRoomId: string) {
+    return apiRequest<void>(`/api/voice/rooms/${voiceRoomId}/decline`, {
+      method: "PATCH",
+    });
+  },
+
   end(voiceRoomId: string) {
     return apiRequest<VoiceRoomResponse>(`/api/voice/rooms/${voiceRoomId}/end`, {
       method: "PATCH",

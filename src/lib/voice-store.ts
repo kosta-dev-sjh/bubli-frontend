@@ -12,6 +12,8 @@ type VoiceStoreSnapshot = {
   voice: VoiceStoreVoiceState;
   micMuted: boolean;
   isSpeaking: boolean;
+  // 발신 중(링백) 팝업에 "OO에게 전화 거는 중" 식으로 보여줄 상대/방 이름.
+  calleeLabel: string | null;
 };
 
 const STORAGE_KEY = "bubli:voice-store";
@@ -51,6 +53,7 @@ const _default: VoiceStoreSnapshot = {
   voice: { kind: "idle" },
   micMuted: false,
   isSpeaking: false,
+  calleeLabel: null,
 };
 const _serverSnapshot: VoiceStoreSnapshot = _default;
 let _snapshot: VoiceStoreSnapshot = readStorage() ?? _default;
