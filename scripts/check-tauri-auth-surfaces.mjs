@@ -23,6 +23,7 @@ const files = {
   activityAutoCapture: "src/lib/local/activity-auto-capture.ts",
   activityClient: "src/lib/local/activity-client.ts",
   authenticatedSurfaces: "src/lib/tauri/authenticated-surfaces.ts",
+  startupOptimization: "src/lib/tauri/startup-optimization.ts",
   chatWidgetRouting: "src/lib/tauri/chat-widget-routing.ts",
   desktopWidgetPage: "src/app/desktop-widget/page.tsx",
   desktopWidgetBubble: "src/features/widget/components/desktop-widget-bubble.tsx",
@@ -193,6 +194,7 @@ const realOAuthQaScript = read(files.realOAuthQaScript);
 const localAutoSyncSoak = read(files.localAutoSyncSoak);
 const windowsRuntimeSoak = read(files.windowsRuntimeSoak);
 const surfaces = read(files.authenticatedSurfaces);
+const startupOptimization = read(files.startupOptimization);
 const chatWidgetRouting = read(files.chatWidgetRouting);
 const appNav = read(files.appNav);
 const appShell = read(files.appShell);
@@ -238,6 +240,11 @@ assertContains(
   buildTauriWindowsDownload,
   /CARGO_BUILD_JOBS: process\.env\.CARGO_BUILD_JOBS \?\? "1"[\s\S]*CARGO_PROFILE_RELEASE_CODEGEN_UNITS: process\.env\.CARGO_PROFILE_RELEASE_CODEGEN_UNITS \?\? "16"[\s\S]*CARGO_PROFILE_RELEASE_OPT_LEVEL: process\.env\.CARGO_PROFILE_RELEASE_OPT_LEVEL \?\? "3"[\s\S]*CARGO_PROFILE_RELEASE_STRIP: process\.env\.CARGO_PROFILE_RELEASE_STRIP \?\? "symbols"[\s\S]*npm\.cmd run tauri -- build[\s\S]*scripts\/publish-tauri-windows-download\.mjs/,
   "Windows download builds must use memory-safe Cargo release defaults before publishing the installer.",
+);
+assertContains(
+  startupOptimization,
+  /windows:\s*\{[\s\S]*bubbleOpenStaggerMs:\s*0,[\s\S]*deferBarFullDisplayUntilAfterFirstPaint:\s*true,[\s\S]*summaryPrewarmTimeoutMs:\s*1_800/,
+  "Windows startup optimization must use batched widget opening while keeping first-paint deferral and summary prewarm enabled.",
 );
 assertContains(
   publishTauriWindowsDownload,
