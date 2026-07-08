@@ -13,6 +13,8 @@ import { notifyDataChanged, useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import { projectRoomRoute } from "@/lib/project-room-routes";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { isWindowsTauriRuntime } from "@/lib/tauri/platform";
+import { readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
 import { cn } from "@/lib/utils";
 import { shouldUseWorkspacePreviewData, workspacePreviewRoomResources } from "@/lib/workspace-preview-data";
 import type { GeneratedDocumentResponse } from "@/types/api/agent";
@@ -42,12 +44,39 @@ type RoomState =
   | { generatedDocuments: GeneratedDocumentResponse[]; kind: "ready"; resources: ResourceResponse[] }
   | { kind: "auth" }
   | { kind: "error"; message: string };
+type RoomReadyState = Extract<RoomState, { kind: "ready" }>;
+type RoomResourceLoadData = Omit<RoomReadyState, "kind">;
 
 type UploadState =
   | { kind: "idle" }
   | { kind: "uploading"; fileName: string }
   | { kind: "success"; fileName: string }
   | { kind: "error"; message: string };
+
+const WINDOWS_RESOURCE_INITIAL_TIMEOUT_FALLBACK_MS = 650;
+
+async function readWindowsResourceInitialTimeoutMs() {
+  if (!isWindowsTauriRuntime()) return 0;
+  const config = await readTauriStartupOptimizationConfig();
+  return config.displayRequestTimeoutMs || WINDOWS_RESOURCE_INITIAL_TIMEOUT_FALLBACK_MS;
+}
+
+function withResourceInitialDeadline<T>(request: Promise<T>, timeoutMs: number): Promise<T | null> {
+  if (timeoutMs <= 0) return request;
+  return new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => resolve(null), timeoutMs);
+    request.then(
+      (value) => {
+        window.clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (error: unknown) => {
+        window.clearTimeout(timeoutId);
+        reject(error);
+      },
+    );
+  });
+}
 
 function createUploadBody(file: File, roomId: string) {
   const body = new FormData();
@@ -79,12 +108,34 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
 
   const loadResources = useCallback(async () => {
     try {
-      const [page, generatedDocumentPage] = await Promise.all([
+      const loadData = Promise.all([
         resourcesApi.listRoomResources(roomId),
         agentApi.listRoomGeneratedDocuments(roomId),
-      ]);
-      setState({ generatedDocuments: generatedDocumentPage.items, kind: "ready", resources: page.items });
-      setSelectedResourceId((current) => (current && page.items.some((resource) => resource.id === current) ? current : null));
+      ]).then(
+        ([page, generatedDocumentPage]): RoomResourceLoadData => ({
+          generatedDocuments: generatedDocumentPage.items,
+          resources: page.items,
+        }),
+      );
+      const applyLoadedData = (data: RoomResourceLoadData) => {
+        setState({ ...data, kind: "ready" });
+        setSelectedResourceId((current) => (current && data.resources.some((resource) => resource.id === current) ? current : null));
+      };
+      const initialTimeoutMs = await readWindowsResourceInitialTimeoutMs();
+      const initialData = await withResourceInitialDeadline(loadData, initialTimeoutMs);
+      if (initialData) {
+        applyLoadedData(initialData);
+      } else {
+        setState((current) =>
+          current.kind === "ready"
+            ? current
+            : { generatedDocuments: [], kind: "ready", resources: EMPTY_RESOURCES },
+        );
+        void loadData.then(applyLoadedData).catch((error: unknown) => {
+          const message = getErrorMessage(error, t);
+          if (message === "AUTH_REQUIRED") setState({ kind: "auth" });
+        });
+      }
     } catch (error) {
       const message = getErrorMessage(error, t);
       if (message !== "AUTH_REQUIRED" && shouldUseWorkspacePreviewData()) {

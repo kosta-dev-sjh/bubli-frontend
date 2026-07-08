@@ -20,6 +20,7 @@ import { authApi } from "@/features/auth/api/authApi";
 import { chatApi } from "@/features/communication/api/chatApi";
 import { voiceApi } from "@/features/communication/api/voiceApi";
 import { notificationApi } from "@/features/notification/api/notificationApi";
+import { presenceApi } from "@/features/presence/api/presenceApi";
 import {
   formatNotificationContent,
   isDisplayableNotification,
@@ -47,6 +48,7 @@ import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
 import { tauriCommands } from "@/lib/tauri/commands";
 import { listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
 import {
   ACTIVE_PROJECT_ROOM_CHANGE_EVENT,
   getActiveProjectRoomId,
@@ -179,6 +181,19 @@ async function withTimeout<T>(task: Promise<T>, timeoutMs: number, fallback: T) 
       window.clearTimeout(timeoutId);
     }
   }
+}
+
+async function readWindowsWorkspaceHydrationTimeoutMs() {
+  if (!isTauriRuntime()) return 0;
+
+  const startupConfig = await readTauriStartupOptimizationConfig().catch(() => null);
+  if (startupConfig?.profile !== "windows") return 0;
+  return startupConfig.settingsTimeoutMs;
+}
+
+function boundWindowsWorkspaceHydration<T>(task: Promise<T>, timeoutMs: number, fallback: T) {
+  if (timeoutMs <= 0) return task;
+  return withTimeout(task, timeoutMs, fallback);
 }
 
 async function restoreInitialWorkspaceSession() {
@@ -360,9 +375,73 @@ export function AppShell({ children }: AppShellProps) {
             : { kind: "ready", notifications: [], rooms: roomsRef.current, user },
         );
 
+        const applyWorkspaceHydration = async (
+          roomPage: Awaited<ReturnType<typeof projectRoomApi.list>>,
+          widgetContext: Awaited<ReturnType<typeof widgetApi.getContext>> | null,
+        ) => {
+          const contextRoom = widgetContext?.selectedRoomId
+            ? roomPage.items.find((room) => room.id === widgetContext.selectedRoomId)
+            : undefined;
+          if (contextRoom) {
+            seedActiveProjectRoomId(contextRoom.id, contextRoom.name);
+            if (isCurrentRun()) {
+              setSelectedRoomId(contextRoom.id);
+              setSelectedRoomLabel(contextRoom.name);
+            }
+          }
+
+          if (!contextRoom) {
+            await restoreActiveProjectRoomFromTauri();
+            if (!isCurrentRun()) return;
+            const restoredRoomId = getActiveProjectRoomId();
+            const restoredRoom = restoredRoomId ? roomPage.items.find((room) => room.id === restoredRoomId) : undefined;
+            if (restoredRoom) {
+              seedActiveProjectRoomId(restoredRoom.id, restoredRoom.name);
+              void widgetApi.updateContext({ selectedRoomId: restoredRoom.id }).catch(() => undefined);
+              if (isCurrentRun()) {
+                setSelectedRoomId(restoredRoom.id);
+                setSelectedRoomLabel(restoredRoom.name);
+              }
+            }
+          }
+
+          if (isTauriRuntime() && !getActiveProjectRoomId() && roomPage.items[0]) {
+            const firstRoom = roomPage.items[0];
+            seedActiveProjectRoomId(firstRoom.id, firstRoom.name);
+            void widgetApi.updateContext({ selectedRoomId: firstRoom.id }).catch(() => undefined);
+            if (!isCurrentRun()) return;
+            setSelectedRoomId(firstRoom.id);
+            setSelectedRoomLabel(firstRoom.name);
+          }
+
+          if (isCurrentRun()) setState({ kind: "ready", notifications: [], rooms: roomPage.items, user });
+        };
+
+        const queueWorkspaceHydration = () => {
+          void Promise.allSettled([projectRoomApi.list(), widgetApi.getContext()]).then(
+            async ([roomPageRetryResult, widgetContextRetryResult]) => {
+              if (!isCurrentRun()) return;
+
+              if (roomPageRetryResult.status === "rejected") {
+                if (roomPageRetryResult.reason instanceof ApiClientError && roomPageRetryResult.reason.status === 401) {
+                  setAuthOrDesktopRedirectState();
+                  redirectToLoginWhenTauri();
+                }
+                return;
+              }
+
+              await applyWorkspaceHydration(
+                roomPageRetryResult.value,
+                widgetContextRetryResult.status === "fulfilled" ? widgetContextRetryResult.value : null,
+              );
+            },
+          );
+        };
+
+        const workspaceHydrationTimeoutMs = await readWindowsWorkspaceHydrationTimeoutMs();
         const [roomPageResult, widgetContextResult] = await Promise.allSettled([
-          projectRoomApi.list(),
-          widgetApi.getContext(),
+          boundWindowsWorkspaceHydration(projectRoomApi.list(), workspaceHydrationTimeoutMs, null),
+          boundWindowsWorkspaceHydration(widgetApi.getContext(), workspaceHydrationTimeoutMs, null),
         ]);
 
         if (!isCurrentRun()) return;
@@ -379,43 +458,18 @@ export function AppShell({ children }: AppShellProps) {
         }
 
         const roomPage = roomPageResult.value;
+        if (!roomPage) {
+          const restoredRoom = await restoreActiveProjectRoomFromTauri();
+          if (isCurrentRun() && restoredRoom?.roomId) {
+            setSelectedRoomId(restoredRoom.roomId);
+            setSelectedRoomLabel(restoredRoom.roomLabel ?? null);
+          }
+          queueWorkspaceHydration();
+          return;
+        }
+
         const widgetContext = widgetContextResult.status === "fulfilled" ? widgetContextResult.value : null;
-        const contextRoom = widgetContext?.selectedRoomId
-          ? roomPage.items.find((room) => room.id === widgetContext.selectedRoomId)
-          : undefined;
-        if (contextRoom) {
-          seedActiveProjectRoomId(contextRoom.id, contextRoom.name);
-          if (isCurrentRun()) {
-            setSelectedRoomId(contextRoom.id);
-            setSelectedRoomLabel(contextRoom.name);
-          }
-        }
-
-        if (!contextRoom) {
-          await restoreActiveProjectRoomFromTauri();
-          if (!isCurrentRun()) return;
-          const restoredRoomId = getActiveProjectRoomId();
-          const restoredRoom = restoredRoomId ? roomPage.items.find((room) => room.id === restoredRoomId) : undefined;
-          if (restoredRoom) {
-            seedActiveProjectRoomId(restoredRoom.id, restoredRoom.name);
-            await widgetApi.updateContext({ selectedRoomId: restoredRoom.id }).catch(() => undefined);
-            if (isCurrentRun()) {
-              setSelectedRoomId(restoredRoom.id);
-              setSelectedRoomLabel(restoredRoom.name);
-            }
-          }
-        }
-
-        if (isTauriRuntime() && !getActiveProjectRoomId() && roomPage.items[0]) {
-          const firstRoom = roomPage.items[0];
-          seedActiveProjectRoomId(firstRoom.id, firstRoom.name);
-          await widgetApi.updateContext({ selectedRoomId: firstRoom.id }).catch(() => undefined);
-          if (!isCurrentRun()) return;
-          setSelectedRoomId(firstRoom.id);
-          setSelectedRoomLabel(firstRoom.name);
-        }
-
-        if (isCurrentRun()) setState({ kind: "ready", notifications: [], rooms: roomPage.items, user });
+        await applyWorkspaceHydration(roomPage, widgetContext);
 
         void Promise.allSettled([notificationApi.list(), projectRoomApi.getMyInvitations("PENDING")]).then(
           ([notificationPageResult, invitationPageResult]) => {
@@ -555,17 +609,20 @@ export function AppShell({ children }: AppShellProps) {
           chatRoomId: notification.sourceId,
           notificationId: notification.id,
         };
-        // 데스크톱 위젯(바)이 떠 있으면 그쪽에서 수신 전화 팝업을 보여주므로, 앱 쪽에서는
-        // 중복으로 뜨지 않게 건너뛴다 — 위젯이 꺼져 있을 때만 앱이 이 역할을 대신한다.
-        if (isTauriRuntime()) {
-          tauriCommands
-            .getWidgetWindowState({ bubbleType: "bar", windowId: "bar" })
-            .then((state) => {
-              if (!state.windowVisible) setIncomingVoiceCall(call);
+        // 데스크톱 앱에서는 위젯 바 창이 로그인 시 항상 함께 뜨고, 최소화/숨김 상태에서도
+        // 웹뷰 자체는 계속 살아있어(위젯 유지 정책) 수신 전화 팝업을 그대로 띄운다. 예전엔
+        // getWidgetWindowState의 windowVisible로 판단했는데, 바가 최소화돼 있으면 "꺼져있다"고
+        // 오판해 앱 쪽에서도 중복으로 팝업이 떴다 — Tauri에서는 무조건 위젯에 맡긴다.
+        if (!isTauriRuntime()) {
+          // 같은 계정으로 데스크톱 앱(위젯)이 이미 떠 있으면 그쪽이 팝업을 전담하므로
+          // 웹 탭까지 또 띄우지 않는다. 확인 자체가 실패하면(네트워크 등) 안 뜨는 것보다
+          // 중복이 낫다는 원칙으로 그냥 띄운다(fail-open).
+          void presenceApi
+            .getDesktopActive()
+            .then((presence) => {
+              if (!presence.active) setIncomingVoiceCall(call);
             })
             .catch(() => setIncomingVoiceCall(call));
-        } else {
-          setIncomingVoiceCall(call);
         }
       }
 
@@ -1607,7 +1664,9 @@ export function AppShell({ children }: AppShellProps) {
           </div>
         </div>
       ) : null}
-      {!incomingVoiceCall && (isCallerRingingBack || outgoingCallNotice) && persistVoice ? (
+      {/* 데스크톱 앱에서는 위젯이 발신(ringback) 팝업도 전담한다 — 수신 팝업과 같은 이유로
+          여기서 또 띄우면 앱+위젯 두 개가 겹친다. */}
+      {!isDesktopRuntime && !incomingVoiceCall && (isCallerRingingBack || outgoingCallNotice) && persistVoice ? (
         <div className="voice-call-invite" role="status" aria-label={t("layout.voiceCall.outgoingAria")}>
           <div className="voice-call-invite__card">
             <div className="voice-call-invite__avatar" aria-hidden="true">

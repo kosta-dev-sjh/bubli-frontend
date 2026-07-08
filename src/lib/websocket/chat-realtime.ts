@@ -1,4 +1,5 @@
 import { getAuthAccessToken } from "@/lib/auth/auth-session";
+import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
 // 채팅 화면 전용 STOMP 실시간 클라이언트.
 //
@@ -228,7 +229,11 @@ function createChatRealtimeClient(): ChatRealtimeClient {
         encodeStompFrame("CONNECT", {
           Authorization: `Bearer ${token}`,
           "accept-version": "1.2",
-          "heart-beat": "0,0",
+          "heart-beat": "10000,10000",
+          // 백엔드가 이 세션이 데스크톱 앱(Tauri 메인 창/위젯) 세션인지 알 수 있게 표시한다 —
+          // DesktopPresenceRegistry가 이걸로 "이 계정에 데스크톱 세션이 떠있는지" 판단해서,
+          // 웹 탭이 수신 전화 팝업을 중복으로 띄우지 않게 해준다.
+          "X-Client-Type": isTauriRuntime() ? "desktop" : "web",
         }),
       );
     };

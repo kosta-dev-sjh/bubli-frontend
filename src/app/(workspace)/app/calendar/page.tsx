@@ -27,6 +27,8 @@ import { ApiClientError } from "@/lib/api/errors";
 import { notifyDataChanged, useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { Locale, MessageKey, TranslateVars } from "@/lib/i18n";
+import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
 import { useActiveProjectRoom } from "@/lib/use-active-project-room";
 import { shouldUseWorkspacePreviewData, workspacePreviewSchedules } from "@/lib/workspace-preview-data";
 import type {
@@ -91,6 +93,30 @@ const dayLabels = [
 const LOCALE_TAGS: Record<Locale, string> = { en: "en-US", ja: "ja-JP", ko: "ko-KR" };
 
 const GOOGLE_SOURCE_PREFIX = "gcal:";
+
+async function withCalendarHydrationTimeout<T>(task: Promise<T>, timeoutMs: number, fallback: T) {
+  if (timeoutMs <= 0 || typeof window === "undefined") return task;
+
+  let timeoutId: number | null = null;
+  try {
+    return await Promise.race([
+      task,
+      new Promise<T>((resolve) => {
+        timeoutId = window.setTimeout(() => resolve(fallback), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId !== null) window.clearTimeout(timeoutId);
+  }
+}
+
+async function readWindowsCalendarHydrationTimeoutMs() {
+  if (!isTauriRuntime()) return 0;
+
+  const startupConfig = await readTauriStartupOptimizationConfig().catch(() => null);
+  if (startupConfig?.profile !== "windows") return 0;
+  return startupConfig.settingsTimeoutMs;
+}
 
 // 연동 계정의 기본(primary) 구글 캘린더는 곧 "개인"이다.
 // 백엔드는 캐시 경로에서 빈 calendarId를 "primary" 문자열로 정규화하고,
@@ -421,10 +447,17 @@ function CalendarPageContent() {
     }
 
     try {
+      const windowsHydrationTimeoutMs = await readWindowsCalendarHydrationTimeoutMs();
       const [scheduleResult, roomEventResult, googleConnectionResult] = await Promise.allSettled([
         calendarApi.getEvents({ ...range, roomId: selectedRoomId ?? undefined }),
-        selectedRoomId ? calendarApi.getProjectRoomEvents(selectedRoomId, { limit: 100 }) : Promise.resolve(null),
-        calendarApi.getGoogleConnection(),
+        selectedRoomId
+          ? withCalendarHydrationTimeout(
+              calendarApi.getProjectRoomEvents(selectedRoomId, { limit: 100 }),
+              windowsHydrationTimeoutMs,
+              null,
+            )
+          : Promise.resolve(null),
+        withCalendarHydrationTimeout(calendarApi.getGoogleConnection(), windowsHydrationTimeoutMs, null),
       ]);
 
       if (scheduleResult.status === "rejected" && scheduleResult.reason instanceof ApiClientError && scheduleResult.reason.status === 401) {
@@ -440,6 +473,14 @@ function CalendarPageContent() {
       });
       if (googleConnectionResult.status === "fulfilled" && googleConnectionResult.value?.status === "ACTIVE") {
         setGoogleConnection({ kind: "connected", value: googleConnectionResult.value });
+      } else if (googleConnectionResult.status === "fulfilled" && googleConnectionResult.value === null && windowsHydrationTimeoutMs > 0) {
+        setGoogleConnection({ kind: "disconnected" });
+        void calendarApi
+          .getGoogleConnection()
+          .then((connection) => {
+            setGoogleConnection(connection?.status === "ACTIVE" ? { kind: "connected", value: connection } : { kind: "disconnected" });
+          })
+          .catch(() => setGoogleConnection({ kind: "error" }));
       } else {
         setGoogleConnection({ kind: googleConnectionResult.status === "rejected" ? "error" : "disconnected" });
       }

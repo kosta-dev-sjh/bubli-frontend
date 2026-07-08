@@ -29,6 +29,8 @@ import {
 import { notifyManagedFolderConsentChanged } from "@/lib/local/managed-folder-auto-sync";
 import { listenManagedFolderWatchEvents } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { isWindowsTauriRuntime } from "@/lib/tauri/platform";
+import { readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
 import { cn } from "@/lib/utils";
 import { ACTIVE_PROJECT_ROOM_CHANGE_EVENT, getActiveProjectRoomId } from "@/lib/workspace-active-room";
 import { shouldUseWorkspacePreviewData, workspacePreviewPersonalResources } from "@/lib/workspace-preview-data";
@@ -60,6 +62,8 @@ type PersonalState =
   | { generatedDocuments: GeneratedDocumentResponse[]; kind: "ready"; resources: ResourceResponse[] }
   | { kind: "auth" }
   | { kind: "error"; message: string };
+type PersonalReadyState = Extract<PersonalState, { kind: "ready" }>;
+type PersonalResourceLoadData = Omit<PersonalReadyState, "kind">;
 
 type LocalIndexedFile = LocalFileSearchResult["items"][number];
 
@@ -67,6 +71,31 @@ type LocalFilePreviewState =
   | { kind: "loading" }
   | { kind: "ready"; data: LocalFilePreviewResult }
   | { kind: "error"; message: string };
+
+const WINDOWS_RESOURCE_INITIAL_TIMEOUT_FALLBACK_MS = 650;
+
+async function readWindowsResourceInitialTimeoutMs() {
+  if (!isWindowsTauriRuntime()) return 0;
+  const config = await readTauriStartupOptimizationConfig();
+  return config.displayRequestTimeoutMs || WINDOWS_RESOURCE_INITIAL_TIMEOUT_FALLBACK_MS;
+}
+
+function withResourceInitialDeadline<T>(request: Promise<T>, timeoutMs: number): Promise<T | null> {
+  if (timeoutMs <= 0) return request;
+  return new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => resolve(null), timeoutMs);
+    request.then(
+      (value) => {
+        window.clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (error: unknown) => {
+        window.clearTimeout(timeoutId);
+        reject(error);
+      },
+    );
+  });
+}
 
 export function PersonalResourceWorkspace() {
   const { t } = useI18n();
@@ -96,12 +125,34 @@ export function PersonalResourceWorkspace() {
 
   const loadResources = useCallback(async () => {
     try {
-      const [page, generatedDocumentPage] = await Promise.all([
+      const loadData = Promise.all([
         resourcesApi.listPersonal(),
         agentApi.listGeneratedDocuments(),
-      ]);
-      setState({ generatedDocuments: generatedDocumentPage.items, kind: "ready", resources: page.items });
-      setSelectedResourceId((current) => (current && page.items.some((resource) => resource.id === current) ? current : null));
+      ]).then(
+        ([page, generatedDocumentPage]): PersonalResourceLoadData => ({
+          generatedDocuments: generatedDocumentPage.items,
+          resources: page.items,
+        }),
+      );
+      const applyLoadedData = (data: PersonalResourceLoadData) => {
+        setState({ ...data, kind: "ready" });
+        setSelectedResourceId((current) => (current && data.resources.some((resource) => resource.id === current) ? current : null));
+      };
+      const initialTimeoutMs = await readWindowsResourceInitialTimeoutMs();
+      const initialData = await withResourceInitialDeadline(loadData, initialTimeoutMs);
+      if (initialData) {
+        applyLoadedData(initialData);
+      } else {
+        setState((current) =>
+          current.kind === "ready"
+            ? current
+            : { generatedDocuments: [], kind: "ready", resources: EMPTY_RESOURCES },
+        );
+        void loadData.then(applyLoadedData).catch((error: unknown) => {
+          const message = getErrorMessage(error, t);
+          if (message === "AUTH_REQUIRED") setState({ kind: "auth" });
+        });
+      }
     } catch (error) {
       const message = getErrorMessage(error, t);
       if (message !== "AUTH_REQUIRED" && shouldUseWorkspacePreviewData()) {

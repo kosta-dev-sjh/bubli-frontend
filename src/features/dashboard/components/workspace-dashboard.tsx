@@ -34,6 +34,8 @@ import { notifyDataChanged, useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { projectRoomRoute } from "@/lib/project-room-routes";
+import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
 import {
   shouldUseWorkspacePreviewData,
   workspacePreviewDashboard,
@@ -65,6 +67,7 @@ const emptyDashboard: DashboardWorkResponse = {
 
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 type WbsProgress = { done: number; total: number };
+const WINDOWS_DASHBOARD_INITIAL_TIMEOUT_FALLBACK_MS = 650;
 
 // 홈 보드에 실제 데이터가 연결된 위젯만 노출한다(카탈로그의 데모 항목 제외).
 // 앞의 8개는 기본 보드 구성이고, 뒤의 4개는 팔레트에서 사용자가 직접 담는 추가 카드다.
@@ -83,6 +86,33 @@ const connectedWidgetIds = [
   "notifications",
   "activity-heatmap",
 ];
+
+function isWindowsTauriRuntime() {
+  return isTauriRuntime() && typeof navigator !== "undefined" && /\bWindows\b/i.test(navigator.userAgent);
+}
+
+async function readWindowsDashboardInitialTimeoutMs() {
+  if (!isWindowsTauriRuntime()) return 0;
+  const config = await readTauriStartupOptimizationConfig();
+  return config.displayRequestTimeoutMs || WINDOWS_DASHBOARD_INITIAL_TIMEOUT_FALLBACK_MS;
+}
+
+function withDashboardInitialDeadline<T>(request: Promise<T>, timeoutMs: number): Promise<T | null> {
+  if (timeoutMs <= 0) return request;
+  return new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => resolve(null), timeoutMs);
+    request.then(
+      (value) => {
+        window.clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (error: unknown) => {
+        window.clearTimeout(timeoutId);
+        reject(error);
+      },
+    );
+  });
+}
 // 기본 보드는 과밀하지 않게 기존 8개만 둔다(새 카드는 opt-in).
 const defaultWidgetIds = connectedWidgetIds.slice(0, 8);
 const dashboardDropzoneId = "dashboard-canvas";
@@ -1036,8 +1066,23 @@ export function WorkspaceDashboard() {
         agentApi.listPersonalSuggestions({ status: "DRAFT" }),
         notificationApi.list({ size: 20 }),
       ]);
-      const data = await dashboardApi.getWork();
-      setState(hasDashboardItems(data) ? { data, kind: "ready" } : { data, kind: "empty" });
+      const workPromise = dashboardApi.getWork();
+      const initialTimeoutMs = await readWindowsDashboardInitialTimeoutMs();
+      const initialData = await withDashboardInitialDeadline(workPromise, initialTimeoutMs);
+      if (initialData) {
+        setState(hasDashboardItems(initialData) ? { data: initialData, kind: "ready" } : { data: initialData, kind: "empty" });
+      } else {
+        setState({ data: emptyDashboard, kind: "ready" });
+        void workPromise
+          .then((data) => {
+            setState(hasDashboardItems(data) ? { data, kind: "ready" } : { data, kind: "empty" });
+          })
+          .catch((error: unknown) => {
+            if (error instanceof ApiClientError && error.status === 401) {
+              setState({ kind: "auth" });
+            }
+          });
+      }
 
       const [
         roomResult,
