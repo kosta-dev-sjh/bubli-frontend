@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef, type MouseEvent } from "react";
 
 // 웹앱과 같은 브랜드 버블 마크(읽기 전용 import) — 오브가 바 Bubli 칩과 마크를 공유한다.
 import { BubbleMark } from "@/components/bubbles";
@@ -23,13 +23,49 @@ export function DesktopWidgetMenuOrb({
   onOpenAgent?: () => void;
 }) {
   const { t } = useI18n();
+  const suppressNextClickRef = useRef(false);
+  const suppressResetTimeoutRef = useRef<number | null>(null);
   const badgeLabel = agentReplyCount > 9 ? "9+" : String(agentReplyCount);
   const ariaLabel =
     agentReplyCount > 0 ? t("widget.agent.orbUnreadAria", { count: agentReplyCount }) : t("widget.agent.orbOpenAria");
 
-  const openAgent = useCallback(() => {
+  const clearSuppressClick = useCallback(() => {
+    suppressNextClickRef.current = false;
+    if (suppressResetTimeoutRef.current !== null) {
+      window.clearTimeout(suppressResetTimeoutRef.current);
+      suppressResetTimeoutRef.current = null;
+    }
+  }, []);
+
+  const markDragStarted = useCallback(() => {
+    suppressNextClickRef.current = true;
+    if (suppressResetTimeoutRef.current !== null) {
+      window.clearTimeout(suppressResetTimeoutRef.current);
+    }
+    suppressResetTimeoutRef.current = window.setTimeout(() => {
+      suppressNextClickRef.current = false;
+      suppressResetTimeoutRef.current = null;
+    }, 700);
+  }, []);
+
+  useEffect(() => clearSuppressClick, [clearSuppressClick]);
+
+  const handleMouseDown = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      handleWidgetDragMouseDownDeferred(event, { onDragStart: markDragStarted });
+    },
+    [markDragStarted],
+  );
+
+  const openAgent = useCallback((event: MouseEvent<HTMLButtonElement>) => {
+    if (suppressNextClickRef.current) {
+      event.preventDefault();
+      event.stopPropagation();
+      clearSuppressClick();
+      return;
+    }
     onOpenAgent?.();
-  }, [onOpenAgent]);
+  }, [clearSuppressClick, onOpenAgent]);
 
   return (
     <div className={[styles.root, styles.menuRoot].join(" ")} data-bubli-desktop-widget>
@@ -38,7 +74,7 @@ export function DesktopWidgetMenuOrb({
         data-bubli-interactive="true"
         aria-label={ariaLabel}
         onClick={openAgent}
-        onMouseDown={handleWidgetDragMouseDownDeferred}
+        onMouseDown={handleMouseDown}
         title={ariaLabel}
         type="button"
       >

@@ -137,20 +137,9 @@ export function setActiveProjectRoomId(roomId: string, roomLabel?: string | null
 export function syncActiveProjectRoomFromWidgetContext(roomId: string | null | undefined, roomLabel?: string | null) {
   const cleanRoomId = roomId?.trim() ?? "";
   if (!cleanRoomId) {
-    if (activeProjectRoomId === null && activeProjectRoomLabel === null) {
-      mirrorActiveProjectRoomToServer(null);
-      return;
-    }
-
-    activeProjectRoomId = null;
-    activeProjectRoomLabel = null;
-    if (isTauriRuntime()) {
-      void tauriCommands
-        .clearActiveProjectRoom()
-        .catch((error) => reportActiveProjectRoomSyncFailure("local-cache", error));
-    }
+    // PERSONAL widget context is only a widget display mode. Keep the last
+    // active project room so the next room-mode toggle has a room to restore.
     mirrorActiveProjectRoomToServer(null);
-    publishActiveProjectRoomChange(null);
     return;
   }
 

@@ -299,7 +299,10 @@ export function handleWidgetDragMouseDown(event: MouseEvent<HTMLElement>) {
 
 // 메뉴 오브처럼 "클릭 동작이 있는 표면"용: 실제로 커서가 움직이기 시작한 경우에만
 // 드래그로 전환해 클릭(토글)을 깨지 않는다.
-export function handleWidgetDragMouseDownDeferred(event: MouseEvent<HTMLElement>) {
+export function handleWidgetDragMouseDownDeferred(
+  event: MouseEvent<HTMLElement>,
+  options?: { onDragStart?: () => void },
+) {
   if (event.button !== 0) return;
   // 핀 고정(위치 잠금) 상태면 드래그로 전환하지 않는다(클릭 동작은 그대로).
   if (isWidgetWindowDragLocked()) return;
@@ -313,6 +316,7 @@ export function handleWidgetDragMouseDownDeferred(event: MouseEvent<HTMLElement>
   const onMove = (moveEvent: globalThis.MouseEvent) => {
     if (Math.abs(moveEvent.clientX - startX) + Math.abs(moveEvent.clientY - startY) < 4) return;
     cleanup();
+    options?.onDragStart?.();
     void startWidgetWindowDragging().catch(() => undefined);
   };
   window.addEventListener("mousemove", onMove);
