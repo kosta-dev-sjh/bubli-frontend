@@ -814,6 +814,7 @@ function filterWidgetVisibleUnreadNotifications(notifications: WidgetNotificatio
 
 async function listWidgetVisibleUnreadNotifications(
   limit = WIDGET_NOTIFICATION_DISPLAY_LIMIT,
+  maxScanPages = 0,
 ): Promise<PageResponse<WidgetNotificationResponse>> {
   if (limit <= 0) {
     return { hasNext: false, items: [], page: 0, size: 0, totalPages: 0 };
@@ -833,7 +834,12 @@ async function listWidgetVisibleUnreadNotifications(
       items.push(notification);
     }
     page += 1;
-  } while (lastPage.hasNext && lastPage.items.length > 0 && items.length < limit);
+  } while (
+    lastPage.hasNext &&
+    lastPage.items.length > 0 &&
+    items.length < limit &&
+    (maxScanPages <= 0 || page < maxScanPages)
+  );
 
   return {
     ...(lastPage ?? { hasNext: false, page: 0, size: WIDGET_NOTIFICATION_PAGE_SIZE, totalPages: 0 }),
@@ -982,7 +988,6 @@ function buildDisplayBubbles(input: {
   const label = roomLabel(t, input.room, input.roomId);
   const isRoomScoped = Boolean(input.roomId);
   const agentRoute = roomScopedRoute("/app/agent", input.roomId);
-  const chatRoute = input.roomId ? `/app/project-rooms/${encodeURIComponent(input.roomId)}/chat` : "/app/chat";
   const scheduleRoute = roomScopedRoute("/app/calendar", input.roomId);
   const personalScheduleRoute = roomScopedRoute("/app/calendar", null);
   // 실행 중(또는 일시정지) 타이머는 사용자당 1개뿐이라, 위젯 스코프와 무관하게 타이머 버블에 항상 노출한다.
@@ -1259,8 +1264,12 @@ function buildDisplayBubbles(input: {
       metric: String(input.messages.length),
       notificationLabel: unreadCount > 0 ? t("widget.chat.unreadCount", { count: unreadCount }) : t("widget.chat.noNew"),
       panelBody: t("widget.chat.body"),
-      // DIRECT 채팅방은 백엔드 chat room name을 쓰고, 룸 채팅은 프로젝트룸 라벨을 쓴다.
-      panelLabel: t("widget.chat.panelLabel", { label: input.chatRoom?.name?.trim() || label }),
+      // 1:1/그룹 채팅은 백엔드 chat room name을, 프로젝트룸 채팅은 항상 프로젝트룸 이름 자체를
+      // 쓴다 — chatRoom.name이 빈 문자열이 아닌 다른 값으로 채워져 있으면 예전처럼 || 폴백만
+      // 믿었을 때 엉뚱한 값이 새어나올 수 있어 스코프로 명확히 나눈다.
+      panelLabel: t("widget.chat.panelLabel", {
+        label: input.chatScope === "direct" ? input.chatRoom?.name?.trim() || label : label,
+      }),
       participantLabels: input.friends.slice(0, 3).map((item) => item.name),
       roomId: input.chatScope === "direct" ? null : input.roomId,
       roomLabel: label,
@@ -1268,6 +1277,17 @@ function buildDisplayBubbles(input: {
       voiceParticipants: voiceParticipants.map((item) => item.userName).filter(Boolean).join(" · ") || t("widget.chat.noParticipants"),
       voiceParticipantList: voiceParticipants.map((item) => ({ userId: item.userId, userName: item.userName })),
       voiceRoomId: input.voiceRoom?.id,
+      // 스레드 화면에서 실제 대화 내용을 웹처럼 스크롤로 쭉 보여주기 위한 전체 메시지 목록.
+      // rows는 바/고스트 미리보기용으로 최근 3개만 담기지만, 스레드는 그것과 별개로 전체를 쓴다.
+      messageThread: [...input.messages]
+        .sort((a, b) => a.roomSequence - b.roomSequence)
+        .map((item) => ({
+          createdAt: item.createdAt,
+          id: item.id,
+          mine: Boolean(input.currentUserId) && item.sender.id === input.currentUserId,
+          senderName: item.sender.name,
+          text: messageText(item),
+        })),
       rows: [
         ...input.friends.slice(0, 1).map((item) => ({
           id: item.userId,
@@ -1285,10 +1305,11 @@ function buildDisplayBubbles(input: {
               },
             ]
           : []),
+        // handoffUrl을 안 준다 — 이 rows는 바 hover 미리보기/최소화 배지용이고, 실제 스레드
+        // 화면은 messageThread(전체 대화)를 따로 그린다. 예전엔 여기 handoffUrl이 있어서
+        // ChatBody의 handoffItem(.find(item => item.handoffUrl))이 최신 메시지를 집어다가
+        // 스레드 위에 "발신자: 내용" 칩으로 중복 표시했다.
         ...input.messages.slice(0, 3).map((item) => ({
-          dismissOnOpen: false,
-          handoffLabel: formatShortTime(item.createdAt),
-          handoffUrl: chatRoute,
           id: item.id,
           kind: "message" as const,
           label: `${item.sender.name}: ${messageText(item)}`,
@@ -2279,13 +2300,19 @@ function DesktopWidgetSurface() {
     void refreshMenuOrbAgentReplyBadge();
     const intervalId = window.setInterval(() => {
       void refreshMenuOrbAgentReplyBadge();
-    }, 8_000);
+    }, startupOptimization.menuOrbBadgeRefreshIntervalMs);
 
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [communicationRevision, isMenuOrb, selectedWidgetRoomId, widgetSessionReady]);
+  }, [
+    communicationRevision,
+    isMenuOrb,
+    selectedWidgetRoomId,
+    startupOptimization.menuOrbBadgeRefreshIntervalMs,
+    widgetSessionReady,
+  ]);
 
   useEffect(() => {
     if (!widgetSessionReady || isWidgetChrome || activeBubble !== "agent" || !selectedWidgetRoomId) return;
@@ -2337,13 +2364,13 @@ function DesktopWidgetSurface() {
 
     const intervalId = window.setInterval(() => {
       void refreshWidgetContext();
-    }, 15000);
+    }, startupOptimization.widgetContextRefreshIntervalMs);
 
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [isWidgetChrome, requestedRoomId, widgetSessionReady]);
+  }, [isWidgetChrome, requestedRoomId, startupOptimization.widgetContextRefreshIntervalMs, widgetSessionReady]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;
@@ -2376,6 +2403,14 @@ function DesktopWidgetSurface() {
       const loadChat = shouldLoadBubbleData("chat");
       const loadRoom = Boolean(selectedRoomId) && (loadFullDisplay || activeBubble !== "alert");
       const loadRoomBoard = Boolean(selectedRoomId) && shouldLoadBubbleData("todo");
+      const initialDisplayPageSize =
+        isTauri && !displayLoadedOnceRef.current && startupOptimization.initialDisplayPageSize > 0
+          ? startupOptimization.initialDisplayPageSize
+          : 0;
+      const initialNotificationScanPages =
+        isTauri && !displayLoadedOnceRef.current && startupOptimization.initialNotificationScanPages > 0
+          ? startupOptimization.initialNotificationScanPages
+          : 0;
       const loadProjectRooms =
         isBubbleBar || loadFullDisplay || activeBubble === "agent" || activeBubble === "todo" || activeBubble === "memo" || activeBubble === "schedule";
       const [
@@ -2402,12 +2437,32 @@ function DesktopWidgetSurface() {
         await Promise.allSettled([
           loadDashboard ? widgetDisplayApi.getDashboardWork() : Promise.resolve(null),
           loadTasks ? widgetDisplayApi.listMyTasks(30) : Promise.resolve(null),
-          loadSchedules ? widgetDisplayApi.listAllSchedules(selectedRoomId) : Promise.resolve(null),
-          loadResources ? widgetDisplayApi.listAllResources(selectedRoomId) : Promise.resolve(null),
-          loadMemos ? widgetDisplayApi.listAllMemos(selectedRoomId) : Promise.resolve(null),
-          loadMemos && selectedRoomId ? widgetDisplayApi.listAllMemos(null) : Promise.resolve(null),
-          loadSchedules && selectedRoomId ? widgetDisplayApi.listAllSchedules(null) : Promise.resolve(null),
-          loadNotifications ? listWidgetVisibleUnreadNotifications() : Promise.resolve(null),
+          loadSchedules
+            ? initialDisplayPageSize > 0
+              ? widgetDisplayApi.listSchedules(selectedRoomId, initialDisplayPageSize)
+              : widgetDisplayApi.listAllSchedules(selectedRoomId)
+            : Promise.resolve(null),
+          loadResources
+            ? initialDisplayPageSize > 0
+              ? widgetDisplayApi.listResources(selectedRoomId, initialDisplayPageSize)
+              : widgetDisplayApi.listAllResources(selectedRoomId)
+            : Promise.resolve(null),
+          loadMemos
+            ? initialDisplayPageSize > 0
+              ? widgetDisplayApi.listMemos(selectedRoomId, initialDisplayPageSize)
+              : widgetDisplayApi.listAllMemos(selectedRoomId)
+            : Promise.resolve(null),
+          loadMemos && selectedRoomId
+            ? initialDisplayPageSize > 0
+              ? widgetDisplayApi.listMemos(null, initialDisplayPageSize)
+              : widgetDisplayApi.listAllMemos(null)
+            : Promise.resolve(null),
+          loadSchedules && selectedRoomId
+            ? initialDisplayPageSize > 0
+              ? widgetDisplayApi.listSchedules(null, initialDisplayPageSize)
+              : widgetDisplayApi.listAllSchedules(null)
+            : Promise.resolve(null),
+          loadNotifications ? listWidgetVisibleUnreadNotifications(WIDGET_NOTIFICATION_DISPLAY_LIMIT, initialNotificationScanPages) : Promise.resolve(null),
           loadChat ? widgetDisplayApi.listChatRooms(20) : Promise.resolve(null),
           loadChat ? widgetDisplayApi.listFriends() : Promise.resolve(null),
           loadChat ? widgetDisplayApi.listFriendRequests() : Promise.resolve(null),
@@ -2464,11 +2519,13 @@ function DesktopWidgetSurface() {
         activeRoom = await widgetDisplayApi.createProjectRoomChatRoom(selectedRoomId).catch(() => null);
       }
       if (cancelled) return;
-      const messages = loadChat && activeRoom ? await widgetDisplayApi.listChatMessages(activeRoom.id, 6).catch(() => null) : null;
+      // 스레드 화면에서 최근 메시지 한두 개가 아니라 웹처럼 스크롤 가능한 대화 전체를 보여줘야
+      // 해서 6개가 아니라 넉넉히 가져온다.
+      const messages = loadChat && activeRoom ? await widgetDisplayApi.listChatMessages(activeRoom.id, 40).catch(() => null) : null;
       const cachedMessages =
         loadChat && isTauri && activeRoom && !messages
           ? await tauriCommands
-              .readRoomMessages({ limit: 6, roomId: activeRoom.id })
+              .readRoomMessages({ limit: 40, roomId: activeRoom.id })
               .then((result) => parseCachedWidgetChatMessages(result.items))
               .catch(() => [])
           : [];
@@ -2639,7 +2696,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [activeBubble, activeVoiceRoomId, agentRevision, barFullDisplayReady, chatScope, communicationRevision, currentUserBubliId, currentUserId, displayRefreshRevision, isBubbleBar, isMenuOrb, isTauri, isWidgetChrome, itemStateOverrides, memoRevision, notificationRevision, resourceRevision, scheduleRevision, selectedPeerChatRoomId, selectedWidgetRoomId, t, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContextInitialized, widgetSessionReady]);
+  }, [activeBubble, activeVoiceRoomId, agentRevision, barFullDisplayReady, chatScope, communicationRevision, currentUserBubliId, currentUserId, displayRefreshRevision, isBubbleBar, isMenuOrb, isTauri, isWidgetChrome, itemStateOverrides, memoRevision, notificationRevision, resourceRevision, scheduleRevision, selectedPeerChatRoomId, selectedWidgetRoomId, startupOptimization.initialDisplayPageSize, startupOptimization.initialNotificationScanPages, t, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContextInitialized, widgetSessionReady]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;
@@ -4018,33 +4075,52 @@ function DesktopWidgetSurface() {
   }, [isBubbleBar, isWidgetRingingBack]);
 
   // 상대가 거절했다는 실시간 알림(websocket)이 유실되면 발신 팝업이 영영 안 닫힌다 — 거절 자체는
-  // 서버에 이미 반영됐는데(알림함엔 남음) 화면만 못 따라가는 경우다. 웹(app-shell.tsx)과 동일한
-  // 이유로 방 상태를 직접 폴링하는 안전망을 둔다. activeVoiceRoomId는 이미 창 간에 동기화되어
+  // 서버에 이미 반영됐는데(알림함엔 남음) 화면만 못 따라가는 경우다. declineVoiceRoom은 방
+  // 상태를 안 바꾸고 알림만 만든다(끊는 건 이 알림을 받은 발신자 쪽 클라이언트 책임) — 그래서
+  // 방 상태를 폴링해선 거절을 절대 못 잡는다(방은 계속 OPEN으로 남는다). 대신 알림 목록에서
+  // 이 통화방으로 온 거절 알림 자체를 직접 찾는다. activeVoiceRoomId는 이미 창 간에 동기화되어
   // 있으므로 바 창 하나만 폴링해도 다른 창에 전파된다.
+  // 이펙트 의존성을 activeVoiceRoom "객체 전체"로 두면 안 된다 — 대량 데이터 로딩 effect가
+  // 주기적으로 이 방을 다시 조회해서 매번 새 객체로 갱신하는데(같은 방이어도 참조가 바뀐다),
+  // 그때마다 이 이펙트가 통째로 재시작되면서 setInterval이 한 주기(3초)도 못 채우고 계속
+  // 리셋돼 안전망이 사실상 전혀 동작하지 않았다. 안정적인 값(chatRoomId)만 의존성으로 둔다.
+  const outgoingChatRoomId = activeVoiceRoom?.chatRoomId;
   useEffect(() => {
-    if (!isBubbleBar || !isWidgetRingingBack || !activeVoiceRoomId) return;
+    if (!isBubbleBar || !isWidgetRingingBack || !activeVoiceRoomId || !outgoingChatRoomId) return;
     const voiceRoomId = activeVoiceRoomId;
+    const chatRoomId = outgoingChatRoomId;
+    const callStartedAt = activeVoiceRoom?.createdAt ? new Date(activeVoiceRoom.createdAt).getTime() : 0;
     const interval = window.setInterval(() => {
       void widgetDisplayApi
-        .getVoiceRoom(voiceRoomId)
-        .then((room) => {
-          if (room.status !== "OPEN") {
-            setActiveVoiceRoomId(null);
-            setActiveVoiceRoom(null);
-            setSpeakingUserIds(new Set());
-            void emitWidgetVoiceCallStateChanged(null).catch(() => undefined);
-            if (liveKitRoomRef.current) {
-              detachWidgetRemoteAudio(liveKitRoomRef.current);
-              liveKitRoomRef.current.disconnect();
-              liveKitRoomRef.current = null;
-            }
-            stopCallRingtone();
+        .listNotifications(10)
+        .then((page) => {
+          const declined = page.items.find(
+            (item) =>
+              item.sourceType === "VOICE_CALL_DECLINED" &&
+              item.sourceId === chatRoomId &&
+              new Date(item.createdAt).getTime() >= callStartedAt,
+          );
+          if (!declined) return;
+          void widgetCommunicationApi.endVoiceRoom(voiceRoomId).catch(() => undefined);
+          setActiveVoiceRoomId(null);
+          setActiveVoiceRoom(null);
+          setSpeakingUserIds(new Set());
+          void emitWidgetVoiceCallStateChanged(null).catch(() => undefined);
+          if (liveKitRoomRef.current) {
+            detachWidgetRemoteAudio(liveKitRoomRef.current);
+            liveKitRoomRef.current.disconnect();
+            liveKitRoomRef.current = null;
           }
+          stopCallRingtone();
+          setWidgetOutgoingCallNotice(t("layout.voiceCall.declinedNotice"));
+          window.setTimeout(() => setWidgetOutgoingCallNotice(null), 3_000);
+          void notificationApi.markRead(declined.id).catch(() => undefined);
         })
         .catch(() => undefined);
     }, 3_000);
     return () => window.clearInterval(interval);
-  }, [activeVoiceRoomId, isBubbleBar, isWidgetRingingBack]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- activeVoiceRoom은 일부러 뺐다(위 주석): 참조가 자주 바뀌어 폴링 안전망 자체를 무력화한다. 안정적인 chatRoomId만으로 재시작을 제어한다.
+  }, [activeVoiceRoomId, isBubbleBar, isWidgetRingingBack, outgoingChatRoomId, t]);
 
   const dismissIncomingVoiceCall = useCallback(() => {
     if (!incomingVoiceCall) return;
@@ -4541,9 +4617,9 @@ function DesktopWidgetSurface() {
           usageSummary={menuUsageSummary}
         />
         {messageToasts.length > 0 ? (
-          <div className="message-toast-stack" aria-live="polite">
+          <div className="message-toast-stack message-toast-stack--widget" aria-live="polite">
             {messageToasts.map((toast) => (
-              <div className="message-toast" key={toast.id} role="status">
+              <div className="message-toast" data-bubli-interactive="true" key={toast.id} role="status">
                 <button className="message-toast__body" onClick={() => void openMessageToast(toast)} type="button">
                   <strong className="message-toast__sender">{toast.senderName}</strong>
                   <span className="message-toast__text">{toast.text}</span>

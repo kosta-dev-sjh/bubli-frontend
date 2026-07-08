@@ -1141,6 +1141,15 @@ function AgentBody({
 
 type ChatScreen = "list" | "thread" | "newRoom" | "friends";
 
+function formatMessageTime(value?: string | null) {
+  if (!value) return "";
+  try {
+    return new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", hour12: false, minute: "2-digit" }).format(new Date(value));
+  } catch {
+    return "";
+  }
+}
+
 function ChatBody({
   bubble,
   chatScope,
@@ -1184,9 +1193,14 @@ function ChatBody({
   const [draft, setDraft] = useState("");
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
   const [statusText, setStatusText] = useState<string | null>(null);
+  // 보이스 상태 문구("Voice ready" 등)는 메시지 전송 상태문구와 분리해 보이스 아이콘 옆에만
+  // 작게 뜨게 한다 — 예전엔 같은 statusText를 같이 써서 대화 내용 위쪽에 걸쳐 보였다.
+  const [voiceStatusText, setVoiceStatusText] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [voiceSubmitting, setVoiceSubmitting] = useState(false);
   const composerInputRef = useRef<HTMLInputElement | null>(null);
+  const messageThreadRef = useRef<HTMLDivElement | null>(null);
+  const markReadForChatRoomIdRef = useRef<string | null>(null);
   // 화면 전환(목록 ↔ 스레드 ↔ 새 대화 ↔ 친구 관리) — 위젯 창은 좁아 웹처럼 나란히 못 두고
   // 모바일 앱처럼 스택형으로 오간다. 프로젝트룸 모드는 항상 스레드 하나뿐이라 목록이 없다.
   const [chatScreen, setChatScreen] = useState<ChatScreen>(() =>
@@ -1205,10 +1219,12 @@ function ChatBody({
   const visibleRows = bubble.rows.filter((item) => !hiddenIds.includes(item.id));
   const handoffItem = visibleRows.find((item) => item.handoffUrl);
   const agentRows = visibleRows.filter((item) => item.kind === "agent");
-  const friendRows = visibleRows.filter((item) => item.kind === "friend");
   const voiceRows = visibleRows.filter((item) => item.kind === "voice");
-  const signalRows = visibleRows.filter((item) => !item.handoffUrl && item.kind !== "agent" && item.kind !== "friend" && item.kind !== "voice");
-  const [first, second, ...rest] = signalRows;
+  // message는 rows 미리보기용 최근 3개짜리가 아니라 bubble.messageThread(전체 스크롤)로 그리므로
+  // 여기서는 제외한다 — 안 빼면 같은 메시지가 스레드와 이 목록에 중복으로 뜬다.
+  const signalRows = visibleRows.filter(
+    (item) => !item.handoffUrl && item.kind !== "agent" && item.kind !== "friend" && item.kind !== "voice" && item.kind !== "message",
+  );
 
   const hideAfterHandoff = (id: string) => {
     setHiddenIds((current) => (current.includes(id) ? current : [...current, id]));
@@ -1243,29 +1259,44 @@ function ChatBody({
     }
   };
 
-  const markRead = async () => {
+  // 스레드를 열면 자동으로 조용히 읽음 처리한다 — 예전엔 버튼을 눌러야 했고 결과를
+  // "읽음 처리됨" 문구로 보여줬는데, 자동으로 바뀐 뒤로는 매번 뜨는 그 문구가 그냥 소음이었다.
+  const markRead = useCallback(async () => {
     if (!onMarkChatRead) return;
-
-    setStatusText(null);
     try {
       await onMarkChatRead(bubble);
-      setStatusText(t("widget.chat.markedRead"));
     } catch {
-      setStatusText(t("widget.chat.markReadFailed"));
+      // 자동 읽음 처리라 실패해도 조용히 무시한다.
     }
-  };
+  }, [bubble, onMarkChatRead]);
+
+  // 대화 스레드를 열면(또는 새 메시지가 오면) 맨 아래로 자동 스크롤한다 — 웹 채팅창과 동일한 동작.
+  useEffect(() => {
+    const node = messageThreadRef.current;
+    if (!node) return;
+    node.scrollTop = node.scrollHeight;
+  }, [bubble.chatRoomId, bubble.messageThread]);
+
+  // 스레드를 여는 것 자체가 "봤다"는 뜻이라, 예전처럼 별도 "읽음 처리" 버튼을 안 두고
+  // 채팅방이 바뀔 때 한 번 자동으로 읽음 처리한다(같은 방에서 중복 호출은 안 하도록 ref로 방지).
+  useEffect(() => {
+    if (!bubble.chatRoomId) return;
+    if (markReadForChatRoomIdRef.current === bubble.chatRoomId) return;
+    markReadForChatRoomIdRef.current = bubble.chatRoomId;
+    void markRead();
+  }, [bubble.chatRoomId, markRead]);
 
   const runVoiceAction = async (action: "leave" | "mic" | "start") => {
     const handler = action === "start" ? onStartVoice : action === "leave" ? onLeaveVoice : onToggleVoiceMic;
     if (!handler || voiceSubmitting) return;
 
     setVoiceSubmitting(true);
-    setStatusText(null);
+    setVoiceStatusText(null);
     try {
       await handler(bubble);
-      setStatusText(action === "start" ? "Voice ready" : action === "leave" ? "Voice left" : "Mic updated");
+      setVoiceStatusText(action === "start" ? "Voice ready" : action === "leave" ? "Voice left" : "Mic updated");
     } catch {
-      setStatusText(action === "start" ? "Voice failed" : action === "leave" ? "Leave failed" : "Mic failed");
+      setVoiceStatusText(action === "start" ? "Voice failed" : action === "leave" ? "Leave failed" : "Mic failed");
     } finally {
       setVoiceSubmitting(false);
     }
@@ -1387,27 +1418,26 @@ function ChatBody({
           <button aria-label={t("widget.chat.back")} className={styles.chatBackButton} onClick={backToList} type="button">
             <ChevronLeft aria-hidden size={14} strokeWidth={2.4} />
           </button>
-        ) : null}
+        ) : (
+          // 뒤로가기 자리(그리드 1열)를 비워두지 않아야 이름이 계속 2열에 자리잡고, 보이스
+          // 버튼이 3열로 밀려나 줄바꿈 없이 한 줄에 나란히 놓인다.
+          <span aria-hidden className={styles.chatBackButton} />
+        )}
         <span>{t(bubble.panelLabel as MessageKey)}</span>
-        <b>{visibleRows.length}</b>
         {!voiceOpen ? (
-          <button
-            aria-label={t("widget.chat.startVoice")}
-            disabled={(!bubble.roomId && !bubble.chatRoomId) || voiceSubmitting}
-            onClick={() => void runVoiceAction("start")}
-            type="button"
-          >
-            <Phone size={13} strokeWidth={2} />
-          </button>
+          <span className={styles.chatHeadVoiceAction}>
+            <button
+              aria-label={t("widget.chat.startVoice")}
+              disabled={(!bubble.roomId && !bubble.chatRoomId) || voiceSubmitting}
+              onClick={() => void runVoiceAction("start")}
+              type="button"
+            >
+              <Phone size={13} strokeWidth={2} />
+            </button>
+            {voiceStatusText ? <small className={styles.chatHeadVoiceStatus}>{voiceStatusText}</small> : null}
+          </span>
         ) : null}
       </div>
-      {friendRows.length > 0 || (bubble.participantLabels?.length ?? 0) > 0 ? (
-        <div className={styles.chatPeople}>
-          <Users size={14} strokeWidth={2} />
-          <span>{friendRows[0]?.label ?? bubble.participantLabels?.join(" · ")}</span>
-          <b>{friendRows[0]?.status ?? t("widget.chat.people")}</b>
-        </div>
-      ) : null}
       {voiceOpen ? (
         <div className={styles.voiceStrip}>
           <div>
@@ -1445,31 +1475,35 @@ function ChatBody({
           <b>{handoffItem.handoffLabel ?? handoffItem.status}</b>
         </a>
       ) : null}
-      {first ? <p className={styles.message}>{first.label}</p> : null}
-      {second ? <p className={[styles.message, styles.messageMine].join(" ")}>{second.label}</p> : null}
-      {agentRows.map((item) => (
-        <div className={styles.agentInlineRow} key={item.id}>
-          <Sparkles size={14} strokeWidth={2} />
-          <strong>{item.label}</strong>
-          <b>{item.status}</b>
-          <ItemActions item={item} onItemStateChange={onItemStateChange} />
-        </div>
-      ))}
-      {rest.map((item) => (
-        <div className={styles.alertRow} key={item.id}>
-          <span />
-          <strong>{item.label}</strong>
-          <ItemActions item={item} onItemStateChange={onItemStateChange} />
-        </div>
-      ))}
-      {visibleRows.length === 0 ? <BubbleEmptyState bubble={bubble} /> : null}
-      <div className={styles.reactionDock} aria-label={t("widget.chat.markReadAction")}>
-        <CheckCircle2 size={14} strokeWidth={2} />
-        <button disabled={!bubble.chatRoomId} onClick={() => void markRead()} type="button">
-          {t("widget.chat.markReadAction")}
-        </button>
-        {statusText ? <span>{statusText}</span> : null}
+      <div className={styles.messageThread} ref={messageThreadRef}>
+        {bubble.messageThread && bubble.messageThread.length > 0 ? (
+          bubble.messageThread.map((message) => (
+            <div className={[styles.message, message.mine ? styles.messageMine : ""].join(" ")} key={message.id}>
+              {!message.mine ? <span className={styles.messageThreadSender}>{message.senderName}</span> : null}
+              <span className={styles.messageThreadText}>{message.text}</span>
+              <span className={styles.messageThreadTime}>{formatMessageTime(message.createdAt)}</span>
+            </div>
+          ))
+        ) : (
+          <span className={styles.messageThreadEmpty}>{t("widget.chat.noMessages")}</span>
+        )}
+        {agentRows.map((item) => (
+          <div className={styles.agentInlineRow} key={item.id}>
+            <Sparkles size={14} strokeWidth={2} />
+            <strong>{item.label}</strong>
+            <b>{item.status}</b>
+            <ItemActions item={item} onItemStateChange={onItemStateChange} />
+          </div>
+        ))}
+        {signalRows.map((item) => (
+          <div className={styles.alertRow} key={item.id}>
+            <span />
+            <strong>{item.label}</strong>
+            <ItemActions item={item} onItemStateChange={onItemStateChange} />
+          </div>
+        ))}
       </div>
+      {statusText ? <span className={styles.statusText}>{statusText}</span> : null}
       <div className={styles.composerWrap}>
         {agentAutocomplete.open ? (
           <AgentCommandAutocomplete
@@ -3857,7 +3891,10 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
   const isPreview = presentation === "preview";
   const activeLabel = t(active.label);
   const activeRoomLabel = t(activeData.roomLabel as MessageKey);
-  const showHeaderContextLabel = activeBubble !== "alert";
+  // chat 버블은 창 헤더에 부제(방 라벨/최근 활동)를 안 보여준다 — 채팅 창 자체 헤더에 이미
+  // 상대/방 이름이 떠 있어서 창 헤더 부제까지 겹치면 중복이고, 위젯 아이콘 밑에 최근 메시지가
+  // 붙어 보여 이상했다.
+  const showHeaderContextLabel = activeBubble !== "alert" && activeBubble !== "chat";
   const shellRef = useRef<HTMLElement | null>(null);
   // 고스트 콘텐츠를 감싸 실제 렌더 크기를 재고, 그 크기에 맞춰 창을 조절한다(줄바꿈 없이 다 보이게).
   const ghostContentRef = useRef<HTMLDivElement | null>(null);

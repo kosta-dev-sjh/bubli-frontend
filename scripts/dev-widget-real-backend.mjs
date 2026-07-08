@@ -779,8 +779,8 @@ ON CONFLICT (user_id, bubble_type) DO UPDATE SET enabled = EXCLUDED.enabled, x =
 
 INSERT INTO tasks (id, owner_user_id, assignee_user_id, room_id, wbs_item_id, title, description, status, due_at, created_at, updated_at)
 VALUES
-('${SEED_TASK_ID}', '${SEED_USER_ID}', '${SEED_USER_ID}', '${SEED_ROOM_ID}', NULL, 'Tauri widget real API smoke task', 'Seeded through PostgreSQL for desktop widget integration verification.', 'IN_PROGRESS', now() + interval '3 hours', now(), now()),
-('66666666-6666-4666-8666-666666666662', '${SEED_USER_ID}', '${SEED_USER_ID}', '${SEED_ROOM_ID}', NULL, 'Confirm backend summary rendering', 'This item should arrive through /api/widget/summary.', 'TODO', now() + interval '1 day', now(), now())
+('${SEED_TASK_ID}', '${SEED_USER_ID}', '${SEED_USER_ID}', '${SEED_ROOM_ID}', NULL, 'Tauri widget real API smoke task', 'Seeded through PostgreSQL for desktop widget integration verification.', 'IN_PROGRESS', timestamp with time zone '2000-01-01 00:00:00+00', now(), now()),
+('66666666-6666-4666-8666-666666666662', '${SEED_USER_ID}', '${SEED_USER_ID}', '${SEED_ROOM_ID}', NULL, 'Confirm backend summary rendering', 'This item should arrive through /api/widget/summary.', 'TODO', timestamp with time zone '2000-01-01 00:05:00+00', now(), now())
 ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description, status = EXCLUDED.status, due_at = EXCLUDED.due_at, updated_at = now();
 
 INSERT INTO widget_item_states (id, user_id, bubble_type, item_type, item_id, state, created_at, updated_at)

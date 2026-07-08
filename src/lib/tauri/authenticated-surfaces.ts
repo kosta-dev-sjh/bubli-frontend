@@ -9,7 +9,10 @@ import { readDesktopWidgetStartupPreference } from "@/features/onboarding/lib/on
 import { getStoredAuthSession, setStoredAuthSessionAndWaitForTauriMirror } from "@/lib/auth/auth-session";
 import { tauriCommands, type WidgetWindowOpenInput } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
-import { readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
+import {
+  readTauriStartupOptimizationConfig,
+  type TauriStartupOptimizationConfig,
+} from "@/lib/tauri/startup-optimization";
 import { readWidgetSummary } from "@/lib/widget";
 import { startWidgetUsageAutoSync, stopWidgetUsageAutoSync } from "@/lib/widget/widget-usage-auto-sync";
 import {
@@ -96,7 +99,20 @@ export function readTauriAuthenticatedSurfacesLaunchTimeline(): TauriAuthenticat
 
 const loginStartupBarWindow: WidgetWindowOpenInput = { bubbleType: "bar", mode: "DEFAULT", windowId: "bar" };
 const loginStartupAgentOrbWindow: WidgetWindowOpenInput = { bubbleType: "menu", mode: "DEFAULT", windowId: "menu" };
-const loginStartupWindows: WidgetWindowOpenInput[] = [loginStartupBarWindow, loginStartupAgentOrbWindow];
+const loginStartupBubbleWindows: WidgetWindowOpenInput[] = [
+  { bubbleType: "todo", mode: "DEFAULT", windowId: "todo" },
+  { bubbleType: "agent", mode: "DEFAULT", windowId: "agent" },
+  { bubbleType: "chat", mode: "DEFAULT", windowId: "chat" },
+  { bubbleType: "timer", mode: "DEFAULT", windowId: "timer" },
+  { bubbleType: "memo", mode: "DEFAULT", windowId: "memo" },
+  { bubbleType: "schedule", mode: "DEFAULT", windowId: "schedule" },
+  { bubbleType: "alert", mode: "DEFAULT", windowId: "alert" },
+];
+const loginStartupWindows: WidgetWindowOpenInput[] = [
+  loginStartupBarWindow,
+  loginStartupAgentOrbWindow,
+  ...loginStartupBubbleWindows,
+];
 const desktopWidgetBoardWindows: WidgetWindowOpenInput[] = [
   { bubbleType: "todo", mode: "DEFAULT", windowId: "todo" },
   { bubbleType: "agent", mode: "DEFAULT", windowId: "agent" },
@@ -144,8 +160,13 @@ async function prewarmWidgetSummaryCache(selectedRoomId: string | null): Promise
   return result?.status === "ready";
 }
 
-function startupWindowRequiresVisibleWindow(input: WidgetWindowOpenInput) {
-  return input.mode !== "MINIMIZED" && input.bubbleType !== "menu";
+function startupWindowRequiresVisibleWindow(
+  input: WidgetWindowOpenInput,
+  startupConfig: TauriStartupOptimizationConfig,
+) {
+  if (input.mode === "MINIMIZED") return false;
+  if (input.bubbleType === "menu") return startupConfig.requireMenuWindowDuringStartupReuse;
+  return true;
 }
 
 function startupWindowStateIsReady(
@@ -153,22 +174,21 @@ function startupWindowStateIsReady(
   state: Awaited<ReturnType<typeof tauriCommands.getWidgetWindowState>>,
 ) {
   if (input.bubbleType === "bar") return state.windowVisible;
-  return state.windowVisible || state.mode === "MINIMIZED";
+  if (input.mode === "MINIMIZED") return state.mode === "MINIMIZED" && !state.windowVisible;
+  return state.windowVisible && state.mode !== "MINIMIZED";
 }
 
 async function authenticatedStartupWindowsReady(startupWindows: WidgetWindowOpenInput[]) {
-  for (const input of startupWindows) {
-    if (!startupWindowRequiresVisibleWindow(input)) continue;
-
-    try {
+  const startupConfig = await readTauriStartupOptimizationConfig();
+  const requiredWindows = startupWindows.filter((input) => startupWindowRequiresVisibleWindow(input, startupConfig));
+  const readyStates = await Promise.all(
+    requiredWindows.map(async (input) => {
       const state = await tauriCommands.getWidgetWindowState(widgetTargetFromInput(input));
-      if (!startupWindowStateIsReady(input, state)) return false;
-    } catch {
-      return false;
-    }
-  }
+      return startupWindowStateIsReady(input, state);
+    }),
+  ).catch(() => null);
 
-  return true;
+  return readyStates?.every(Boolean) ?? false;
 }
 
 async function openWidgetWindowWithRetry(
@@ -250,11 +270,13 @@ async function openWidgetWindowsWithRetry(
 export async function resolveLoginStartupWindows(): Promise<WidgetWindowOpenInput[]> {
   const startupConfig = await readTauriStartupOptimizationConfig();
   // 설정 응답 자체는 시작 창 구성에 쓰지 않는다 — 백엔드 웜업 겸 타임아웃 가드만 유지한다.
-  void withTimeout(
-    widgetApi.getSettings(),
-    startupConfig.settingsTimeoutMs,
-    "Tauri widget startup settings timed out",
-  ).catch(() => null);
+  if (startupConfig.preloadWidgetSettingsDuringStartup) {
+    void withTimeout(
+      widgetApi.getSettings(),
+      startupConfig.settingsTimeoutMs,
+      "Tauri widget startup settings timed out",
+    ).catch(() => null);
+  }
   const preference = readDesktopWidgetStartupPreference();
   if (preference.mode === "board") {
     return [loginStartupBarWindow, loginStartupAgentOrbWindow, ...desktopWidgetBoardWindows];

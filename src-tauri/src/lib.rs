@@ -79,6 +79,10 @@ const WIDGET_MENU_WIDTH: f64 = 248.0;
 const WIDGET_MENU_HEIGHT: f64 = 540.0;
 const ONBOARDING_OVERLAY_WINDOW_LABEL: &str = "onboarding-overlay";
 const ONBOARDING_OVERLAY_WINDOW_URL: &str = "desktop-widget/onboarding/";
+#[cfg(target_os = "windows")]
+const ONBOARDING_OVERLAY_WINDOW_WIDTH: f64 = 760.0;
+#[cfg(target_os = "windows")]
+const ONBOARDING_OVERLAY_WINDOW_HEIGHT: f64 = 720.0;
 const WIDGET_MINIMIZED_WIDTH: f64 = 188.0;
 const WIDGET_MINIMIZED_HEIGHT: f64 = 72.0;
 const PRIMARY_MONITOR_ID: &str = "primary";
@@ -646,8 +650,10 @@ struct WidgetWindowPositionInput {
 #[serde(rename_all = "camelCase")]
 struct WidgetBarDragInput {
     #[serde(default)]
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     cursor_x: Option<f64>,
     #[serde(default)]
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     cursor_y: Option<f64>,
     grab_x: f64,
     grab_y: f64,
@@ -1287,6 +1293,13 @@ fn is_widget_window_label(label: &str) -> bool {
     label.starts_with(&format!("{WIDGET_WINDOW_LABEL_PREFIX}-"))
 }
 
+fn widget_bubble_type_from_window_label(label: &str) -> Option<String> {
+    let suffix = label
+        .strip_prefix(WIDGET_WINDOW_LABEL_PREFIX)
+        .and_then(|value| value.strip_prefix('-'))?;
+    Some(normalize_bubble_type(Some(suffix.to_string())))
+}
+
 fn widget_window_url(widget: &WidgetWindowState) -> String {
     let mut url = format!(
         "{WIDGET_WINDOW_URL}?bubble={}&mode={}",
@@ -1318,17 +1331,33 @@ fn onboarding_overlay_window_geometry(
     let origin = monitor.as_ref().map(|monitor| monitor.position());
     let origin_x = origin.map_or(0.0, |position| position.x as f64 / scale);
     let origin_y = origin.map_or(0.0, |position| position.y as f64 / scale);
-    let size = LogicalSize::new(
-        monitor
-            .as_ref()
-            .map(|monitor| monitor.size().width as f64 / scale)
-            .unwrap_or(WIDGET_FALLBACK_MONITOR_WIDTH),
-        monitor
-            .as_ref()
-            .map(|monitor| monitor.size().height as f64 / scale)
-            .unwrap_or(WIDGET_FALLBACK_MONITOR_HEIGHT),
-    );
-    Ok((LogicalPosition::new(origin_x, origin_y), size))
+    let monitor_width = monitor
+        .as_ref()
+        .map(|monitor| monitor.size().width as f64 / scale)
+        .unwrap_or(WIDGET_FALLBACK_MONITOR_WIDTH);
+    let monitor_height = monitor
+        .as_ref()
+        .map(|monitor| monitor.size().height as f64 / scale)
+        .unwrap_or(WIDGET_FALLBACK_MONITOR_HEIGHT);
+
+    #[cfg(target_os = "windows")]
+    {
+        let width = ONBOARDING_OVERLAY_WINDOW_WIDTH
+            .min(monitor_width)
+            .max(360.0);
+        let height = ONBOARDING_OVERLAY_WINDOW_HEIGHT
+            .min(monitor_height)
+            .max(520.0);
+        let x = origin_x + ((monitor_width - width) / 2.0).max(0.0);
+        let y = origin_y + ((monitor_height - height) / 2.0).max(0.0);
+        return Ok((LogicalPosition::new(x, y), LogicalSize::new(width, height)));
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let size = LogicalSize::new(monitor_width, monitor_height);
+        Ok((LogicalPosition::new(origin_x, origin_y), size))
+    }
 }
 
 fn widget_window_size(widget: &WidgetWindowState) -> LogicalSize<f64> {
@@ -3008,7 +3037,10 @@ fn drag_widget_bar_window(
     input: WidgetBarDragInput,
 ) -> Result<WidgetBarDragResult, String> {
     let label = window.label().to_string();
-    let is_bar_or_menu = label.ends_with("-bar") || label.ends_with("-menu");
+    let target_bubble = widget_bubble_type_from_window_label(&label).ok_or_else(|| {
+        "drag_widget_bar_window can only be called from a widget window".to_string()
+    })?;
+    let is_bar_or_menu = target_bubble == "bar" || target_bubble == "menu";
     if !is_widget_window_label(&label) || !is_bar_or_menu {
         return Err(
             "drag_widget_bar_window can only be called from the bar or menu widget".to_string(),
@@ -3074,8 +3106,8 @@ fn drag_widget_bar_window(
 
         let widget = with_widget_state(
             &state,
-            Some("bar".to_string()),
-            Some("bar".to_string()),
+            Some(target_bubble.clone()),
+            Some(target_bubble.clone()),
             |widget| {
                 widget.position = WidgetWindowPosition {
                     x: (geometry.next_x - origin_x).round() as i32,
@@ -3155,8 +3187,8 @@ fn drag_widget_bar_window(
 
         let widget = with_widget_state(
             &state,
-            Some("bar".to_string()),
-            Some("bar".to_string()),
+            Some(target_bubble.clone()),
+            Some(target_bubble.clone()),
             |widget| {
                 widget.position = WidgetWindowPosition {
                     x: ((geometry.next_x - origin_x) / scale).round() as i32,
@@ -3911,6 +3943,27 @@ fn set_widget_interactive_rects(
         state.rects = input.rects;
     })
     .ok_or_else(|| "widget pointer state lock failed".to_string())?;
+
+    #[cfg(target_os = "windows")]
+    if !widget_manual_click_through(&app, &label) {
+        let desired = widget_pointer_should_ignore(&window, &label);
+        let changed = with_widget_pointer_state(&label, |state| {
+            if state.last_applied_ignore == Some(desired) {
+                false
+            } else {
+                state.last_applied_ignore = Some(desired);
+                true
+            }
+        })
+        .unwrap_or(false);
+
+        if changed {
+            window
+                .set_ignore_cursor_events(desired)
+                .map_err(|error| error.to_string())?;
+        }
+    }
+
     spawn_widget_pointer_poller(&app, label);
     Ok(())
 }
@@ -5148,6 +5201,23 @@ mod tests {
             0,
             0
         )));
+    }
+
+    #[test]
+    fn widget_window_label_resolves_drag_target_bubble() {
+        assert_eq!(
+            widget_bubble_type_from_window_label("bubli-widget-bar").as_deref(),
+            Some("bar")
+        );
+        assert_eq!(
+            widget_bubble_type_from_window_label("bubli-widget-menu").as_deref(),
+            Some("menu")
+        );
+        assert_eq!(
+            widget_bubble_type_from_window_label("bubli-widget-agent").as_deref(),
+            Some("agent")
+        );
+        assert!(widget_bubble_type_from_window_label("bubli-window-menu").is_none());
     }
 
     #[test]

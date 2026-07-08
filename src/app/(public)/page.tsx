@@ -25,7 +25,7 @@ const faqItems: { qKey: MessageKey; aKey: MessageKey }[] = [
   { qKey: "public.home.faq4Q", aKey: "public.home.faq4A" },
 ];
 
-const macosInstallerHref = "/downloads/macos/Bubli-macOS-0.1.2-arm64.dmg";
+const macosInstallerHref = "/downloads/macos/Bubli-macOS-0.1.3-arm64.dmg";
 const windowsInstallerHref = "/downloads/windows/Bubli-Windows-latest.exe";
 
 export default function HomePage() {
@@ -232,31 +232,30 @@ export default function HomePage() {
                   </div>
                 </div>
               </article>
-              <Link aria-label={t("public.home.downloadMacAria")} className="landing-download__float landing-download__float--primary" download href={macosInstallerHref}>
-                <span className="landing-download__float-os" aria-hidden="true">
-                  <Apple size={24} strokeWidth={2.15} />
-                </span>
-                <span>{t("public.home.downloadMac")}</span>
-                <span className="landing-download__float-download" aria-hidden="true">
-                  <Download size={20} strokeWidth={2.2} />
-                </span>
-              </Link>
-              <Link
-                aria-label={t("public.home.downloadWinAria")}
-                className="landing-download__float landing-download__float--soft"
-                download
-                href={windowsInstallerHref}
-              >
-                <span className="landing-download__float-os" aria-hidden="true">
-                  <MonitorDown size={23} strokeWidth={2.1} />
-                </span>
-                <span>{t("public.home.downloadWin")}</span>
-                <span className="landing-download__float-download" aria-hidden="true">
-                  <Download size={20} strokeWidth={2.2} />
-                </span>
-              </Link>
-              <div className="landing-download__float landing-download__float--bubble" aria-hidden="true">
-                {t("public.home.downloadBubble")}
+              <div className="landing-download__buttons">
+                <Link aria-label={t("public.home.downloadMacAria")} className="landing-download__float landing-download__float--primary" download href={macosInstallerHref}>
+                  <span className="landing-download__float-os" aria-hidden="true">
+                    <Apple size={24} strokeWidth={2.15} />
+                  </span>
+                  <span>{t("public.home.downloadMac")}</span>
+                  <span className="landing-download__float-download" aria-hidden="true">
+                    <Download size={20} strokeWidth={2.2} />
+                  </span>
+                </Link>
+                <Link
+                  aria-label={t("public.home.downloadWinAria")}
+                  className="landing-download__float landing-download__float--soft"
+                  download
+                  href={windowsInstallerHref}
+                >
+                  <span className="landing-download__float-os" aria-hidden="true">
+                    <MonitorDown size={23} strokeWidth={2.1} />
+                  </span>
+                  <span>{t("public.home.downloadWin")}</span>
+                  <span className="landing-download__float-download" aria-hidden="true">
+                    <Download size={20} strokeWidth={2.2} />
+                  </span>
+                </Link>
               </div>
             </div>
           </div>

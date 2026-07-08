@@ -23,6 +23,7 @@ const files = {
   activityAutoCapture: "src/lib/local/activity-auto-capture.ts",
   activityClient: "src/lib/local/activity-client.ts",
   authenticatedSurfaces: "src/lib/tauri/authenticated-surfaces.ts",
+  startupOptimization: "src/lib/tauri/startup-optimization.ts",
   chatWidgetRouting: "src/lib/tauri/chat-widget-routing.ts",
   desktopWidgetPage: "src/app/desktop-widget/page.tsx",
   desktopWidgetBubble: "src/features/widget/components/desktop-widget-bubble.tsx",
@@ -193,6 +194,7 @@ const realOAuthQaScript = read(files.realOAuthQaScript);
 const localAutoSyncSoak = read(files.localAutoSyncSoak);
 const windowsRuntimeSoak = read(files.windowsRuntimeSoak);
 const surfaces = read(files.authenticatedSurfaces);
+const startupOptimization = read(files.startupOptimization);
 const chatWidgetRouting = read(files.chatWidgetRouting);
 const appNav = read(files.appNav);
 const appShell = read(files.appShell);
@@ -238,6 +240,16 @@ assertContains(
   buildTauriWindowsDownload,
   /CARGO_BUILD_JOBS: process\.env\.CARGO_BUILD_JOBS \?\? "1"[\s\S]*CARGO_PROFILE_RELEASE_CODEGEN_UNITS: process\.env\.CARGO_PROFILE_RELEASE_CODEGEN_UNITS \?\? "16"[\s\S]*CARGO_PROFILE_RELEASE_OPT_LEVEL: process\.env\.CARGO_PROFILE_RELEASE_OPT_LEVEL \?\? "3"[\s\S]*CARGO_PROFILE_RELEASE_STRIP: process\.env\.CARGO_PROFILE_RELEASE_STRIP \?\? "symbols"[\s\S]*npm\.cmd run tauri -- build[\s\S]*scripts\/publish-tauri-windows-download\.mjs/,
   "Windows download builds must use memory-safe Cargo release defaults before publishing the installer.",
+);
+assertContains(
+  startupOptimization,
+  /windows:\s*\{[\s\S]*bubbleOpenStaggerMs:\s*0,[\s\S]*deferBarFullDisplayUntilAfterFirstPaint:\s*true,[\s\S]*initialDisplayPageSize:\s*30,[\s\S]*initialNotificationScanPages:\s*2,[\s\S]*menuOrbBadgeRefreshIntervalMs:\s*20_000,[\s\S]*preloadWidgetSettingsDuringStartup:\s*false,[\s\S]*requireMenuWindowDuringStartupReuse:\s*true,[\s\S]*summaryPrewarmTimeoutMs:\s*1_800,[\s\S]*widgetContextRefreshIntervalMs:\s*30_000/,
+  "Windows startup optimization must use batched widget opening, bounded initial display loads, bounded initial notification scans, slower fallback polling, no startup settings prefetch, menu reuse verification, first-paint deferral, and summary prewarm.",
+);
+assertContains(
+  startupOptimization,
+  /const STARTUP_OPTIMIZATION_PLATFORM = "windows"[\s\S]*function resolveCachedProfile\(parsed: \{ platform\?: unknown; profile\?: unknown \}\)[\s\S]*isWindowsRuntime\(\) && parsed\.platform !== STARTUP_OPTIMIZATION_PLATFORM[\s\S]*return "windows"[\s\S]*return cachedProfile \?\? resolveDefaultProfile\(\)[\s\S]*platform: isWindowsRuntime\(\) \? STARTUP_OPTIMIZATION_PLATFORM : "default"/,
+  "Windows startup optimization must migrate legacy cached profiles to the Windows profile while preserving newly written platform-tagged preferences.",
 );
 assertContains(
   publishTauriWindowsDownload,
@@ -585,6 +597,11 @@ assertContains(
   windowsRuntimeSmoke,
   /runNodeScript\(\["scripts\/check-tauri-runtime-preflight\.mjs"\][\s\S]*NEXT_PUBLIC_API_BASE_URL: API_BASE_URL/,
   "Windows Tauri runtime smoke must run the preflight before seeding or launching Tauri.",
+);
+assertContains(
+  devWidgetRealBackend,
+  /Tauri widget real API smoke task[\s\S]*timestamp with time zone '2000-01-01 00:00:00\+00'[\s\S]*Confirm backend summary rendering[\s\S]*timestamp with time zone '2000-01-01 00:05:00\+00'/,
+  "Windows real-backend smoke seed tasks must stay inside the backend room summary limit even when demo tasks already exist.",
 );
 assertContains(
   windowsRuntimeSmoke,
@@ -1344,30 +1361,36 @@ assertNotContains(
 );
 
 const startupWindows = extractConstArray(surfaces, "loginStartupWindows");
+const startupBubbleWindows = extractConstArray(surfaces, "loginStartupBubbleWindows");
 assertContains(
   startupWindows,
   "loginStartupBarWindow",
   "Login startup windows must include the Bubli bar.",
 );
-assertNotContains(
+assertContains(
   startupWindows,
-  /loginStartupMenuWindow/,
-  "Login startup windows must not open the standalone orb menu automatically; the bar is the only first-launch surface.",
+  "loginStartupAgentOrbWindow",
+  "Login startup windows must include the agent orb window.",
 );
-assertNotContains(
+assertContains(
   startupWindows,
+  "...loginStartupBubbleWindows",
+  "Login startup windows must include the default auto-login bubble set.",
+);
+assertContains(
+  startupBubbleWindows,
   /bubbleType:\s*"todo"[\s\S]*windowId:\s*"todo"/,
-  "Login startup windows must not fan out the TODO bubble automatically; it should be restored from the bar.",
+  "Login startup bubble windows must open the TODO bubble automatically.",
 );
 for (const required of ["agent", "alert", "chat", "memo", "schedule", "timer"]) {
-  assertNotContains(
-    startupWindows,
+  assertContains(
+    startupBubbleWindows,
     new RegExp(`bubbleType:\\s*"${required}"[\\s\\S]*windowId:\\s*"${required}"`),
-    `Login startup windows must not fan out the ${required} bubble automatically; it should be restored from the bar.`,
+    `Login startup bubble windows must open the ${required} bubble automatically.`,
   );
 }
 assertNotContains(
-  startupWindows,
+  startupBubbleWindows,
   /bubbleType:\s*"resource"[\s\S]*windowId:\s*"resource"/,
   "Login startup windows must not open the standalone resource/draft bubble because generated drafts live inside the agent widget.",
 );
@@ -1376,6 +1399,11 @@ assertContains(
   surfaces,
   /readDesktopWidgetStartupPreference/,
   "resolveLoginStartupWindows must read the user's desktop widget startup preference from onboarding storage.",
+);
+assertContains(
+  surfaces,
+  /if \(startupConfig\.preloadWidgetSettingsDuringStartup\) \{[\s\S]*widgetApi\.getSettings\(\)[\s\S]*startupConfig\.settingsTimeoutMs[\s\S]*\}/,
+  "Tauri login startup must gate widget settings prefetch behind the startup optimization profile so Windows can avoid an extra backend request while opening windows.",
 );
 assertContains(
   surfaces,
@@ -1444,13 +1472,13 @@ assertContains(
 );
 assertContains(
   surfaces,
-  /startupWindowStateIsReady[\s\S]*state\.windowVisible \|\| state\.mode === "MINIMIZED"[\s\S]*authenticatedStartupWindowsReady[\s\S]*getWidgetWindowState\(widgetTargetFromInput\(input\)\)[\s\S]*startupWindowStateIsReady\(input, state\)/,
-  "launchTauriAuthenticatedSurfaces must treat visible or minimized already-launched widget windows as ready.",
+  /startupWindowRequiresVisibleWindow[\s\S]*input\.bubbleType === "menu"[\s\S]*startupConfig\.requireMenuWindowDuringStartupReuse[\s\S]*startupWindowStateIsReady[\s\S]*if \(input\.mode === "MINIMIZED"\) return state\.mode === "MINIMIZED" && !state\.windowVisible;[\s\S]*return state\.windowVisible && state\.mode !== "MINIMIZED";[\s\S]*authenticatedStartupWindowsReady[\s\S]*const startupConfig = await readTauriStartupOptimizationConfig\(\);[\s\S]*startupWindows\.filter\(\(input\) => startupWindowRequiresVisibleWindow\(input, startupConfig\)\)[\s\S]*Promise\.all\([\s\S]*getWidgetWindowState\(widgetTargetFromInput\(input\)\)[\s\S]*startupWindowStateIsReady\(input, state\)[\s\S]*readyStates\?\.every\(Boolean\) \?\? false/,
+  "launchTauriAuthenticatedSurfaces must reopen stale minimized DEFAULT startup widgets, require the Windows menu orb before reuse, and parallelize startup state probes.",
 );
 assertContains(
   surfaces,
   /getAuthenticatedSurfacesEnabled\(\)[\s\S]*const shouldReuseExistingWindows = launchedAuthenticatedSurfaces \|\| nativeAuthenticatedSurfacesEnabled;[\s\S]*if \(shouldReuseExistingWindows\) \{[\s\S]*authenticatedStartupWindowsReady\(startupWindows\)[\s\S]*if \(startupWindowsReady\) \{[\s\S]*timeline\.completed = true[\s\S]*return;[\s\S]*\}[\s\S]*launchedAuthenticatedSurfaces = false;[\s\S]*closeAllWidgetWindows\(\)/,
-  "launchTauriAuthenticatedSurfaces must reuse ready visible/minimized windows and recover stale native launched state.",
+  "launchTauriAuthenticatedSurfaces must reuse ready visible windows and recover stale native launched state.",
 );
 assertContains(
   surfaces,
@@ -1780,6 +1808,21 @@ assertContains(
   widgetPage,
   /readWidgetSummary\(\{ preferLocalCache: false[\s\S]*serverResult\.status !== "failed"[\s\S]*summary:server-refresh-failed/,
   "Desktop widget cached summary fallback must record server refresh failures instead of hiding backend/API failures.",
+);
+assertContains(
+  widgetPage,
+  /const initialDisplayPageSize =[\s\S]*startupOptimization\.initialDisplayPageSize[\s\S]*const initialNotificationScanPages =[\s\S]*isTauri && !displayLoadedOnceRef\.current && startupOptimization\.initialNotificationScanPages > 0[\s\S]*widgetDisplayApi\.listSchedules\(selectedRoomId, initialDisplayPageSize\)[\s\S]*widgetDisplayApi\.listResources\(selectedRoomId, initialDisplayPageSize\)[\s\S]*widgetDisplayApi\.listMemos\(selectedRoomId, initialDisplayPageSize\)[\s\S]*listWidgetVisibleUnreadNotifications\(WIDGET_NOTIFICATION_DISPLAY_LIMIT, initialNotificationScanPages\)[\s\S]*startupOptimization\.initialDisplayPageSize[\s\S]*startupOptimization\.initialNotificationScanPages/,
+  "Desktop widget must use the Windows startup profile to bound first-load schedule/resource/memo requests and notification scans without affecting later refreshes.",
+);
+assertContains(
+  widgetPage,
+  /refreshMenuOrbAgentReplyBadge[\s\S]*window\.setInterval\(\(\) => \{[\s\S]*startupOptimization\.menuOrbBadgeRefreshIntervalMs[\s\S]*startupOptimization\.menuOrbBadgeRefreshIntervalMs/,
+  "Desktop widget menu orb must use the startup profile for fallback agent badge polling instead of a hard-coded fast interval.",
+);
+assertContains(
+  widgetPage,
+  /refreshWidgetContext[\s\S]*window\.setInterval\(\(\) => \{[\s\S]*startupOptimization\.widgetContextRefreshIntervalMs[\s\S]*startupOptimization\.widgetContextRefreshIntervalMs/,
+  "Desktop widget windows must use the startup profile for fallback room-context polling instead of a hard-coded fast interval.",
 );
 
 assertContains(
