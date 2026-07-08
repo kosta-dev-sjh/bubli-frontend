@@ -7,6 +7,7 @@ export type TauriStartupOptimizationConfig = {
   bubbleOpenStaggerMs: number;
   deferredBarFullDisplayDelayMs: number;
   deferBarFullDisplayUntilAfterFirstPaint: boolean;
+  initialDisplayPageSize: number;
   openCommandTimeoutMs: number;
   profile: TauriStartupOptimizationProfile;
   retryAttempts: number;
@@ -24,6 +25,7 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
     bubbleOpenStaggerMs: 180,
     deferredBarFullDisplayDelayMs: 1_200,
     deferBarFullDisplayUntilAfterFirstPaint: true,
+    initialDisplayPageSize: 0,
     openCommandTimeoutMs: 6_000,
     profile: "aggressive",
     retryAttempts: 1,
@@ -35,6 +37,7 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
     bubbleOpenStaggerMs: 0,
     deferredBarFullDisplayDelayMs: 0,
     deferBarFullDisplayUntilAfterFirstPaint: false,
+    initialDisplayPageSize: 0,
     openCommandTimeoutMs: 10_000,
     profile: "balanced",
     retryAttempts: 2,
@@ -46,6 +49,7 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
     bubbleOpenStaggerMs: 90,
     deferredBarFullDisplayDelayMs: 750,
     deferBarFullDisplayUntilAfterFirstPaint: true,
+    initialDisplayPageSize: 0,
     openCommandTimeoutMs: 8_000,
     profile: "fast",
     retryAttempts: 2,
@@ -57,6 +61,7 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
     bubbleOpenStaggerMs: 0,
     deferredBarFullDisplayDelayMs: 350,
     deferBarFullDisplayUntilAfterFirstPaint: true,
+    initialDisplayPageSize: 30,
     openCommandTimeoutMs: 8_000,
     profile: "windows",
     retryAttempts: 2,
