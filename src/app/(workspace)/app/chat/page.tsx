@@ -463,7 +463,27 @@ function commandText(value: unknown) {
   return text.toLowerCase().startsWith("/bubli") ? text : `/bubli ${text}`;
 }
 
-function withAgentCommandMessages(t: TranslateFn, messages: ChatMessageResponse[]) {
+function commandTextsMatch(left: string, right: string) {
+  return left.trim().replace(/\s+/g, " ") === right.trim().replace(/\s+/g, " ");
+}
+
+function isExistingCommandForResponse(t: TranslateFn, command: ChatMessageResponse, response: ChatMessageResponse, requestText: string) {
+  if (command.messageType !== "AGENT_COMMAND") return false;
+  if (command.chatRoomId !== response.chatRoomId) return false;
+  if (!commandTextsMatch(messageText(t, command), requestText)) return false;
+  return Math.abs(command.roomSequence - response.roomSequence) <= 1;
+}
+
+function agentCommandSender(t: TranslateFn, response: ChatMessageResponse, currentUser: AuthUser | null) {
+  const requesterId = response.sender.id ?? null;
+  return {
+    id: requesterId,
+    name: requesterId && requesterId === currentUser?.id ? currentUser.name : t("chat.participant.fallbackName"),
+    type: "USER" as const,
+  };
+}
+
+function withAgentCommandMessages(t: TranslateFn, messages: ChatMessageResponse[], currentUser: AuthUser | null) {
   const existingCommandKeys = new Set(
     messages
       .filter((message) => message.messageType === "AGENT_COMMAND")
@@ -476,8 +496,9 @@ function withAgentCommandMessages(t: TranslateFn, messages: ChatMessageResponse[
 
     if (requestText) {
       const commandKey = `${message.chatRoomId}:${message.roomSequence - 1}:${requestText}`;
+      const hasNearbyCommand = messages.some((candidate) => isExistingCommandForResponse(t, candidate, message, requestText));
 
-      if (!existingCommandKeys.has(commandKey)) {
+      if (!existingCommandKeys.has(commandKey) && !hasNearbyCommand) {
         expanded.push({
           body: { text: requestText },
           chatRoomId: message.chatRoomId,
@@ -486,11 +507,7 @@ function withAgentCommandMessages(t: TranslateFn, messages: ChatMessageResponse[
           messageType: "AGENT_COMMAND",
           resourceId: message.resourceId,
           roomSequence: message.roomSequence - 0.1,
-          sender: {
-            id: null,
-            name: t("chat.senderMe"),
-            type: "USER",
-          },
+          sender: agentCommandSender(t, message, currentUser),
         });
       }
     }
@@ -682,6 +699,7 @@ function ChatPageContent() {
   const pinnedToBottomRef = useRef(true);
   const activeChatRoomIdRef = useRef<string | null>(null);
   const currentUserRef = useRef<AuthUser | null>(null);
+  const currentUser = profileState.kind === "ready" ? profileState.user : null;
   const typingPublishRef = useRef<{ lastStartSentAt: number; stopTimer: number | null }>({
     lastStartSentAt: 0,
     stopTimer: null,
@@ -717,11 +735,7 @@ function ChatPageContent() {
         return { kind: "ready", messages: [message] };
       }
 
-      if (
-        current.messages.some(
-          (item) => item.id === message.id || (Boolean(message.clientMessageId) && item.clientMessageId === message.clientMessageId),
-        )
-      ) {
+      if (current.messages.some((item) => isDuplicateChatMessage(item, message))) {
         return current;
       }
 
@@ -748,11 +762,11 @@ function ChatPageContent() {
         if (fresh.length === 0) return current;
         return {
           kind: "ready",
-          messages: withAgentCommandMessages(t, [...withoutSyntheticAgentCommands(base), ...fresh]),
+          messages: withAgentCommandMessages(t, [...withoutSyntheticAgentCommands(base), ...fresh], currentUser),
         };
       });
     },
-    [t],
+    [currentUser, t],
   );
 
   // 재연결 시 놓친 메시지 보정 — 최신 페이지를 다시 받아 병합한다(교체 아님).
@@ -889,7 +903,6 @@ function ChatPageContent() {
   const friendCount = socialState.kind === "ready" ? socialState.friends.length : directConversationCount;
   const pendingFriendRequestCount = pendingFriendRequests.length;
   const selectedGroupFriendCount = selectedGroupMemberIds.length;
-  const currentUser = profileState.kind === "ready" ? profileState.user : null;
   const myBubliId = currentUser?.bubliId ?? "";
   const selectedProjectRoomId = selectedRoom?.chatType === "ROOM" && selectedRoom.roomId ? selectedRoom.roomId : null;
   const selectedAgentRoomId = selectedRoom?.chatType === "ROOM" && selectedRoom.roomId ? selectedRoom.roomId : null;
@@ -1039,7 +1052,7 @@ function ChatPageContent() {
     if (isWindowsTauriRuntime()) {
       const cachedMessages = await readCachedRoomMessages(chatRoomId, 40);
       if (cachedMessages.length > 0) {
-        setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, cachedMessages) });
+        setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, cachedMessages, currentUser) });
       } else {
         setMessagesState({ kind: "loading" });
       }
@@ -1051,7 +1064,7 @@ function ChatPageContent() {
       const page = await messagesRequest;
       const sortedMessages = [...page.items].sort((a, b) => a.roomSequence - b.roomSequence);
       void syncCachedRoomMessages(chatRoomId, sortedMessages, 0);
-      setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, sortedMessages) });
+      setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, sortedMessages, currentUser) });
       const lastReadSequence = sortedMessages.at(-1)?.roomSequence;
       if (lastReadSequence !== undefined) {
         void chatApi.markRead(chatRoomId, lastReadSequence).catch(() => {
@@ -1060,17 +1073,17 @@ function ChatPageContent() {
       }
     } catch {
       if (shouldUseWorkspacePreviewData()) {
-        setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, workspacePreviewChatMessages(chatRoomId)) });
+        setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, workspacePreviewChatMessages(chatRoomId), currentUser) });
         return;
       }
       const cachedMessages = await readCachedRoomMessages(chatRoomId, 40);
       if (cachedMessages.length > 0) {
-        setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, cachedMessages) });
+        setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, cachedMessages, currentUser) });
         return;
       }
       setMessagesState({ kind: "offline" });
     }
-  }, [t]);
+  }, [currentUser, t]);
 
   const loadSocial = useCallback(async () => {
     setSocialState({ kind: "loading" });
@@ -2457,7 +2470,7 @@ function ChatPageContent() {
               <div className="workspace-route__messages" onScroll={handleMessagesScroll} ref={messagesViewportRef}>
                 {messagesState.messages.map((message) => {
                   const isAgent = message.messageType === "AGENT_RESPONSE" || message.sender.type === "AGENT";
-                  const isMine = message.messageType === "AGENT_COMMAND" || (!isAgent && Boolean(currentUser?.id && message.sender.id === currentUser.id));
+                  const isMine = !isAgent && Boolean(currentUser?.id && message.sender.id === currentUser.id);
                   const text = displayMessageText(t, message);
                   const citations = agentCitations(message);
                   const groundingMessages = agentGroundingMessages(message);

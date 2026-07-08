@@ -294,7 +294,7 @@ assertContains(
 );
 assertContains(
   appChat,
-  /isWindowsTauriRuntime[\s\S]*const messagesRequest = chatApi\.getMessages\(chatRoomId, \{ size: 40 \}\)[\s\S]*if \(isWindowsTauriRuntime\(\)\) \{[\s\S]*readCachedRoomMessages\(chatRoomId, 40\)[\s\S]*setMessagesState\(\{ kind: "ready", messages: withAgentCommandMessages\(t, cachedMessages\) \}\)[\s\S]*const page = await messagesRequest[\s\S]*syncCachedRoomMessages\(chatRoomId, sortedMessages, 0\)/,
+  /isWindowsTauriRuntime[\s\S]*const messagesRequest = chatApi\.getMessages\(chatRoomId, \{ size: 40 \}\)[\s\S]*if \(isWindowsTauriRuntime\(\)\) \{[\s\S]*readCachedRoomMessages\(chatRoomId, 40\)[\s\S]*setMessagesState\(\{ kind: "ready", messages: withAgentCommandMessages\(t, cachedMessages, currentUser\) \}\)[\s\S]*const page = await messagesRequest[\s\S]*syncCachedRoomMessages\(chatRoomId, sortedMessages, 0\)/,
   "Windows Tauri chat messages must show cached SQLite messages before waiting on the server, then backfill with the latest server page.",
 );
 assertContains(
