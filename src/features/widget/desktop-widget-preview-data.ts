@@ -51,6 +51,8 @@ export type WidgetPreviewBubble = {
   selectedPeerChatRoomId?: string | null;
   friendRequests?: FriendRequestApiResponse[];
   friends?: WidgetFriendResponse[];
+  /** 현재 채팅방이 1:1(DIRECT)인지 — 보이스 종료 시 "나가기"가 아니라 항상 "종료"해야 하는지 판단용. */
+  isDirectChat?: boolean;
   /** 현재 활성 프로젝트룸이 있는지 — 프로젝트룸 모드 빈 상태 판단용. */
   hasProjectRoomScope?: boolean;
   compactLabel: string;
@@ -88,6 +90,8 @@ export type WidgetPreviewBubble = {
   voiceLabel?: string;
   voiceRoomId?: string;
   voiceParticipants?: string;
+  /** 말하는 중 애니메이션(웹과 동일)을 그리기 위한 참여자별 원본 데이터. */
+  voiceParticipantList?: { userId: string; userName: string }[];
 };
 
 export type WidgetNotificationSignal = {

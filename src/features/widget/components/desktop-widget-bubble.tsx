@@ -251,6 +251,8 @@ export type DesktopWidgetBubbleProps = {
   onPrimaryTimerAction?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onToggleAlwaysOnTop: () => void;
   onToggleVoiceMic?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
+  /** 현재 보이스 통화에서 마이크가 감지된(말하는 중) 참여자 userId 집합 — 웹과 동일한 발화 애니메이션용. */
+  speakingUserIds?: ReadonlySet<string>;
   // 타이머 시작/일시정지/재개 실패 안내(권한 없음·이미 실행 중 등). 타이머 바디 위에 잠깐 표시한다.
   timerActionNotice?: string | null;
   presentation?: "preview" | "tauri";
@@ -1129,6 +1131,7 @@ function ChatBody({
   onSendChatMessage,
   onStartVoice,
   onToggleVoiceMic,
+  speakingUserIds,
 }: {
   bubble: WidgetPreviewBubble;
   chatScope?: DesktopWidgetBubbleProps["chatScope"];
@@ -1147,6 +1150,7 @@ function ChatBody({
   onSendChatMessage?: DesktopWidgetBubbleProps["onSendChatMessage"];
   onStartVoice?: DesktopWidgetBubbleProps["onStartVoice"];
   onToggleVoiceMic?: DesktopWidgetBubbleProps["onToggleVoiceMic"];
+  speakingUserIds?: DesktopWidgetBubbleProps["speakingUserIds"];
 }) {
   const { t } = useI18n();
   const [draft, setDraft] = useState("");
@@ -1381,7 +1385,22 @@ function ChatBody({
           <div>
             <Mic size={14} strokeWidth={2} />
             <span>{voiceRows[0]?.label ?? bubble.voiceLabel ?? t("widget.chat.voiceWaiting")}</span>
-            <small>{bubble.voiceParticipants ?? t("widget.chat.noParticipants")}</small>
+            {bubble.voiceParticipantList && bubble.voiceParticipantList.length > 0 ? (
+              <span className={styles.voiceParticipants}>
+                {bubble.voiceParticipantList.map((participant) => (
+                  <i
+                    aria-label={participant.userName}
+                    className={styles.voiceParticipant}
+                    data-speaking={String(speakingUserIds?.has(participant.userId) ?? false)}
+                    key={participant.userId}
+                  >
+                    {participant.userName.slice(0, 1)}
+                  </i>
+                ))}
+              </span>
+            ) : (
+              <small>{t("widget.chat.noParticipants")}</small>
+            )}
           </div>
           <button aria-label={t("widget.chat.micStatus")} disabled={voiceSubmitting} onClick={() => void runVoiceAction("mic")} type="button">
             <Mic size={13} strokeWidth={2} />
@@ -3256,6 +3275,7 @@ function BubbleBody({
   onSendChatMessage,
   onStartVoice,
   onToggleVoiceMic,
+  speakingUserIds,
   onTimerModeChange,
 }: {
   bubble: WidgetPreviewBubble;
@@ -3290,6 +3310,7 @@ function BubbleBody({
   onSendChatMessage?: DesktopWidgetBubbleProps["onSendChatMessage"];
   onStartVoice?: DesktopWidgetBubbleProps["onStartVoice"];
   onToggleVoiceMic?: DesktopWidgetBubbleProps["onToggleVoiceMic"];
+  speakingUserIds?: DesktopWidgetBubbleProps["speakingUserIds"];
   onTimerModeChange?: (mode: WidgetTimerMode) => void;
 }) {
   if (bubble.id === "agent") {
@@ -3324,6 +3345,7 @@ function BubbleBody({
         onSendChatMessage={onSendChatMessage}
         onStartVoice={onStartVoice}
         onToggleVoiceMic={onToggleVoiceMic}
+        speakingUserIds={speakingUserIds}
       />
     );
   }
@@ -3784,6 +3806,7 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
   onStartVoice,
   onToggleAlwaysOnTop,
   onToggleVoiceMic,
+  speakingUserIds,
   timerActionNotice,
   presentation = "tauri",
   windowId,
@@ -4012,6 +4035,7 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
                 onStartVoice={onStartVoice}
                 onTimerModeChange={setTimerModeForGhost}
                 onToggleVoiceMic={onToggleVoiceMic}
+                speakingUserIds={speakingUserIds}
               />
             )}
 
