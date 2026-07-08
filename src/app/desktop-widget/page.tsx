@@ -1873,6 +1873,7 @@ function DesktopWidgetSurface() {
   const widgetContextInitialized = widgetContext !== null;
   const selectedWidgetRoomId = widgetContext ? normalizeWidgetRoomId(widgetContext.selectedRoomId) : normalizeWidgetRoomId(requestedRoomId);
   const widgetSessionReady = !isTauri || (authReady && hasAuthSession);
+  const isWindowsStartupProfile = isTauri && startupOptimization.profile === "windows";
   const requestDisplayRefresh = useCallback(() => {
     const throttleMs =
       isTauri && startupOptimization.profile === "windows" ? startupOptimization.displayRefreshThrottleMs : 0;
@@ -2034,6 +2035,16 @@ function DesktopWidgetSurface() {
       return false;
     }
 
+    if (isWindowsStartupProfile) {
+      void authApi.getMe().catch((error) => {
+        if (error instanceof ApiClientError && error.status === 401) {
+          clearStoredAuthSession();
+          window.dispatchEvent(new Event(AUTH_SESSION_CHANGE_EVENT));
+        }
+      });
+      return true;
+    }
+
     try {
       await authApi.getMe();
       return true;
@@ -2047,7 +2058,7 @@ function DesktopWidgetSurface() {
       // Later data requests will show their own loading/error state while the session mirror remains valid.
       return true;
     }
-  }, []);
+  }, [isWindowsStartupProfile]);
 
   useEffect(() => {
     if (!isTauri) return;
@@ -2498,7 +2509,6 @@ function DesktopWidgetSurface() {
 
     async function loadDisplayApiState() {
       let selectedRoomId = selectedWidgetRoomId;
-      const isWindowsStartupProfile = isTauri && startupOptimization.profile === "windows";
       const displayRequestTimeoutMs = isWindowsStartupProfile ? startupOptimization.displayRequestTimeoutMs : 0;
       const displayRequest = <T,>(request: Promise<T>) =>
         withWidgetDisplayDeadline<T | null>(request, displayRequestTimeoutMs, null);
@@ -2858,7 +2868,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [activeBubble, activeVoiceRoomId, agentRevision, barFullDisplayReady, chatScope, communicationRevision, currentUserBubliId, currentUserId, displayRefreshRevision, isBubbleBar, isMenuOrb, isTauri, isWidgetChrome, itemStateOverrides, memoRevision, notificationRevision, resourceRevision, scheduleRevision, selectedPeerChatRoomId, selectedWidgetRoomId, startupOptimization.deferBarAgentCollectionsOnInitialDisplay, startupOptimization.displayRequestTimeoutMs, startupOptimization.initialDisplayPageSize, startupOptimization.initialNotificationScanPages, startupOptimization.profile, t, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, voiceParticipantMicMuted, widgetContextInitialized, widgetSessionReady]);
+  }, [activeBubble, activeVoiceRoomId, agentRevision, barFullDisplayReady, chatScope, communicationRevision, currentUserBubliId, currentUserId, displayRefreshRevision, isBubbleBar, isMenuOrb, isTauri, isWidgetChrome, isWindowsStartupProfile, itemStateOverrides, memoRevision, notificationRevision, resourceRevision, scheduleRevision, selectedPeerChatRoomId, selectedWidgetRoomId, startupOptimization.deferBarAgentCollectionsOnInitialDisplay, startupOptimization.displayRequestTimeoutMs, startupOptimization.initialDisplayPageSize, startupOptimization.initialNotificationScanPages, startupOptimization.profile, t, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, voiceParticipantMicMuted, widgetContextInitialized, widgetSessionReady]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;

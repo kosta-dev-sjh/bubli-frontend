@@ -1823,6 +1823,11 @@ assertContains(
 );
 assertContains(
   widgetPage,
+  /const isWindowsStartupProfile = isTauri && startupOptimization\.profile === "windows"[\s\S]*const validateWidgetAuthSession = useCallback\(async \(\) => \{[\s\S]*const session = await restoreWidgetStoredAuthSessionWithGrace\(\)[\s\S]*if \(isWindowsStartupProfile\) \{[\s\S]*void authApi\.getMe\(\)\.catch[\s\S]*clearStoredAuthSession\(\)[\s\S]*AUTH_SESSION_CHANGE_EVENT[\s\S]*return true;[\s\S]*await authApi\.getMe\(\);/,
+  "Windows desktop widget startup must render from the restored Tauri auth mirror immediately while backend getMe validation continues in the background.",
+);
+assertContains(
+  widgetPage,
   /surfaceReadySentRef = useRef\(false\)[\s\S]*if \(!isTauri \|\| !mounted \|\| surfaceReadySentRef\.current\) return;[\s\S]*surfaceReadyOnly:\s*true/,
   "Desktop widget windows must send a surface-ready appReady after mount so Windows can apply transparent background before auth/data loading.",
 );
