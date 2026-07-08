@@ -19,6 +19,7 @@ const files = {
   appShell: "src/components/layout/app-shell.tsx",
   appChat: "src/app/(workspace)/app/chat/page.tsx",
   appAgent: "src/app/(workspace)/app/agent/page.tsx",
+  projectRoomWorkRoute: "src/app/(workspace)/app/project-rooms/[roomId]/work/page.tsx",
   workspaceDashboard: "src/features/dashboard/components/workspace-dashboard.tsx",
   apiClient: "src/lib/api/client.ts",
   authApi: "src/features/auth/api/authApi.ts",
@@ -210,6 +211,7 @@ const appNav = read(files.appNav);
 const appShell = read(files.appShell);
 const appChat = read(files.appChat);
 const appAgent = read(files.appAgent);
+const projectRoomWorkRoute = read(files.projectRoomWorkRoute);
 const workspaceDashboard = read(files.workspaceDashboard);
 const apiClient = read(files.apiClient);
 const authApi = read(files.authApi);
@@ -272,6 +274,11 @@ assertContains(
   appAgent,
   /readWindowsAgentInitialTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*withAgentInitialDeadline[\s\S]*const loadData = Promise\.all\([\s\S]*projectRoomApi\.list\(\)[\s\S]*agentApi\.listDailySummaries\(\)[\s\S]*const initialData = await withAgentInitialDeadline\(loadData, initialTimeoutMs\)[\s\S]*emptyAgentLoadData\(roomId, rooms\)[\s\S]*loadData\.then\(applyLoadedData\)/,
   "Windows Tauri agent page must switch out of loading after a bounded initial wait and finish slower agent collections in the background.",
+);
+assertContains(
+  projectRoomWorkRoute,
+  /readWindowsWorkMembersTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*withWorkMembersDeadline[\s\S]*const membersPromise = projectRoomApi\.getMembers\(roomId\)[\s\S]*Promise\.all\(\[[\s\S]*authApi\.getMe\(\)[\s\S]*projectRoomApi\.get\(roomId\)[\s\S]*wbsApi\.getBoard\(roomId\)[\s\S]*const membersPage = await withWorkMembersDeadline\(membersPromise, membersTimeoutMs\)[\s\S]*applyReadyState\(membersPage\)[\s\S]*membersPromise\.then/,
+  "Project room work route must not block Windows board entry on member-list hydration; members should be deadline-bound and backfilled.",
 );
 assertContains(
   startupOptimization,

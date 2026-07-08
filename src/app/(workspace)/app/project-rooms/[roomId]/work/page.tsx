@@ -15,6 +15,8 @@ import { wbsApi } from "@/features/wbs/api/wbsApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
+import { isWindowsTauriRuntime } from "@/lib/tauri/platform";
+import { readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
 import { getActiveProjectRoomLabel, setActiveProjectRoomId } from "@/lib/workspace-active-room";
 import {
   shouldUseWorkspacePreviewData,
@@ -37,6 +39,34 @@ type WorkPageState =
   | { kind: "auth" }
   | { kind: "error"; message: string };
 
+type WorkReadyState = Extract<WorkPageState, { kind: "ready" }>;
+type WorkMembersPage = { items: ProjectRoomMemberResponse[] } | null;
+
+const WINDOWS_WORK_MEMBERS_TIMEOUT_FALLBACK_MS = 650;
+
+async function readWindowsWorkMembersTimeoutMs() {
+  if (!isWindowsTauriRuntime()) return 0;
+  const config = await readTauriStartupOptimizationConfig();
+  return config.displayRequestTimeoutMs || WINDOWS_WORK_MEMBERS_TIMEOUT_FALLBACK_MS;
+}
+
+function withWorkMembersDeadline<T>(request: Promise<T>, timeoutMs: number): Promise<T | null> {
+  if (timeoutMs <= 0) return request;
+  return new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => resolve(null), timeoutMs);
+    request.then(
+      (value) => {
+        window.clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (error: unknown) => {
+        window.clearTimeout(timeoutId);
+        reject(error);
+      },
+    );
+  });
+}
+
 export default function ProjectRoomWorkPage() {
   const params = useParams<{ roomId: string }>();
   return <ProjectRoomWorkContent roomId={params.roomId} />;
@@ -54,28 +84,67 @@ export function ProjectRoomWorkContent({ roomId }: { roomId: string }) {
     if (!options?.quiet) setState({ kind: "loading" });
 
     try {
-      const [currentUser, room, board, membersPage] = await Promise.all([
+      const membersPromise = projectRoomApi.getMembers(roomId).catch((error: unknown): WorkMembersPage => {
+        if (error instanceof ApiClientError && error.status === 401) {
+          throw error;
+        }
+        return null;
+      });
+      const [currentUser, room, board] = await Promise.all([
         authApi.getMe(),
         projectRoomApi.get(roomId),
         wbsApi.getBoard(roomId),
-        projectRoomApi.getMembers(roomId),
       ]);
-      const members = membersPage.items.map((member) => {
-        const isCurrentUser =
-          member.userId === currentUser.id ||
-          (Boolean(member.bubliId) && member.bubliId?.toLowerCase() === currentUser.bubliId.toLowerCase());
+      const applyReadyState = (membersPage: WorkMembersPage) => {
+        const members = (membersPage?.items ?? []).map((member) => {
+          const isCurrentUser =
+            member.userId === currentUser.id ||
+            (Boolean(member.bubliId) && member.bubliId?.toLowerCase() === currentUser.bubliId.toLowerCase());
 
-        return isCurrentUser
-          ? {
-              ...member,
-              avatarUrl: member.avatarUrl || currentUser.avatarUrl || null,
-              bubliId: member.bubliId || currentUser.bubliId || null,
-              name: member.name || currentUser.name,
-            }
-          : member;
-      });
+          return isCurrentUser
+            ? {
+                ...member,
+                avatarUrl: member.avatarUrl || currentUser.avatarUrl || null,
+                bubliId: member.bubliId || currentUser.bubliId || null,
+                name: member.name || currentUser.name,
+              }
+            : member;
+        });
+        setState({ board, currentUserId: currentUser.id, kind: "ready", members, room });
+      };
+
+      const membersTimeoutMs = await readWindowsWorkMembersTimeoutMs();
+      const membersPage = await withWorkMembersDeadline(membersPromise, membersTimeoutMs);
       setActiveProjectRoomId(room.id, room.name);
-      setState({ board, currentUserId: currentUser.id, kind: "ready", members, room });
+      applyReadyState(membersPage);
+
+      if (!membersPage) {
+        void membersPromise.then((resolvedMembersPage) => {
+          if (!resolvedMembersPage) return;
+          setState((current): WorkReadyState | WorkPageState => {
+            if (current.kind !== "ready" || current.room.id !== room.id) return current;
+            const members = resolvedMembersPage.items.map((member) => {
+              const isCurrentUser =
+                member.userId === currentUser.id ||
+                (Boolean(member.bubliId) && member.bubliId?.toLowerCase() === currentUser.bubliId.toLowerCase());
+
+              return isCurrentUser
+                ? {
+                    ...member,
+                    avatarUrl: member.avatarUrl || currentUser.avatarUrl || null,
+                    bubliId: member.bubliId || currentUser.bubliId || null,
+                    name: member.name || currentUser.name,
+                  }
+                : member;
+            });
+            return { ...current, members };
+          });
+        }).catch((error: unknown) => {
+          if (error instanceof ApiClientError && error.status === 401) {
+            setState({ kind: "auth" });
+          }
+        });
+      }
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         setState({ kind: "auth" });
