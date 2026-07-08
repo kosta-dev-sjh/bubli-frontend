@@ -607,6 +607,30 @@
   padding: 0 2px;
 }
 
+/* 친구 관리 화면 내부 스크롤 — 내 ID/검색/친구 목록/요청 카드가 창 높이를 넘으면
+   여기서만 스크롤한다. 상위 .tauriShell이 overflow:hidden이라 이게 없으면
+   하단 카드가 그냥 잘려서 안 보였다. */
+.friendsScroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 -2px;
+  padding: 0 2px;
+}
+
+.friendsScroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.friendsScroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(107, 143, 168, 0.28);
+}
+
 .todoScroll::-webkit-scrollbar {
   width: 6px;
 }
@@ -2667,6 +2691,13 @@
   background: color-mix(in srgb, var(--acc) 18%, transparent);
 }
 
+/* 마이크 버튼 — 눌러도 아무 변화가 없어 보이던 걸 실제 음소거 상태로 색/아이콘을 바꿔 반영한다. */
+.voiceStrip button[data-muted="true"] {
+  opacity: 1;
+  color: var(--color-destructive);
+  background: color-mix(in srgb, var(--color-destructive) 14%, transparent);
+}
+
 .itemActions {
   display: inline-flex;
   align-items: center;
@@ -2719,10 +2750,13 @@
   display: inline-flex;
 }
 
+/* 전화 아이콘 아래가 아니라 왼쪽에 붙인다 — 버튼 바로 밑에 뜨면 메시지 스레드 위로
+   겹쳐 보였다. 오른쪽 끝(전화 아이콘)에 붙여 그리드 흐름 밖에서 왼쪽으로 자라게 한다. */
 .chatHeadVoiceStatus {
   position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
+  top: 50%;
+  right: calc(100% + 6px);
+  transform: translateY(-50%);
   padding: 3px 7px;
   border-radius: 999px;
   border: 1px solid var(--widget-hairline);
@@ -2833,6 +2867,12 @@
 
 .voiceParticipant[data-speaking="true"] {
   animation: widgetVoiceSpeakingPulse 900ms ease-out infinite;
+}
+
+/* 상대방 마이크 상태 — 켜져있는지 꺼져있는지 몰라 답답하던 부분. 이니셜 대신 음소거 아이콘으로 바꾼다. */
+.voiceParticipant[data-muted="true"] {
+  background: color-mix(in srgb, var(--color-destructive) 22%, rgba(120, 130, 140, 0.3));
+  color: var(--color-destructive);
 }
 
 @keyframes widgetVoiceSpeakingPulse {
