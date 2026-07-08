@@ -56,9 +56,9 @@ const ko = {
 
   // 발신 중(링백) 팝업
   "layout.voiceCall.outgoingAria": "발신 중인 보이스 통화",
-  "layout.voiceCall.outgoingHint": "전화를 거는 중이에요",
+  "layout.voiceCall.outgoingHint": "보이스 통화를 거는 중이에요",
   "layout.voiceCall.cancel": "취소",
-  "layout.voiceCall.declinedNotice": "상대가 전화를 거절했습니다",
+  "layout.voiceCall.declinedNotice": "상대가 보이스 통화를 거절했습니다",
 
   // 새 메시지 미리보기 토스트
   "layout.messageToast.dismiss": "닫기",
