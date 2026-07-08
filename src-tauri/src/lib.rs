@@ -1333,8 +1333,12 @@ fn onboarding_overlay_window_geometry(
 
     #[cfg(target_os = "windows")]
     {
-        let width = ONBOARDING_OVERLAY_WINDOW_WIDTH.min(monitor_width).max(360.0);
-        let height = ONBOARDING_OVERLAY_WINDOW_HEIGHT.min(monitor_height).max(520.0);
+        let width = ONBOARDING_OVERLAY_WINDOW_WIDTH
+            .min(monitor_width)
+            .max(360.0);
+        let height = ONBOARDING_OVERLAY_WINDOW_HEIGHT
+            .min(monitor_height)
+            .max(520.0);
         let x = origin_x + ((monitor_width - width) / 2.0).max(0.0);
         let y = origin_y + ((monitor_height - height) / 2.0).max(0.0);
         return Ok((LogicalPosition::new(x, y), LogicalSize::new(width, height)));
@@ -3927,6 +3931,27 @@ fn set_widget_interactive_rects(
         state.rects = input.rects;
     })
     .ok_or_else(|| "widget pointer state lock failed".to_string())?;
+
+    #[cfg(target_os = "windows")]
+    if !widget_manual_click_through(&app, &label) {
+        let desired = widget_pointer_should_ignore(&window, &label);
+        let changed = with_widget_pointer_state(&label, |state| {
+            if state.last_applied_ignore == Some(desired) {
+                false
+            } else {
+                state.last_applied_ignore = Some(desired);
+                true
+            }
+        })
+        .unwrap_or(false);
+
+        if changed {
+            window
+                .set_ignore_cursor_events(desired)
+                .map_err(|error| error.to_string())?;
+        }
+    }
+
     spawn_widget_pointer_poller(&app, label);
     Ok(())
 }
