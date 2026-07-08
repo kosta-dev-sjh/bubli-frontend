@@ -19,6 +19,7 @@ const files = {
   appShell: "src/components/layout/app-shell.tsx",
   appChat: "src/app/(workspace)/app/chat/page.tsx",
   appAgent: "src/app/(workspace)/app/agent/page.tsx",
+  projectRoomsPage: "src/app/(workspace)/app/project-rooms/page.tsx",
   projectRoomWorkRoute: "src/app/(workspace)/app/project-rooms/[roomId]/work/page.tsx",
   workspaceDashboard: "src/features/dashboard/components/workspace-dashboard.tsx",
   apiClient: "src/lib/api/client.ts",
@@ -29,6 +30,7 @@ const files = {
   activityClient: "src/lib/local/activity-client.ts",
   authenticatedSurfaces: "src/lib/tauri/authenticated-surfaces.ts",
   startupOptimization: "src/lib/tauri/startup-optimization.ts",
+  windowsRouteCache: "src/lib/tauri/windows-route-cache.ts",
   chatWidgetRouting: "src/lib/tauri/chat-widget-routing.ts",
   chatRealtime: "src/lib/websocket/chat-realtime.ts",
   desktopWidgetPage: "src/app/desktop-widget/page.tsx",
@@ -205,12 +207,14 @@ const localAutoSyncSoak = read(files.localAutoSyncSoak);
 const windowsRuntimeSoak = read(files.windowsRuntimeSoak);
 const surfaces = read(files.authenticatedSurfaces);
 const startupOptimization = read(files.startupOptimization);
+const windowsRouteCache = read(files.windowsRouteCache);
 const chatWidgetRouting = read(files.chatWidgetRouting);
 const chatRealtime = read(files.chatRealtime);
 const appNav = read(files.appNav);
 const appShell = read(files.appShell);
 const appChat = read(files.appChat);
 const appAgent = read(files.appAgent);
+const projectRoomsPage = read(files.projectRoomsPage);
 const projectRoomWorkRoute = read(files.projectRoomWorkRoute);
 const workspaceDashboard = read(files.workspaceDashboard);
 const apiClient = read(files.apiClient);
@@ -279,6 +283,26 @@ assertContains(
   appChat,
   /isWindowsTauriRuntime[\s\S]*const messagesRequest = chatApi\.getMessages\(chatRoomId, \{ size: 40 \}\)[\s\S]*if \(isWindowsTauriRuntime\(\)\) \{[\s\S]*readCachedRoomMessages\(chatRoomId, 40\)[\s\S]*setMessagesState\(\{ kind: "ready", messages: withAgentCommandMessages\(t, cachedMessages\) \}\)[\s\S]*const page = await messagesRequest[\s\S]*syncCachedRoomMessages\(chatRoomId, sortedMessages, 0\)/,
   "Windows Tauri chat messages must show cached SQLite messages before waiting on the server, then backfill with the latest server page.",
+);
+assertContains(
+  appChat,
+  /readWindowsChatRoomsCache[\s\S]*writeWindowsChatRoomsCache[\s\S]*const cachedRooms = await readWindowsChatRoomsCache\(\)[\s\S]*setRoomsState\(\{ kind: "ready", rooms: cachedRooms \}\)[\s\S]*setRoomsState\(\{ kind: "loading" \}\)[\s\S]*chatApi\.listRooms\(\)[\s\S]*void writeWindowsChatRoomsCache\(page\.items\)/,
+  "Windows Tauri chat room lists must render the recent successful room list before waiting on the server, then replace it with the latest server list.",
+);
+assertContains(
+  projectRoomsPage,
+  /readWindowsProjectRoomsCache[\s\S]*writeWindowsProjectRoomsCache[\s\S]*const cachedRooms = await readWindowsProjectRoomsCache\(\)[\s\S]*setState\(cachedRooms \? \{ kind: "ready", rooms: cachedRooms \} : \{ kind: "loading" \}\)[\s\S]*projectRoomApi\.list\(\)[\s\S]*void writeWindowsProjectRoomsCache\(page\.items\)/,
+  "Windows Tauri project room lists must render the recent successful room list before waiting on the server, then replace it with the latest server list.",
+);
+assertContains(
+  windowsRouteCache,
+  /WINDOWS_CHAT_ROOMS_CACHE_KEY[\s\S]*WINDOWS_PROJECT_ROOMS_CACHE_KEY[\s\S]*isWindowsTauriRuntime\(\)[\s\S]*tauriCommands\.readWidgetPref[\s\S]*isWindowsTauriRuntime\(\)[\s\S]*tauriCommands\.storeWidgetPref[\s\S]*readWindowsChatRoomsCache[\s\S]*writeWindowsChatRoomsCache[\s\S]*readWindowsProjectRoomsCache[\s\S]*writeWindowsProjectRoomsCache/,
+  "Windows route caches must use Tauri SQLite widget preferences instead of browser localStorage.",
+);
+assertContains(
+  appShell,
+  /writeWindowsChatRoomsCache[\s\S]*writeWindowsProjectRoomsCache[\s\S]*void writeWindowsProjectRoomsCache\(roomPage\.items\)[\s\S]*void writeWindowsProjectRoomsCache\(roomPage\.value\.items\)[\s\S]*chatApi[\s\S]*\.listRooms\(\)[\s\S]*writeWindowsChatRoomsCache\(page\.items\)/,
+  "AppShell must prewarm Windows route caches so first navigation does not wait on room-list server calls.",
 );
 assertContains(
   projectRoomWorkRoute,

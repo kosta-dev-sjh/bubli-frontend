@@ -11,6 +11,7 @@ import { useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { projectRoomRoute } from "@/lib/project-room-routes";
+import { readWindowsProjectRoomsCache, writeWindowsProjectRoomsCache } from "@/lib/tauri/windows-route-cache";
 import { setActiveProjectRoomId } from "@/lib/workspace-active-room";
 import { shouldUseWorkspacePreviewData, workspacePreviewRooms } from "@/lib/workspace-preview-data";
 import type { ProjectRoomResponse } from "@/types/api/projectRoom";
@@ -55,10 +56,14 @@ export default function ProjectRoomsPage() {
 
   const loadRooms = useCallback(async (options?: { quiet?: boolean }) => {
     // quiet 재조회(스위처 생성/포커스 복귀)는 기존 목록을 유지해 화면 깜빡임을 막는다.
-    if (!options?.quiet) setState({ kind: "loading" });
+    if (!options?.quiet) {
+      const cachedRooms = await readWindowsProjectRoomsCache();
+      setState(cachedRooms ? { kind: "ready", rooms: cachedRooms } : { kind: "loading" });
+    }
 
     try {
       const page = await projectRoomApi.list();
+      void writeWindowsProjectRoomsCache(page.items);
       setState({ kind: "ready", rooms: page.items });
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
