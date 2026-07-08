@@ -137,6 +137,15 @@ function delay(ms: number) {
   return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 }
 
+function windowsStartupBound<T>(
+  startupConfig: TauriStartupOptimizationConfig,
+  promise: Promise<T>,
+  message: string,
+) {
+  if (startupConfig.profile !== "windows" || startupConfig.settingsTimeoutMs <= 0) return promise;
+  return withTimeout(promise, startupConfig.settingsTimeoutMs, message);
+}
+
 function widgetTargetFromInput(input: WidgetWindowOpenInput) {
   return {
     bubbleType: input.bubbleType,
@@ -306,12 +315,19 @@ export async function resolveLoginStartupWindows(): Promise<WidgetWindowOpenInpu
 }
 
 async function resolveLaunchSelectedRoomId() {
-  const context = await widgetApi.getContext().catch(() => null);
+  const startupConfig = await readTauriStartupOptimizationConfig();
+  const context = await windowsStartupBound(
+    startupConfig,
+    widgetApi.getContext(),
+    "Tauri widget context lookup timed out",
+  ).catch(() => null);
   if (context?.selectedRoomId) {
     seedActiveProjectRoomId(context.selectedRoomId);
-    await tauriCommands
-      .storeActiveProjectRoom({ roomId: context.selectedRoomId, roomLabel: null })
-      .catch(() => undefined);
+    await windowsStartupBound(
+      startupConfig,
+      tauriCommands.storeActiveProjectRoom({ roomId: context.selectedRoomId, roomLabel: null }),
+      "Tauri active room cache write timed out",
+    ).catch(() => undefined);
     return context.selectedRoomId;
   }
 
@@ -320,18 +336,32 @@ async function resolveLaunchSelectedRoomId() {
 
   const restored = await restoreActiveProjectRoomFromTauri().catch(() => null);
   if (restored?.roomId) {
-    await widgetApi.updateContext({ selectedRoomId: restored.roomId }).catch(() => undefined);
+    await windowsStartupBound(
+      startupConfig,
+      widgetApi.updateContext({ selectedRoomId: restored.roomId }),
+      "Tauri widget context restore sync timed out",
+    ).catch(() => undefined);
     return restored.roomId;
   }
 
-  const roomPage = await projectRoomApi.list().catch(() => null);
+  const roomPage = await windowsStartupBound(
+    startupConfig,
+    projectRoomApi.list(),
+    "Tauri project room fallback lookup timed out",
+  ).catch(() => null);
   const firstRoom = roomPage?.items[0];
   if (firstRoom?.id) {
     seedActiveProjectRoomId(firstRoom.id, firstRoom.name);
-    await tauriCommands
-      .storeActiveProjectRoom({ roomId: firstRoom.id, roomLabel: firstRoom.name })
-      .catch(() => undefined);
-    await widgetApi.updateContext({ selectedRoomId: firstRoom.id }).catch(() => undefined);
+    await windowsStartupBound(
+      startupConfig,
+      tauriCommands.storeActiveProjectRoom({ roomId: firstRoom.id, roomLabel: firstRoom.name }),
+      "Tauri first room cache write timed out",
+    ).catch(() => undefined);
+    await windowsStartupBound(
+      startupConfig,
+      widgetApi.updateContext({ selectedRoomId: firstRoom.id }),
+      "Tauri first room context sync timed out",
+    ).catch(() => undefined);
     return firstRoom.id;
   }
 
