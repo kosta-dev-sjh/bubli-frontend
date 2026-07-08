@@ -4650,6 +4650,12 @@ fn app_ready(
 
         if let Some(widget) = widget {
             apply_widget_window_state(&app, &monitor_state, &widget)?;
+            // 새로 빌드되는 창은 DOM이 준비될 때(여기, app_ready)까지 실제로는 안 보이는 상태였다
+            // (build 직후 raise_widget_window를 불러도 그때는 창이 아직 안 떠 있어 소용없었다).
+            // 그래서 지금 막 처음 보이게 된 이 시점에 최상단 강제 노출을 한 번 더 해줘야, 소통
+            // 위젯이 꺼져 있다가 전화가 와서 새로 열리는 경우에도 다른 앱 위로 튀어나온다.
+            #[cfg(target_os = "macos")]
+            raise_widget_window(&app, &widget);
         } else if !window.is_visible().unwrap_or(false) {
             window.show().map_err(|error| error.to_string())?;
         }
