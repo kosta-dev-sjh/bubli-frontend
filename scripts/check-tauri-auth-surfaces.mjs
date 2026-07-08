@@ -11,6 +11,7 @@ const files = {
   publicLandingNav: "src/features/public-site/components/landing-nav.tsx",
   personalResourceWorkspace: "src/features/resources/components/personal-resource-workspace.tsx",
   roomResourceWorkspace: "src/features/resources/components/room-resource-workspace.tsx",
+  resourceBoardCommon: "src/features/resources/components/resource-board-common.tsx",
   desktopAppDownload: "src/features/download/components/desktop-app-download.tsx",
   settingsPage: "src/app/(workspace)/app/settings/page.tsx",
   calendarPage: "src/app/(workspace)/app/calendar/page.tsx",
@@ -175,6 +176,7 @@ const publicHero = read(files.publicHero);
 const publicLandingNav = read(files.publicLandingNav);
 const personalResourceWorkspace = read(files.personalResourceWorkspace);
 const roomResourceWorkspace = read(files.roomResourceWorkspace);
+const resourceBoardCommon = read(files.resourceBoardCommon);
 const desktopAppDownload = read(files.desktopAppDownload);
 const settingsPage = read(files.settingsPage);
 const calendarPage = read(files.calendarPage);
@@ -395,6 +397,11 @@ assertContains(
   roomResourceWorkspace,
   /readWindowsResourceInitialTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*withResourceInitialDeadline[\s\S]*const loadData = Promise\.all\([\s\S]*resourcesApi\.listRoomResources\(roomId\)[\s\S]*agentApi\.listRoomGeneratedDocuments\(roomId\)[\s\S]*const initialData = await withResourceInitialDeadline\(loadData, initialTimeoutMs\)[\s\S]*loadData\.then\(applyLoadedData\)/,
   "Windows Tauri room resources must switch out of loading after a bounded initial wait and finish slower resource collections in the background.",
+);
+assertContains(
+  resourceBoardCommon,
+  /readWindowsResourceDetailTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*withWindowsResourceDetailDeadline[\s\S]*const detailRequest = Promise\.allSettled\(\[[\s\S]*resourcesApi\.get\(resource\.id\)[\s\S]*resourcesApi\.getSummary\(resource\.id\)[\s\S]*resourcesApi\.getVersions\(resource\.id\)[\s\S]*resourcesApi\.getComments\(resource\.id\)[\s\S]*resourcesApi\.getRelated\(resource\.id\)[\s\S]*withWindowsResourceDetailDeadline<Awaited<typeof detailRequest> \| null>\(detailRequest, timeoutMs, null\)[\s\S]*setDetailLoading\(false\)[\s\S]*detailRequest\.then\(applyDetailResults\)/,
+  "Windows Tauri resource detail panels must stop showing detail loading after a bounded wait and backfill slower summary/version/comment/related data.",
 );
 assertContains(
   settingsPage,
