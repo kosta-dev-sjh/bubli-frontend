@@ -983,6 +983,7 @@ function CalendarPageContent() {
   const autoSyncInFlightRef = useRef(false);
   const lastAutoSyncAtRef = useRef(0);
   const lastFocusRefreshAtRef = useRef(0);
+  const previousGoogleConnectedRef = useRef(false);
   const autoSyncToGoogle = async (options?: { force?: boolean }) => {
     if (!googleConnected || autoSyncInFlightRef.current) return;
     const nowMs = Date.now();
@@ -1010,6 +1011,17 @@ function CalendarPageContent() {
     }
   };
 
+  const refreshGoogleAfterMutation = () => {
+    clearGoogleEventsCache();
+    if (!googleConnected) {
+      void loadEvents({ quiet: true });
+      return;
+    }
+    void autoSyncToGoogle({ force: true }).finally(() => {
+      void loadGoogleEvents({ force: true, quiet: true });
+    });
+  };
+
   // 진입/월 이동 시 자동 동기화 — 최신 콜백을 ref로 잡아 디바운스하되, 최소 간격으로 Google API 호출을 제한한다.
   const autoSyncRef = useRef(autoSyncToGoogle);
   useEffect(() => {
@@ -1017,9 +1029,22 @@ function CalendarPageContent() {
   });
   useEffect(() => {
     if (!googleConnected) return;
-    const timeoutId = window.setTimeout(() => void autoSyncRef.current(), 500);
+    const timeoutId = window.setTimeout(() => void autoSyncRef.current({ force: true }), 500);
     return () => window.clearTimeout(timeoutId);
   }, [googleConnected, range.start, range.end]);
+
+  useEffect(() => {
+    const wasConnected = previousGoogleConnectedRef.current;
+    previousGoogleConnectedRef.current = googleConnected;
+    if (!googleConnected || wasConnected) return;
+
+    const timeoutId = window.setTimeout(() => {
+      clearGoogleEventsCache();
+      void autoSyncRef.current({ force: true });
+      void loadGoogleEvents({ force: true, quiet: true });
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [googleConnected, loadGoogleEvents]);
 
   // 오래 쉬다 돌아왔을 때는 버튼을 누르지 않아도 조용히 최신 상태를 확인한다.
   // 포커스 이벤트는 브라우저가 여러 번 쏘므로 1분에 한 번만 반응하고, 실제 sync는 별도 최소 간격을 따른다.
@@ -1033,7 +1058,7 @@ function CalendarPageContent() {
       lastFocusRefreshAtRef.current = nowMs;
       void loadEvents({ quiet: true });
       void loadGoogleEvents({ force: true, quiet: true });
-      void autoSyncRef.current();
+      void autoSyncRef.current({ force: true });
     };
 
     window.addEventListener("focus", refreshOnReturn);
@@ -1053,6 +1078,7 @@ function CalendarPageContent() {
         const connection = await startGoogleCalendarConnect();
         if (connection?.status === "ACTIVE") {
           clearGoogleEventsCache();
+          lastAutoSyncAtRef.current = 0;
           setGoogleConnection({ kind: "connected", value: connection });
           setGoogleNotice(t("calendar.google.connected"));
           void loadEvents({ quiet: true });
@@ -1166,6 +1192,7 @@ function CalendarPageContent() {
           : await calendarApi.updateEvent(editingEventId, updateBody);
         updateEventInState(updated);
         notifyDataChanged("schedule", { source: CALENDAR_PAGE_EVENT_SOURCE });
+        refreshGoogleAfterMutation();
         setDraftNotice(t("calendar.draft.updated"));
       } else {
         const created = await calendarApi.createEvent({
@@ -1178,6 +1205,7 @@ function CalendarPageContent() {
         });
         updateEventInState(created);
         notifyDataChanged("schedule", { source: CALENDAR_PAGE_EVENT_SOURCE });
+        refreshGoogleAfterMutation();
         // 룸 일정인데 구글 연동은 됐지만 동기화가 실패했다면(대개 룸 캘린더 생성 권한 없음),
         // 재연결 안내를 띄우고 작성기를 닫지 않는다 — 룸 이름의 구글 캘린더가 안 만들어지는 원인.
         if (created.roomId && googleConnected && created.syncStatus === "SYNC_FAILED") {
@@ -1185,8 +1213,6 @@ function CalendarPageContent() {
           return;
         }
         setDraftNotice(t("calendar.draft.added"));
-        // 동의(연동)된 상태면 수동 "보내기" 없이 자동으로 구글에 반영한다.
-        autoSyncToGoogle();
       }
       closeComposer();
     } catch (error) {
@@ -1218,6 +1244,7 @@ function CalendarPageContent() {
       }
       removeEventFromState(event.id);
       notifyDataChanged("schedule", { source: CALENDAR_PAGE_EVENT_SOURCE });
+      refreshGoogleAfterMutation();
       if (editingEventId === event.id) {
         closeComposer();
       }
