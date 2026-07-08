@@ -2686,6 +2686,29 @@
   opacity: 0.4;
 }
 
+/* 보이스 시작 버튼을 감싸서 상태 문구("Voice ready" 등)를 그리드 흐름 밖에 붙여둔다 —
+   그리드 자식으로 넣으면 4번째 요소가 다음 줄로 밀리는 문제가 다시 생긴다. */
+.chatHeadVoiceAction {
+  position: relative;
+  display: inline-flex;
+}
+
+.chatHeadVoiceStatus {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  padding: 3px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--widget-hairline);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--widget-muted);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: var(--inner-highlight-light, inset 0 1px 0 rgba(255, 255, 255, 0.9));
+  z-index: 2;
+}
+
 .chatPeople {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
