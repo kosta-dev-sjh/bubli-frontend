@@ -47,6 +47,7 @@ import { voiceStore } from "@/lib/voice-store";
 import { startCallRingtone, stopCallRingtone } from "@/lib/sound/call-sound";
 import { playNotificationSound } from "@/lib/sound/notification-sound";
 import { isWindowsTauriRuntime } from "@/lib/tauri/platform";
+import { readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
 import { readWindowsChatRoomsCache, writeWindowsChatRoomsCache } from "@/lib/tauri/windows-route-cache";
 import {
   ACTIVE_PROJECT_ROOM_CHANGE_EVENT,
@@ -183,6 +184,35 @@ const previewFriendRequests: FriendRequestResponse[] = [
 ];
 
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
+
+const WINDOWS_CHAT_AUX_DELAY_MS = 350;
+const WINDOWS_CHAT_INVITATION_DELAY_MS = 650;
+const WINDOWS_CHAT_AUX_POLL_INTERVAL_MS = 30_000;
+
+async function readWindowsChatAuxTimeoutMs() {
+  if (!isWindowsTauriRuntime()) return 0;
+
+  const startupConfig = await readTauriStartupOptimizationConfig().catch(() => null);
+  if (startupConfig?.profile !== "windows") return 0;
+  return startupConfig.settingsTimeoutMs;
+}
+
+function withWindowsChatAuxDeadline<T>(request: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+  if (timeoutMs <= 0 || typeof window === "undefined") return request;
+
+  let timeoutId: number | null = null;
+  const timeout = new Promise<T>((resolve) => {
+    timeoutId = window.setTimeout(() => resolve(fallback), timeoutMs);
+  });
+
+  return Promise.race([request, timeout]).finally(() => {
+    if (timeoutId !== null) window.clearTimeout(timeoutId);
+  });
+}
+
+function windowsChatAuxDelayMs(delayMs = WINDOWS_CHAT_AUX_DELAY_MS) {
+  return isWindowsTauriRuntime() ? delayMs : 0;
+}
 
 // 컴포저 이모지 피커에 노출하는 기본 이모지 세트(외부 의존성 없이 하드코딩).
 const composerEmojis = [
@@ -1039,7 +1069,13 @@ function ChatPageContent() {
   const loadSocial = useCallback(async () => {
     setSocialState({ kind: "loading" });
 
-    const [friends, requests] = await Promise.allSettled([friendApi.listFriends(), friendApi.listRequests()]);
+    const friendsRequest = friendApi.listFriends();
+    const requestsRequest = friendApi.listRequests();
+    const windowsTimeoutMs = await readWindowsChatAuxTimeoutMs();
+    const [friends, requests] = await Promise.allSettled([
+      withWindowsChatAuxDeadline(friendsRequest, windowsTimeoutMs, []),
+      withWindowsChatAuxDeadline(requestsRequest, windowsTimeoutMs, []),
+    ]);
 
     if (friends.status === "rejected" && requests.status === "rejected") {
       if (shouldUseWorkspacePreviewData()) {
@@ -1055,6 +1091,17 @@ function ChatPageContent() {
       kind: "ready",
       requests: requests.status === "fulfilled" ? requests.value : [],
     });
+
+    if (windowsTimeoutMs > 0) {
+      void Promise.allSettled([friendsRequest, requestsRequest]).then(([latestFriends, latestRequests]) => {
+        if (latestFriends.status === "rejected" && latestRequests.status === "rejected") return;
+        setSocialState({
+          friends: latestFriends.status === "fulfilled" ? latestFriends.value : [],
+          kind: "ready",
+          requests: latestRequests.status === "fulfilled" ? latestRequests.value : [],
+        });
+      });
+    }
   }, []);
 
   const loadRoomInvitations = useCallback(async () => {
@@ -1066,8 +1113,21 @@ function ChatPageContent() {
     setRoomInvitationsState({ kind: "loading" });
 
     try {
-      const page = await projectRoomApi.getInvitations(selectedProjectRoomId);
+      const invitationsRequest = projectRoomApi.getInvitations(selectedProjectRoomId);
+      const windowsTimeoutMs = await readWindowsChatAuxTimeoutMs();
+      const page = await withWindowsChatAuxDeadline(invitationsRequest, windowsTimeoutMs, {
+        hasNext: false,
+        items: [],
+        page: 0,
+        size: 0,
+        totalPages: 0,
+      });
       setRoomInvitationsState({ invitations: page.items, kind: "ready" });
+      if (windowsTimeoutMs > 0) {
+        void invitationsRequest
+          .then((latest) => setRoomInvitationsState({ invitations: latest.items, kind: "ready" }))
+          .catch(() => undefined);
+      }
     } catch {
       setRoomInvitationsState({ kind: "offline" });
     }
@@ -1077,7 +1137,16 @@ function ChatPageContent() {
     setProfileState({ kind: "loading" });
 
     try {
-      const user = await authApi.getMe();
+      const userRequest = authApi.getMe();
+      const windowsTimeoutMs = await readWindowsChatAuxTimeoutMs();
+      const user = await withWindowsChatAuxDeadline<AuthUser | null>(userRequest, windowsTimeoutMs, null);
+      if (!user) {
+        setProfileState({ kind: "offline" });
+        void userRequest
+          .then((latestUser) => setProfileState({ kind: "ready", user: latestUser }))
+          .catch(() => undefined);
+        return;
+      }
       setProfileState({ kind: "ready", user });
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
@@ -1103,7 +1172,7 @@ function ChatPageContent() {
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       void loadSocial();
-    }, 0);
+    }, windowsChatAuxDelayMs());
 
     return () => window.clearTimeout(timeoutId);
   }, [loadSocial]);
@@ -1150,7 +1219,7 @@ function ChatPageContent() {
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       void loadProfile();
-    }, 0);
+    }, windowsChatAuxDelayMs());
 
     return () => window.clearTimeout(timeoutId);
   }, [loadProfile]);
@@ -1158,8 +1227,13 @@ function ChatPageContent() {
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       void loadRoomInvitations();
-    }, 0);
-    const interval = window.setInterval(() => { void loadRoomInvitations(); }, 15000);
+    }, windowsChatAuxDelayMs(WINDOWS_CHAT_INVITATION_DELAY_MS));
+    const interval = window.setInterval(
+      () => {
+        void loadRoomInvitations();
+      },
+      isWindowsTauriRuntime() ? WINDOWS_CHAT_AUX_POLL_INTERVAL_MS : 15000,
+    );
 
     return () => {
       window.clearTimeout(timeoutId);
@@ -1231,8 +1305,18 @@ function ChatPageContent() {
         setRoomsState({ kind: "ready", rooms: page.items });
       } catch { /* 폴링 실패 시 무시 */ }
     };
-    const socialInterval = window.setInterval(() => { void pollSocial(); }, 12000);
-    const roomsInterval = window.setInterval(() => { void pollRooms(); }, 20000);
+    const socialInterval = window.setInterval(
+      () => {
+        void pollSocial();
+      },
+      isWindowsTauriRuntime() ? WINDOWS_CHAT_AUX_POLL_INTERVAL_MS : 12000,
+    );
+    const roomsInterval = window.setInterval(
+      () => {
+        void pollRooms();
+      },
+      isWindowsTauriRuntime() ? WINDOWS_CHAT_AUX_POLL_INTERVAL_MS : 20000,
+    );
     return () => {
       window.clearInterval(socialInterval);
       window.clearInterval(roomsInterval);
