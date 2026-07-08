@@ -87,6 +87,7 @@ export const TAURI_COMMANDS = {
   setFolderSync: "set_folder_sync",
   setWidgetAlwaysOnTop: "set_widget_always_on_top",
   setWidgetClickThrough: "set_widget_click_through",
+  setWidgetFloatsOverFullscreen: "set_widget_floats_over_fullscreen",
   setWidgetInteractiveRects: "set_widget_interactive_rects",
   setWidgetRoomContext: "set_widget_room_context",
   setWidgetWindowMode: "set_widget_window_mode",
@@ -1250,6 +1251,10 @@ export type TauriCommandContract = {
     args: WidgetBooleanInput;
     result: WidgetWindowState;
   };
+  set_widget_floats_over_fullscreen: {
+    args: WidgetBooleanInput;
+    result: null;
+  };
   set_widget_interactive_rects: {
     args: WidgetInteractiveRectsInput;
     result: null;
@@ -1599,6 +1604,9 @@ export const tauriCommands = {
   },
   setWidgetClickThrough(input: WidgetBooleanInput) {
     return invokeTauri<WidgetWindowState>(TAURI_COMMANDS.setWidgetClickThrough, { input });
+  },
+  setWidgetFloatsOverFullscreen(input: WidgetBooleanInput) {
+    return invokeTauri<null>(TAURI_COMMANDS.setWidgetFloatsOverFullscreen, { input });
   },
   setWidgetInteractiveRects(input: WidgetInteractiveRectsInput) {
     return invokeTauri<null>(TAURI_COMMANDS.setWidgetInteractiveRects, { input });
