@@ -982,7 +982,6 @@ function buildDisplayBubbles(input: {
   const label = roomLabel(t, input.room, input.roomId);
   const isRoomScoped = Boolean(input.roomId);
   const agentRoute = roomScopedRoute("/app/agent", input.roomId);
-  const chatRoute = input.roomId ? `/app/project-rooms/${encodeURIComponent(input.roomId)}/chat` : "/app/chat";
   const scheduleRoute = roomScopedRoute("/app/calendar", input.roomId);
   const personalScheduleRoute = roomScopedRoute("/app/calendar", null);
   // 실행 중(또는 일시정지) 타이머는 사용자당 1개뿐이라, 위젯 스코프와 무관하게 타이머 버블에 항상 노출한다.
@@ -1300,10 +1299,11 @@ function buildDisplayBubbles(input: {
               },
             ]
           : []),
+        // handoffUrl을 안 준다 — 이 rows는 바 hover 미리보기/최소화 배지용이고, 실제 스레드
+        // 화면은 messageThread(전체 대화)를 따로 그린다. 예전엔 여기 handoffUrl이 있어서
+        // ChatBody의 handoffItem(.find(item => item.handoffUrl))이 최신 메시지를 집어다가
+        // 스레드 위에 "발신자: 내용" 칩으로 중복 표시했다.
         ...input.messages.slice(0, 3).map((item) => ({
-          dismissOnOpen: false,
-          handoffLabel: formatShortTime(item.createdAt),
-          handoffUrl: chatRoute,
           id: item.id,
           kind: "message" as const,
           label: `${item.sender.name}: ${messageText(item)}`,

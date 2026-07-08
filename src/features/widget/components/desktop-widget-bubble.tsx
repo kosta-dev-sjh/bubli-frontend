@@ -1193,6 +1193,9 @@ function ChatBody({
   const [draft, setDraft] = useState("");
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
   const [statusText, setStatusText] = useState<string | null>(null);
+  // 보이스 상태 문구("Voice ready" 등)는 메시지 전송 상태문구와 분리해 보이스 아이콘 옆에만
+  // 작게 뜨게 한다 — 예전엔 같은 statusText를 같이 써서 대화 내용 위쪽에 걸쳐 보였다.
+  const [voiceStatusText, setVoiceStatusText] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [voiceSubmitting, setVoiceSubmitting] = useState(false);
   const composerInputRef = useRef<HTMLInputElement | null>(null);
@@ -1288,12 +1291,12 @@ function ChatBody({
     if (!handler || voiceSubmitting) return;
 
     setVoiceSubmitting(true);
-    setStatusText(null);
+    setVoiceStatusText(null);
     try {
       await handler(bubble);
-      setStatusText(action === "start" ? "Voice ready" : action === "leave" ? "Voice left" : "Mic updated");
+      setVoiceStatusText(action === "start" ? "Voice ready" : action === "leave" ? "Voice left" : "Mic updated");
     } catch {
-      setStatusText(action === "start" ? "Voice failed" : action === "leave" ? "Leave failed" : "Mic failed");
+      setVoiceStatusText(action === "start" ? "Voice failed" : action === "leave" ? "Leave failed" : "Mic failed");
     } finally {
       setVoiceSubmitting(false);
     }
@@ -1422,14 +1425,17 @@ function ChatBody({
         )}
         <span>{t(bubble.panelLabel as MessageKey)}</span>
         {!voiceOpen ? (
-          <button
-            aria-label={t("widget.chat.startVoice")}
-            disabled={(!bubble.roomId && !bubble.chatRoomId) || voiceSubmitting}
-            onClick={() => void runVoiceAction("start")}
-            type="button"
-          >
-            <Phone size={13} strokeWidth={2} />
-          </button>
+          <span className={styles.chatHeadVoiceAction}>
+            <button
+              aria-label={t("widget.chat.startVoice")}
+              disabled={(!bubble.roomId && !bubble.chatRoomId) || voiceSubmitting}
+              onClick={() => void runVoiceAction("start")}
+              type="button"
+            >
+              <Phone size={13} strokeWidth={2} />
+            </button>
+            {voiceStatusText ? <small className={styles.chatHeadVoiceStatus}>{voiceStatusText}</small> : null}
+          </span>
         ) : null}
       </div>
       {voiceOpen ? (
@@ -3885,7 +3891,10 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
   const isPreview = presentation === "preview";
   const activeLabel = t(active.label);
   const activeRoomLabel = t(activeData.roomLabel as MessageKey);
-  const showHeaderContextLabel = activeBubble !== "alert";
+  // chat 버블은 창 헤더에 부제(방 라벨/최근 활동)를 안 보여준다 — 채팅 창 자체 헤더에 이미
+  // 상대/방 이름이 떠 있어서 창 헤더 부제까지 겹치면 중복이고, 위젯 아이콘 밑에 최근 메시지가
+  // 붙어 보여 이상했다.
+  const showHeaderContextLabel = activeBubble !== "alert" && activeBubble !== "chat";
   const shellRef = useRef<HTMLElement | null>(null);
   // 고스트 콘텐츠를 감싸 실제 렌더 크기를 재고, 그 크기에 맞춰 창을 조절한다(줄바꿈 없이 다 보이게).
   const ghostContentRef = useRef<HTMLDivElement | null>(null);
