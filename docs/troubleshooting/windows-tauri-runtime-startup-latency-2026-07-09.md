@@ -59,17 +59,17 @@ This is the working engineering version of the Windows/macOS runtime-difference 
 | --- | --- | --- | --- |
 | macOS transitions felt faster than the Windows installed build | macOS WKWebView and Windows Edge WebView2 have different startup/window creation costs, so the same early workload is more expensive on Windows | Treated this as Tauri cross-platform runtime adaptation, not just generic frontend optimization | Full runtime smoke now reports phase-level progress instead of a single timeout |
 | Windows first authenticated screen waited before becoming usable | WebView initialization, auth session restoration, app-shell data fetches, dashboard data, widget context, and notification requests could compete during the first render window | Reordered startup expectations around auth readiness first, then widget bar/menu readiness, then heavier widget data hydration | Real installed OAuth QA reached `/app/`, `/api/me`, widget context, and widget summary successfully |
-| Several widget windows appeared or restored in a confusing way on Windows | Windows startup was paying for too many widget WebViews and restore paths at once; QA also expected every widget bubble to be visible immediately | Updated the intended Windows startup model: bar/menu first, standalone bubbles as restore items until explicitly opened | Installed QA showed bar restore items for expected widgets and matching room context, but the old QA assertion still failed because it expected every bubble window visible |
+| Several widget windows appeared or restored in a confusing way on Windows | Windows startup was paying for too many widget WebViews and restore paths at once; QA also expected every widget bubble to be visible immediately | Updated the intended Windows startup model: bar/menu first, standalone bubbles as restore items until explicitly opened | Installed QA now passes by proving restore readiness, room context consistency, and stop cleanup instead of requiring every bubble window to be visible at startup |
 | Notification panel showed old/read items and very high counts | Notification surfaces fetched broad notification history and filtered too late in the client | Added unread status filtering on frontend calls and backend notification API support | Backend `/api/notifications?status=UNREAD` companion patch merged; frontend unread surfaces no longer need broad history first |
 | Runtime smoke was hard to debug when it timed out | The smoke runner only failed at the end, so auth/widget/SQLite/sync stalls looked identical | Added progress events and preflight checks for existing `bubli.exe` | Failing reports now identify whether the issue is auth, widgets, local sync, or process state |
-| Installed-build local sync looked partially failed even when the explicit scan/watch probe passed | Background managed-folder loop status can retain a transient failure after file analysis while the targeted QA probe succeeds | Keep explicit local folder scan/watch/sync evidence separate from background loop status | Latest real installed QA proved scan, watch create/update/delete, search clearing, and SQLite quick_check, but still failed the final managed-folder status assertion |
+| Installed-build local sync looked partially failed even when the explicit scan/watch probe passed | Background managed-folder loop status can retain a transient failure after file analysis while the targeted QA probe succeeds | Keep explicit local folder scan/watch/sync evidence separate from background loop status | Latest real installed QA passes when explicit scan/watch/sync evidence proves zero scoped failures, even if the background loop still reports a transient failed status |
 
 The important distinction for future reports:
 
 - **Implemented**: startup contention was reduced by sequencing, deferred widget loading, unread notification filtering, and better runtime diagnostics.
 - **Automatically verified**: Windows runtime smoke and contract checks have passed on the code path they cover.
-- **Installed-build partially verified**: latest real OAuth installed QA reached the authenticated app and verified several backend/local paths.
-- **Not complete yet**: the installed QA assertion still needs to align with the Windows startup model where widget bubbles are restore items first, not all visible windows at startup.
+- **Installed-build verified for auth/widget/local sync**: latest real OAuth installed QA reached the authenticated app and verified backend widget APIs, restore-ready widgets, local SQLite, local folder scan/watch/sync, activity capture, widget usage sync, Tauri mirror session restore, and stop cleanup.
+- **Not complete yet**: cold/warm installed-build startup timing still needs to be measured before claiming a numeric speed improvement.
 - **Do not claim** a percentage speed improvement until cold/warm installed-build timing is measured.
 
 ## Frontend Changes In This Track
@@ -157,7 +157,6 @@ node scripts/check-tauri-oauth-live-contract.mjs
 Not yet verified as complete:
 
 - Actual installed-build startup timing before/after comparison.
-- A fully passing real OAuth installed QA after updating the widget-visibility and managed-folder status assertions to match the current Windows startup model.
 
 Verified after the latest Windows installer refresh:
 
@@ -167,17 +166,25 @@ Verified after the latest Windows installer refresh:
 - Repeated launch produced a single `bubli.exe` process, not duplicate app processes.
 - Landing download and deployed manifest served the latest refreshed Windows installer artifact.
 
-Partially verified by real installed OAuth QA:
+Verified by real installed OAuth QA:
 
 - Real TAURI OAuth session was used, not a development access-token session.
 - `/app/` was reached after login instead of returning to `/login`.
 - Backend `/api/me`, widget context, and widget summary responded successfully.
+- Widget startup restore readiness passed: the bar was visible, standalone widgets were available as restore items, and room context matched active/server context.
 - SQLite `quick_check` passed.
 - Local folder scan/watch/sync probe passed for create, update, delete, reindex, and search clearing.
 - Activity capture and widget usage sync reached the backend.
 - Session restore from the Tauri mirror was verified.
+- Stop cleanup hid widget windows and stopped sync loops.
 
-The run still failed because the QA contract expected all standalone widget bubbles to be visible immediately. Current Windows startup behavior is bar/menu first, with standalone widgets available through restore items. The QA assertion should prove restore readiness and room-context consistency rather than requiring every widget WebView to be visible at first launch.
+Installed real OAuth QA evidence:
+
+- Report: `.codex-runtime-logs/tauri-real-oauth-qa-2026-07-08T19-26-04-554Z.json`
+- Summary: `.codex-runtime-logs/tauri-real-oauth-qa-2026-07-08T19-26-04-554Z.md`
+- Runtime mode: `installed-release`
+- Backend base URL: `https://bubli.n-e.kr`
+- Status: passed
 
 Blocked or suspicious local verification:
 
