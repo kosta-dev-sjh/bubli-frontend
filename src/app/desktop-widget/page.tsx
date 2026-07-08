@@ -1626,6 +1626,7 @@ function resolveWidgetContextFromSummary(
 }
 
 type WidgetDisplaySummaryReadOptions = {
+  allowServerFallback?: boolean;
   refreshServerOnCacheHit?: boolean;
 };
 
@@ -1667,6 +1668,8 @@ async function readWidgetDisplaySummary(
       }
     }
   }
+
+  if (options.allowServerFallback === false) return null;
 
   const serverResult = await readWidgetSummary({ preferLocalCache: false, selectedRoomId: requestedRoomId }).catch(() => null);
   return serverResult?.status === "ready" ? serverResult.data : null;
@@ -2392,7 +2395,14 @@ function DesktopWidgetSurface() {
 
     async function loadDisplayApiState() {
       let selectedRoomId = selectedWidgetRoomId;
-      const summary = await readWidgetDisplaySummary(selectedRoomId, { refreshServerOnCacheHit: isBubbleBar });
+      const isWindowsStartupProfile = isTauri && startupOptimization.profile === "windows";
+      const loadFullDisplay = isBubbleBar && barFullDisplayReady;
+      const deferInitialWindowsBarServerLoad =
+        isWindowsStartupProfile && isBubbleBar && !loadFullDisplay && !displayLoadedOnceRef.current;
+      const summary = await readWidgetDisplaySummary(selectedRoomId, {
+        allowServerFallback: !deferInitialWindowsBarServerLoad,
+        refreshServerOnCacheHit: isBubbleBar && !deferInitialWindowsBarServerLoad,
+      });
       if (summary?.context) {
         selectedRoomId = selectedRoomId ?? (!widgetContextInitialized ? normalizeWidgetRoomId(summary.context.selectedRoomId) : null);
         if (!cancelled) {
@@ -2400,7 +2410,6 @@ function DesktopWidgetSurface() {
         }
       }
 
-      const loadFullDisplay = isBubbleBar && barFullDisplayReady;
       const shouldLoadBubbleData = (...bubbleTypes: WidgetBubbleType[]) =>
         loadFullDisplay || (!isWidgetChrome && bubbleTypes.includes(activeBubble));
       const deferBarAgentCollections =
@@ -2418,7 +2427,9 @@ function DesktopWidgetSurface() {
       const loadMemos = shouldLoadBubbleData("memo");
       const loadNotifications = shouldLoadBubbleData("alert", "chat");
       const loadChat = shouldLoadBubbleData("chat");
-      const loadRoom = Boolean(selectedRoomId) && (loadFullDisplay || activeBubble !== "alert");
+      const loadRoom =
+        Boolean(selectedRoomId) &&
+        (loadFullDisplay || (!isBubbleBar && activeBubble !== "alert") || (isBubbleBar && !isWindowsStartupProfile));
       const loadRoomBoard = Boolean(selectedRoomId) && shouldLoadBubbleData("todo");
       const initialDisplayPageSize =
         isTauri && !displayLoadedOnceRef.current && startupOptimization.initialDisplayPageSize > 0
@@ -2429,7 +2440,12 @@ function DesktopWidgetSurface() {
           ? startupOptimization.initialNotificationScanPages
           : 0;
       const loadProjectRooms =
-        isBubbleBar || loadFullDisplay || activeBubble === "agent" || activeBubble === "todo" || activeBubble === "memo" || activeBubble === "schedule";
+        (isBubbleBar && (!isWindowsStartupProfile || loadFullDisplay || displayLoadedOnceRef.current)) ||
+        loadFullDisplay ||
+        activeBubble === "agent" ||
+        activeBubble === "todo" ||
+        activeBubble === "memo" ||
+        activeBubble === "schedule";
       const [
         dashboardResult,
         tasksResult,
@@ -2713,7 +2729,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [activeBubble, activeVoiceRoomId, agentRevision, barFullDisplayReady, chatScope, communicationRevision, currentUserBubliId, currentUserId, displayRefreshRevision, isBubbleBar, isMenuOrb, isTauri, isWidgetChrome, itemStateOverrides, memoRevision, notificationRevision, resourceRevision, scheduleRevision, selectedPeerChatRoomId, selectedWidgetRoomId, startupOptimization.deferBarAgentCollectionsOnInitialDisplay, startupOptimization.initialDisplayPageSize, startupOptimization.initialNotificationScanPages, t, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContextInitialized, widgetSessionReady]);
+  }, [activeBubble, activeVoiceRoomId, agentRevision, barFullDisplayReady, chatScope, communicationRevision, currentUserBubliId, currentUserId, displayRefreshRevision, isBubbleBar, isMenuOrb, isTauri, isWidgetChrome, itemStateOverrides, memoRevision, notificationRevision, resourceRevision, scheduleRevision, selectedPeerChatRoomId, selectedWidgetRoomId, startupOptimization.deferBarAgentCollectionsOnInitialDisplay, startupOptimization.initialDisplayPageSize, startupOptimization.initialNotificationScanPages, startupOptimization.profile, t, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContextInitialized, widgetSessionReady]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;
@@ -2770,7 +2786,6 @@ function DesktopWidgetSurface() {
     // Rust 이벤트가 즉시 밀어주므로 폴링은 누락 이벤트 복구용 fallback으로만 느리게 둔다.
     const intervalId = window.setInterval(() => {
       void loadBarItems();
-      requestDisplayRefresh();
     }, isTauri ? 15000 : 4000);
 
     return () => {

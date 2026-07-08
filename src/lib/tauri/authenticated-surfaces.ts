@@ -449,7 +449,8 @@ export function launchTauriAuthenticatedSurfaces(options: LaunchTauriAuthenticat
         new Date(timeline.authGateEnabledAt).getTime() >= new Date(timeline.backendAuthValidatedAt).getTime(),
     );
 
-    const [barWindow, ...bubbleWindows] = startupWindows;
+    const [barWindow, ...secondaryStartupWindows] = startupWindows;
+    const visibleBubbleWindows = secondaryStartupWindows.filter((input) => input.bubbleType !== "menu");
     const openedWindows: WidgetWindowOpenInput[] = [];
     const rejectedReasons: unknown[] = [];
     const shouldContinueLaunch = () => generation === launchGeneration;
@@ -475,7 +476,7 @@ export function launchTauriAuthenticatedSurfaces(options: LaunchTauriAuthenticat
       }
     }
 
-    if (selectedRoomId || bubbleWindows.length > 0) {
+    if (selectedRoomId || visibleBubbleWindows.length > 0) {
       summaryPrewarmPromise = prewarmWidgetSummaryCache(selectedRoomId);
     }
 
@@ -495,7 +496,7 @@ export function launchTauriAuthenticatedSurfaces(options: LaunchTauriAuthenticat
       });
     }
 
-    const bubbleResults = await openWidgetWindowsWithRetry(bubbleWindows, selectedRoomId, shouldContinueLaunch);
+    const bubbleResults = await openWidgetWindowsWithRetry(secondaryStartupWindows, selectedRoomId, shouldContinueLaunch);
     timeline.bubbleWindowsOpenedAt = nowIso();
     for (const result of bubbleResults) {
       if (result.status === "fulfilled") {
@@ -531,10 +532,10 @@ export function launchTauriAuthenticatedSurfaces(options: LaunchTauriAuthenticat
       .catch(() => undefined);
 
     const startupPreference = readDesktopWidgetStartupPreference();
-    if (startupPreference.mode === "board" && bubbleWindows.length > 0) {
+    if (startupPreference.mode === "board" && visibleBubbleWindows.length > 0) {
       void tauriCommands.arrangeWidgetWindows({ layout: "board" }).catch(() => undefined);
     }
-    if (startupPreference.mode === "cascade" && bubbleWindows.length > 0) {
+    if (startupPreference.mode === "cascade" && visibleBubbleWindows.length > 0) {
       void tauriCommands.arrangeWidgetWindows({ layout: "cascade" }).catch(() => undefined);
     }
 
