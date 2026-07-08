@@ -139,9 +139,9 @@ function runContractCheck() {
       source: scriptSource,
     },
     {
-      name: "runner verifies post-login bar and auto-login bubble widgets with room context",
+      name: "runner verifies post-login bar menu and hidden bubble restore items",
       pattern:
-        /const smokeWidgetBubbles:[\s\S]*"todo"[\s\S]*"agent"[\s\S]*"chat"[\s\S]*"timer"[\s\S]*"memo"[\s\S]*"schedule"[\s\S]*"resource"[\s\S]*"alert"[\s\S]*const smokeAutoLoginWidgetBubbles = smokeWidgetBubbles\.filter[\s\S]*native bar and all bubble widget windows opened after login[\s\S]*all bubble widget windows visible[\s\S]*project room context propagated to all bubble widgets/,
+        /const smokeWidgetBubbles:[\s\S]*"todo"[\s\S]*"agent"[\s\S]*"chat"[\s\S]*"timer"[\s\S]*"memo"[\s\S]*"schedule"[\s\S]*"resource"[\s\S]*"alert"[\s\S]*post-login launcher opened only the bar and menu by default[\s\S]*post-login launcher kept bubble widgets hidden by default[\s\S]*post-login launcher seeded bubble restore items without opening them/,
       source: runtimeSmokeRunner,
     },
     {
@@ -201,7 +201,7 @@ function runContractCheck() {
     {
       name: "runner verifies integrated outbox and post-login sync loops",
       pattern:
-        /syncAllLocalOutboxToServer\(\{ limit: 50 \}\)[\s\S]*manual integrated outbox sync sent file activity and widget usage[\s\S]*launchTauriAuthenticatedSurfaces\(\)[\s\S]*post-login launcher opened all auto-login bubble widgets with project room context[\s\S]*post-login launcher kept standalone resource widget hidden[\s\S]*post-login launcher started activity folder and widget sync loops[\s\S]*post-login stop cleared active project room context[\s\S]*post-login stop stopped activity folder and widget sync loops/,
+        /syncAllLocalOutboxToServer\(\{ limit: 50 \}\)[\s\S]*manual integrated outbox sync sent file activity and widget usage[\s\S]*launchTauriAuthenticatedSurfaces\(\)[\s\S]*post-login launcher opened only the bar and menu by default[\s\S]*post-login launcher kept bubble widgets hidden by default[\s\S]*post-login launcher seeded bubble restore items without opening them[\s\S]*post-login launcher started activity folder and widget sync loops[\s\S]*post-login stop cleared active project room context[\s\S]*post-login stop stopped activity folder and widget sync loops/,
       source: runtimeSmokeRunner,
     },
     {
