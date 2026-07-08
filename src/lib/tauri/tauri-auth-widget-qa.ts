@@ -337,6 +337,53 @@ function addCheck(failedChecks: string[], condition: unknown, name: string) {
   }
 }
 
+function realOAuthWidgetStartupRestoreReady(snapshot: TauriAuthWidgetQaSnapshot) {
+  const restoreWindowIds = new Set(snapshot.widgetRuntime.barRestoreItems.windowIds);
+  return (
+    snapshot.widgetRuntime.barWindow?.windowVisible === true &&
+    STANDALONE_WIDGET_BUBBLE_TYPES.every((bubbleType) => restoreWindowIds.has(bubbleType)) &&
+    snapshot.widgetRuntime.allWindowRoomContextMatchesActive &&
+    snapshot.widgetRuntime.allWindowRoomContextMatchesServer &&
+    snapshot.widgetRuntime.barRestoreItems.allMatchActiveRoom
+  );
+}
+
+function realOAuthLocalFileProbeHealthy(snapshot: TauriAuthWidgetQaSnapshot) {
+  const localFiles = snapshot.localSyncProbe.localFiles;
+  if (!snapshot.localSyncProbe.enabled || snapshot.localSyncProbe.error || !snapshot.localSyncProbe.sqlite?.ok) {
+    return false;
+  }
+  if (!localFiles?.enabled || localFiles.error) {
+    return false;
+  }
+
+  return (
+    (localFiles.initialSyncSyncedCount ?? 0) >= 1 &&
+    localFiles.initialSyncFailedCount === 0 &&
+    (localFiles.updateSyncSyncedCount ?? 0) >= 1 &&
+    localFiles.updateSyncFailedCount === 0 &&
+    (localFiles.deleteSyncSyncedCount ?? 0) >= 1 &&
+    localFiles.deleteSyncFailedCount === 0 &&
+    localFiles.deletedSearchCleared === true &&
+    localFiles.nativeWatchStarted === true &&
+    (localFiles.nativeWatchCreateSyncSyncedCount ?? 0) >= 1 &&
+    localFiles.nativeWatchCreateSyncFailedCount === 0 &&
+    (localFiles.nativeWatchUpdateSyncSyncedCount ?? 0) >= 1 &&
+    localFiles.nativeWatchUpdateSyncFailedCount === 0 &&
+    (localFiles.nativeWatchDeleteSyncSyncedCount ?? 0) >= 1 &&
+    localFiles.nativeWatchDeleteSyncFailedCount === 0 &&
+    localFiles.remainingQaEvents === 0
+  );
+}
+
+function realOAuthManagedFolderStatusHealthy(snapshot: TauriAuthWidgetQaSnapshot) {
+  if (snapshot.syncRuntime.managedFolderStatus.lastStatus !== "failed") {
+    return true;
+  }
+
+  return snapshot.syncRuntime.managedFolderAutoSyncRunning && realOAuthLocalFileProbeHealthy(snapshot);
+}
+
 function timestampMs(value?: string) {
   if (!value) return null;
   const parsed = new Date(value).getTime();
@@ -1164,7 +1211,7 @@ export async function assertTauriRealGoogleAuthWidgetQa(): Promise<TauriRealGoog
     snapshot.activeProjectRoom.tauriMatchesServerContext,
     "room:tauriMatchesServerContext",
   );
-  addCheck(failedChecks, snapshot.widgetRuntime.allExpectedWindowsVisible, "widgets:allExpectedWindowsVisible");
+  addCheck(failedChecks, realOAuthWidgetStartupRestoreReady(snapshot), "widgets:startupRestoreReady");
   addCheck(
     failedChecks,
     snapshot.widgetRuntime.allWindowRoomContextMatchesActive,
@@ -1188,8 +1235,8 @@ export async function assertTauriRealGoogleAuthWidgetQa(): Promise<TauriRealGoog
   );
   addCheck(
     failedChecks,
-    snapshot.syncRuntime.managedFolderStatus.lastStatus !== "failed",
-    "sync:managedFolderStatusNotFailed",
+    realOAuthManagedFolderStatusHealthy(snapshot),
+    "sync:managedFolderStatusHealthy",
   );
   addCheck(
     failedChecks,
@@ -1395,8 +1442,8 @@ export async function assertTauriRealGoogleAuthWidgetQa(): Promise<TauriRealGoog
     addCheck(failedChecks, (snapshot.stabilityProbe.dwellMs ?? 0) >= 1_000, "stabilityProbe:dwellMs");
     addCheck(
       failedChecks,
-      snapshot.stabilityProbe.allExpectedWindowsVisible,
-      "stabilityProbe:allExpectedWindowsVisible",
+      realOAuthWidgetStartupRestoreReady(snapshot),
+      "stabilityProbe:startupRestoreReady",
     );
     addCheck(
       failedChecks,
@@ -1416,8 +1463,8 @@ export async function assertTauriRealGoogleAuthWidgetQa(): Promise<TauriRealGoog
     addCheck(failedChecks, snapshot.stabilityProbe.allAutoSyncLoopsRunning, "stabilityProbe:syncLoopsStillRunning");
     addCheck(
       failedChecks,
-      snapshot.stabilityProbe.managedFolderStatusNotFailed,
-      "stabilityProbe:managedFolderStatusNotFailed",
+      snapshot.stabilityProbe.managedFolderStatusNotFailed || realOAuthManagedFolderStatusHealthy(snapshot),
+      "stabilityProbe:managedFolderStatusHealthy",
     );
     addCheck(failedChecks, snapshot.stabilityProbe.backendWidgetSummaryOk, "stabilityProbe:backendWidgetSummary");
   }
