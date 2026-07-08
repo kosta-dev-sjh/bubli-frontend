@@ -2509,13 +2509,16 @@ fn raise_widget_window(app: &AppHandle, widget: &WidgetWindowState) {
         return;
     };
 
-    if widget.always_on_top {
-        let _ = window.set_always_on_top(false);
-        let _ = window.set_always_on_top(true);
-    }
+    // 항상 always_on_top을 껐다 켜서 창 서버가 다른 앱 위로 강제로 끌어올리게 한다 —
+    // widget.always_on_top(사용자가 켠 고정핀 여부)에만 맡기면, 보이스 전화처럼 사용자가
+    // 다른 앱을 보고 있을 때 반드시 튀어나와야 하는 상황에서도 macOS의 백그라운드 앱
+    // 포커스 탈취 방지 때문에 그냥 뒤에서만 열리는 문제가 있었다.
+    let _ = window.set_always_on_top(false);
+    let _ = window.set_always_on_top(true);
     let _ = window.unminimize();
     let _ = window.show();
     let _ = window.set_focus();
+    let _ = window.request_user_attention(Some(tauri::UserAttentionType::Critical));
 }
 
 #[tauri::command]
