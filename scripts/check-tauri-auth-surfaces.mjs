@@ -10,6 +10,7 @@ const files = {
   publicHero: "src/features/public-site/components/public-hero.tsx",
   publicLandingNav: "src/features/public-site/components/landing-nav.tsx",
   personalResourceWorkspace: "src/features/resources/components/personal-resource-workspace.tsx",
+  roomResourceWorkspace: "src/features/resources/components/room-resource-workspace.tsx",
   desktopAppDownload: "src/features/download/components/desktop-app-download.tsx",
   settingsPage: "src/app/(workspace)/app/settings/page.tsx",
   calendarPage: "src/app/(workspace)/app/calendar/page.tsx",
@@ -168,6 +169,7 @@ const publicSiteConfig = read(files.publicSiteConfig);
 const publicHero = read(files.publicHero);
 const publicLandingNav = read(files.publicLandingNav);
 const personalResourceWorkspace = read(files.personalResourceWorkspace);
+const roomResourceWorkspace = read(files.roomResourceWorkspace);
 const desktopAppDownload = read(files.desktopAppDownload);
 const settingsPage = read(files.settingsPage);
 const calendarPage = read(files.calendarPage);
@@ -323,6 +325,16 @@ assertContains(
   personalResourceWorkspace,
   /const windowsInstallerHref = "\/downloads\/windows\/Bubli-Windows-latest\.exe";[\s\S]*download href=\{windowsInstallerHref\}/,
   "Resource empty-state desktop CTA must directly download the Windows installer instead of navigating to /download.",
+);
+assertContains(
+  personalResourceWorkspace,
+  /readWindowsResourceInitialTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*withResourceInitialDeadline[\s\S]*const loadData = Promise\.all\([\s\S]*resourcesApi\.listPersonal\(\)[\s\S]*agentApi\.listGeneratedDocuments\(\)[\s\S]*const initialData = await withResourceInitialDeadline\(loadData, initialTimeoutMs\)[\s\S]*loadData\.then\(applyLoadedData\)/,
+  "Windows Tauri personal resources must switch out of loading after a bounded initial wait and finish slower resource collections in the background.",
+);
+assertContains(
+  roomResourceWorkspace,
+  /readWindowsResourceInitialTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*withResourceInitialDeadline[\s\S]*const loadData = Promise\.all\([\s\S]*resourcesApi\.listRoomResources\(roomId\)[\s\S]*agentApi\.listRoomGeneratedDocuments\(roomId\)[\s\S]*const initialData = await withResourceInitialDeadline\(loadData, initialTimeoutMs\)[\s\S]*loadData\.then\(applyLoadedData\)/,
+  "Windows Tauri room resources must switch out of loading after a bounded initial wait and finish slower resource collections in the background.",
 );
 assertContains(
   settingsPage,
