@@ -60,7 +60,7 @@ import {
 } from "@/lib/workspace-preview-data";
 import type { AgentSuggestionResponse } from "@/types/api/agent";
 import type { AuthUser } from "@/types/api/auth";
-import type { ChatMessageResponse, ChatRoomResponse, RoomAgentCommandMode } from "@/types/api/chat";
+import type { AgentCitation, ChatMessageResponse, ChatRoomResponse, RoomAgentCommandMode } from "@/types/api/chat";
 import type { FriendRequestResponse, FriendResponse, FriendSearchResponse } from "@/types/api/friend";
 import type { ProjectRoomInvitationResponse } from "@/types/api/projectRoom";
 import type { VoiceParticipantResponse, VoiceRoomResponse } from "@/types/api/voice";
@@ -299,6 +299,52 @@ function displayMessageText(t: TranslateFn, message: ChatMessageResponse) {
   const text = messageText(t, message);
   const isAgentMessage = message.messageType === "AGENT_RESPONSE" || message.sender.type === "AGENT";
   return isAgentMessage ? formatAgentMessageText(text) : text;
+}
+
+function numberOrNull(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function stringOrNull(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function agentCitations(message: ChatMessageResponse): AgentCitation[] {
+  const isAgentMessage = message.messageType === "AGENT_RESPONSE" || message.sender.type === "AGENT";
+  if (!isAgentMessage || !Array.isArray(message.body.citations)) return [];
+
+  return message.body.citations.flatMap((value) => {
+    if (typeof value !== "object" || value === null) return [];
+    const record = value as Record<string, unknown>;
+    const resourceId = stringOrNull(record.resourceId);
+    const title = stringOrNull(record.title) ?? resourceId;
+    const quote = stringOrNull(record.quote);
+    if (!resourceId || !title) return [];
+
+    return [{
+      chunkIndex: numberOrNull(record.chunkIndex),
+      endLine: numberOrNull(record.endLine),
+      pageNumber: numberOrNull(record.pageNumber),
+      quote,
+      resourceId,
+      similarityScore: numberOrNull(record.similarityScore),
+      startLine: numberOrNull(record.startLine),
+      title,
+    }];
+  });
+}
+
+function citationLocation(citation: AgentCitation) {
+  const parts: string[] = [];
+  if (typeof citation.pageNumber === "number") parts.push(`p.${citation.pageNumber}`);
+  if (typeof citation.startLine === "number" && typeof citation.endLine === "number") {
+    parts.push(citation.startLine === citation.endLine ? `${citation.startLine}행` : `${citation.startLine}-${citation.endLine}행`);
+  } else if (typeof citation.startLine === "number") {
+    parts.push(`${citation.startLine}행`);
+  } else if (typeof citation.chunkIndex === "number") {
+    parts.push(`chunk ${citation.chunkIndex}`);
+  }
+  return parts.join(", ");
 }
 
 function commandText(value: unknown) {
@@ -2120,6 +2166,7 @@ function ChatPageContent() {
                   const isAgent = message.messageType === "AGENT_RESPONSE" || message.sender.type === "AGENT";
                   const isMine = message.messageType === "AGENT_COMMAND" || (!isAgent && Boolean(currentUser?.id && message.sender.id === currentUser.id));
                   const text = displayMessageText(t, message);
+                  const citations = agentCitations(message);
 
                   return (
                     <article
@@ -2243,6 +2290,25 @@ function ChatPageContent() {
                       ) : (
                         <p>{text}</p>
                       )}
+                      {citations.length > 0 ? (
+                        <details className="workspace-route__message-citations">
+                          <summary>출처 보기 ({citations.length})</summary>
+                          <ol>
+                            {citations.map((citation, index) => {
+                              const location = citationLocation(citation);
+                              return (
+                                <li key={`${citation.resourceId}-${index}`}>
+                                  <cite>
+                                    [{index + 1}] {citation.title}
+                                    {location ? `, ${location}` : ""}
+                                  </cite>
+                                  {citation.quote ? <blockquote>{`"${citation.quote}"`}</blockquote> : null}
+                                </li>
+                              );
+                            })}
+                          </ol>
+                        </details>
+                      ) : null}
                     </article>
                   );
                 })}
