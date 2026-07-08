@@ -59,3 +59,19 @@
   font-size: 14px;
   line-height: 1.5;
 }
+
+.command {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 6px;
+  padding: 7px 9px;
+  border: 1px solid color-mix(in srgb, var(--blue-ink) 14%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--blue-ink) 5%, white);
+  color: var(--blue-ink);
+  font-family: var(--font-mono, ui-monospace), "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
