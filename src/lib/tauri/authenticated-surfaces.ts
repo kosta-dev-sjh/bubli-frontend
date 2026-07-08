@@ -96,7 +96,20 @@ export function readTauriAuthenticatedSurfacesLaunchTimeline(): TauriAuthenticat
 
 const loginStartupBarWindow: WidgetWindowOpenInput = { bubbleType: "bar", mode: "DEFAULT", windowId: "bar" };
 const loginStartupAgentOrbWindow: WidgetWindowOpenInput = { bubbleType: "menu", mode: "DEFAULT", windowId: "menu" };
-const loginStartupWindows: WidgetWindowOpenInput[] = [loginStartupBarWindow, loginStartupAgentOrbWindow];
+const loginStartupBubbleWindows: WidgetWindowOpenInput[] = [
+  { bubbleType: "todo", mode: "DEFAULT", windowId: "todo" },
+  { bubbleType: "agent", mode: "DEFAULT", windowId: "agent" },
+  { bubbleType: "chat", mode: "DEFAULT", windowId: "chat" },
+  { bubbleType: "timer", mode: "DEFAULT", windowId: "timer" },
+  { bubbleType: "memo", mode: "DEFAULT", windowId: "memo" },
+  { bubbleType: "schedule", mode: "DEFAULT", windowId: "schedule" },
+  { bubbleType: "alert", mode: "DEFAULT", windowId: "alert" },
+];
+const loginStartupWindows: WidgetWindowOpenInput[] = [
+  loginStartupBarWindow,
+  loginStartupAgentOrbWindow,
+  ...loginStartupBubbleWindows,
+];
 const desktopWidgetBoardWindows: WidgetWindowOpenInput[] = [
   { bubbleType: "todo", mode: "DEFAULT", windowId: "todo" },
   { bubbleType: "agent", mode: "DEFAULT", windowId: "agent" },
@@ -153,7 +166,8 @@ function startupWindowStateIsReady(
   state: Awaited<ReturnType<typeof tauriCommands.getWidgetWindowState>>,
 ) {
   if (input.bubbleType === "bar") return state.windowVisible;
-  return state.windowVisible || state.mode === "MINIMIZED";
+  if (input.mode === "MINIMIZED") return state.mode === "MINIMIZED" && !state.windowVisible;
+  return state.windowVisible && state.mode !== "MINIMIZED";
 }
 
 async function authenticatedStartupWindowsReady(startupWindows: WidgetWindowOpenInput[]) {

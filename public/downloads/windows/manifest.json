@@ -1,6 +1,6 @@
 {
   "file": "/downloads/windows/Bubli-Windows-latest.exe",
-  "sizeBytes": 22203947,
+  "sizeBytes": 22208724,
   "source": "src-tauri/target/release/bundle/nsis/Bubli_0.1.2_x64-setup.exe",
-  "updatedAt": "2026-07-08T02:38:55.654Z"
+  "updatedAt": "2026-07-08T03:22:46.530Z"
 }
