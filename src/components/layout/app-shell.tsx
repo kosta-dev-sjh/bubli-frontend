@@ -17,6 +17,7 @@ import {
 } from "@/components/layout/workspace-topbar";
 import { siteConfig } from "@/config/site";
 import { authApi } from "@/features/auth/api/authApi";
+import { agentApi } from "@/features/agent/api/agentApi";
 import { chatApi } from "@/features/communication/api/chatApi";
 import { voiceApi } from "@/features/communication/api/voiceApi";
 import { notificationApi } from "@/features/notification/api/notificationApi";
@@ -1315,7 +1316,32 @@ export function AppShell({ children }: AppShellProps) {
 
     const sourceId = notification.sourceId ?? null;
 
+    async function openResource(sourceResourceId: string) {
+      try {
+        const resource = await resourcesApi.get(sourceResourceId);
+        router.push(
+          resource.roomId
+            ? `${projectRoomRoute(resource.roomId, "resources")}&resourceId=${encodeURIComponent(resource.id)}`
+            : `/app/resources?resourceId=${encodeURIComponent(resource.id)}`,
+        );
+      } catch {
+        // 자료 조회 실패(권한/삭제 등) — 개인 자료보드로 폴백해 최소한 보드까지는 안내한다.
+        router.push(`/app/resources?resourceId=${encodeURIComponent(sourceResourceId)}`);
+      }
+    }
+
     if (notification.sourceType === "AGENT") {
+      if (sourceId) {
+        try {
+          const job = await agentApi.getJob(sourceId);
+          if (job.jobType === "ANALYZE_RESOURCE" && job.resourceId) {
+            await openResource(job.resourceId);
+            return;
+          }
+        } catch {
+          // 예전 알림이 이미 삭제된 job을 가리키거나 권한이 없으면 기존 AI 후보함으로 보낸다.
+        }
+      }
       router.push("/app/agent");
       return;
     }
@@ -1368,17 +1394,7 @@ export function AppShell({ children }: AppShellProps) {
         router.push("/app/resources");
         return;
       }
-      try {
-        const resource = await resourcesApi.get(sourceId);
-        router.push(
-          resource.roomId
-            ? `${projectRoomRoute(resource.roomId, "resources")}&resourceId=${encodeURIComponent(resource.id)}`
-            : `/app/resources?resourceId=${encodeURIComponent(resource.id)}`,
-        );
-      } catch {
-        // 자료 조회 실패(권한/삭제 등) — 개인 자료보드로 폴백해 최소한 보드까지는 안내한다.
-        router.push(`/app/resources?resourceId=${encodeURIComponent(sourceId)}`);
-      }
+      await openResource(sourceId);
     }
   }
 

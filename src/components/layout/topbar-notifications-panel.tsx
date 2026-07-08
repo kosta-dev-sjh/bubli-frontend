@@ -1,6 +1,7 @@
 "use client";
 
 import { BellOff, FolderKanban } from "lucide-react";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n";
@@ -38,6 +39,7 @@ export function TopbarNotificationsPanel({
   onOpen,
 }: TopbarNotificationsPanelProps) {
   const { locale, t } = useI18n();
+  const [expandedNotificationId, setExpandedNotificationId] = useState<string | null>(null);
   const visibleItems = items.filter(isUnreadNotificationInboxItem);
   const unreadCount = visibleItems.length;
 
@@ -45,6 +47,10 @@ export function TopbarNotificationsPanel({
     const date = new Date(isoValue);
     if (Number.isNaN(date.getTime())) return isoValue;
     return date.toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" });
+  }
+
+  function detailValue(value: string | null | undefined) {
+    return value && value.trim() ? value : t("layout.notifications.detailEmpty");
   }
 
   return (
@@ -112,6 +118,7 @@ export function TopbarNotificationsPanel({
             const openable = Boolean(onOpen && item.sourceType);
             // 백엔드 원시 잡 메타데이터("jobType=…, jobId=…")를 사람이 읽을 문구로 정리한다.
             const display = formatNotificationContent(t, item);
+            const expanded = expandedNotificationId === item.id;
             const bodyContent = (
               <>
                 <strong>{display.title}</strong>
@@ -151,6 +158,16 @@ export function TopbarNotificationsPanel({
                   </Button>
                 ) : null}
                 <Button
+                  aria-expanded={expanded}
+                  aria-label={t("layout.notifications.detailAria", { title: display.title })}
+                  className={styles.notificationReadButton}
+                  onClick={() => setExpandedNotificationId(expanded ? null : item.id)}
+                  size="sm"
+                  variant="ghost"
+                >
+                  {expanded ? t("layout.notifications.detailClose") : t("layout.notifications.detail")}
+                </Button>
+                <Button
                   aria-label={t("layout.notifications.archiveAria", { title: display.title })}
                   className={styles.notificationReadButton}
                   onClick={() => onArchive(item.id)}
@@ -160,6 +177,34 @@ export function TopbarNotificationsPanel({
                   {t("layout.notifications.archive")}
                 </Button>
               </div>
+              {expanded ? (
+                <dl className={styles.notificationDetail}>
+                  <div>
+                    <dt>{t("layout.notifications.detailTitle")}</dt>
+                    <dd>{display.title}</dd>
+                  </div>
+                  <div>
+                    <dt>{t("layout.notifications.detailBody")}</dt>
+                    <dd>{detailValue(display.body)}</dd>
+                  </div>
+                  <div>
+                    <dt>{t("layout.notifications.detailSourceType")}</dt>
+                    <dd>{detailValue(item.sourceType)}</dd>
+                  </div>
+                  <div>
+                    <dt>{t("layout.notifications.detailSourceId")}</dt>
+                    <dd>{detailValue(item.sourceId)}</dd>
+                  </div>
+                  <div>
+                    <dt>{t("layout.notifications.detailCreatedAt")}</dt>
+                    <dd>{formatTime(item.createdAt)}</dd>
+                  </div>
+                  <div>
+                    <dt>{t("layout.notifications.detailReadAt")}</dt>
+                    <dd>{item.readAt ? formatTime(item.readAt) : t("layout.notifications.unread")}</dd>
+                  </div>
+                </dl>
+              ) : null}
             </li>
             );
           })}

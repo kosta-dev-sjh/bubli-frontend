@@ -428,6 +428,7 @@ button.profileButton {
 
 .notificationItem {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
@@ -498,7 +499,42 @@ button.profileButton {
   white-space: nowrap;
 }
 
-/* 알림 항목 우측 액션 묶음(읽음 처리 + 보관) — 버튼이 2개가 되어 세로로 쌓는다. */
+.notificationDetail {
+  display: grid;
+  flex: 1 0 100%;
+  gap: 7px;
+  margin: 2px 0 0;
+  border-top: 1px solid rgba(107, 143, 168, 0.14);
+  padding-top: 10px;
+}
+
+.notificationDetail div {
+  display: grid;
+  grid-template-columns: minmax(72px, 0.34fr) minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+
+.notificationDetail dt,
+.notificationDetail dd {
+  min-width: 0;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.notificationDetail dt {
+  color: var(--color-faint);
+  font-weight: 800;
+}
+
+.notificationDetail dd {
+  overflow-wrap: anywhere;
+  color: var(--color-muted);
+  font-weight: 720;
+}
+
+/* 알림 항목 우측 액션 묶음(읽음 처리 + 상세 + 보관) — 좁은 패널에서도 버튼이 잘리지 않게 세로로 쌓는다. */
 .notificationActions {
   display: flex;
   flex: 0 0 auto;
