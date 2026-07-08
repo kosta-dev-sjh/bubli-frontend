@@ -132,6 +132,8 @@ const WIDGET_SESSION_RESTORE_GRACE_ATTEMPTS = 6;
 const WIDGET_SESSION_RESTORE_GRACE_DELAY_MS = 250;
 const MAX_MESSAGE_TOASTS = 3;
 const TIMER_HEARTBEAT_INTERVAL_MS = 60_000;
+const VOICE_RECOVERY_TIMEOUT_MS = 30_000;
+const VOICE_RECOVERY_RETRY_DELAY_MS = 4_000;
 const AGENT_REPLY_BADGE_MESSAGE_LIMIT = 20;
 const PERSONAL_AGENT_MEMORY_LIMIT = 10;
 const WIDGET_NOTIFICATION_DISPLAY_LIMIT = 20;
@@ -1869,6 +1871,8 @@ function DesktopWidgetSurface() {
     { chatRoomId?: string; id: string; kind: NotificationToastKind; senderName: string; text: string }[]
   >([]);
   const liveKitRoomRef = useRef<Room | null>(null);
+  const voiceRecoveryRoomIdRef = useRef<string | null>(null);
+  const voiceRecoveryTimerRef = useRef<number | null>(null);
   const surfaceReadySentRef = useRef(false);
   const appReadySentRef = useRef(false);
   const displayRefreshThrottleTimerRef = useRef<number | null>(null);
@@ -2482,11 +2486,13 @@ function DesktopWidgetSurface() {
 
   useEffect(() => {
     return () => {
-      if (liveKitRoomRef.current) {
-        detachWidgetRemoteAudio(liveKitRoomRef.current);
-        liveKitRoomRef.current.disconnect();
-      }
+      clearWidgetVoiceRecovery();
+      const room = liveKitRoomRef.current;
       liveKitRoomRef.current = null;
+      if (room) {
+        detachWidgetRemoteAudio(room);
+        room.disconnect();
+      }
     };
   }, []);
 
@@ -4199,10 +4205,13 @@ function DesktopWidgetSurface() {
           .then((room) => {
             if (room.status !== "OPEN" || room.createdByUserId !== currentUserIdRef.current) return;
             void widgetCommunicationApi.endVoiceRoom(room.id).catch(() => undefined);
-            if (liveKitRoomRef.current) {
-              detachWidgetRemoteAudio(liveKitRoomRef.current);
-              liveKitRoomRef.current.disconnect();
-              liveKitRoomRef.current = null;
+            voiceRecoveryRoomIdRef.current = null;
+            clearWidgetVoiceRecovery();
+            const liveRoom = liveKitRoomRef.current;
+            liveKitRoomRef.current = null;
+            if (liveRoom) {
+              detachWidgetRemoteAudio(liveRoom);
+              liveRoom.disconnect();
             }
             stopCallRingtone();
             setActiveVoiceRoomId(null);
@@ -4366,10 +4375,13 @@ function DesktopWidgetSurface() {
           setActiveVoiceRoom(null);
           setSpeakingUserIds(new Set());
           void emitWidgetVoiceCallStateChanged(null).catch(() => undefined);
-          if (liveKitRoomRef.current) {
-            detachWidgetRemoteAudio(liveKitRoomRef.current);
-            liveKitRoomRef.current.disconnect();
-            liveKitRoomRef.current = null;
+          voiceRecoveryRoomIdRef.current = null;
+          clearWidgetVoiceRecovery();
+          const room = liveKitRoomRef.current;
+          liveKitRoomRef.current = null;
+          if (room) {
+            detachWidgetRemoteAudio(room);
+            room.disconnect();
           }
           stopCallRingtone();
           setWidgetOutgoingCallNotice(t("layout.voiceCall.declinedNotice"));
@@ -4391,13 +4403,154 @@ function DesktopWidgetSurface() {
     void emitWidgetIncomingCallChanged(null).catch(() => undefined);
   }, [incomingVoiceCall, notifyIncomingVoiceCallDeclined]);
 
+  function clearWidgetVoiceRecovery() {
+    if (voiceRecoveryTimerRef.current === null) return;
+    window.clearTimeout(voiceRecoveryTimerRef.current);
+    voiceRecoveryTimerRef.current = null;
+  }
+
+  function showTemporaryWidgetVoiceNotice(message: string) {
+    setVoiceEndedNotice(message);
+    window.setTimeout(() => {
+      setVoiceEndedNotice((current) => (current === message ? null : current));
+    }, 4_000);
+  }
+
+  function clearWidgetVoiceConnection(message: string) {
+    const room = liveKitRoomRef.current;
+    liveKitRoomRef.current = null;
+    if (room) {
+      detachWidgetRemoteAudio(room);
+      room.disconnect();
+    }
+    voiceRecoveryRoomIdRef.current = null;
+    clearWidgetVoiceRecovery();
+    setActiveVoiceRoomId(null);
+    setActiveVoiceRoom(null);
+    setSpeakingUserIds(new Set());
+    setVoiceParticipantMicMuted({});
+    setVoiceMicMuted(false);
+    void emitWidgetVoiceCallStateChanged(null).catch(() => undefined);
+    setVoiceConnectionLabel(message);
+    showTemporaryWidgetVoiceNotice(message);
+  }
+
+  function bindWidgetLiveKitRoomEvents(liveKitRoom: Room, voiceRoomId: string) {
+    liveKitRoom.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
+      attachWidgetRemoteAudioTrack(track);
+      if (track.kind === Track.Kind.Audio && participant.identity) {
+        const identity = participant.identity;
+        setVoiceParticipantMicMuted((current) => ({ ...current, [identity]: track.isMuted }));
+      }
+    });
+    liveKitRoom.on(RoomEvent.TrackUnsubscribed, (track) => {
+      track.detach().forEach((element) => element.remove());
+    });
+    liveKitRoom.on(RoomEvent.TrackMuted, (publication, participant) => {
+      if (publication.kind !== Track.Kind.Audio || !participant.identity) return;
+      const identity = participant.identity;
+      setVoiceParticipantMicMuted((current) => ({ ...current, [identity]: true }));
+    });
+    liveKitRoom.on(RoomEvent.TrackUnmuted, (publication, participant) => {
+      if (publication.kind !== Track.Kind.Audio || !participant.identity) return;
+      const identity = participant.identity;
+      setVoiceParticipantMicMuted((current) => ({ ...current, [identity]: false }));
+    });
+    liveKitRoom.on(RoomEvent.ActiveSpeakersChanged, handleWidgetActiveSpeakersChanged);
+    liveKitRoom.on(RoomEvent.ParticipantConnected, () => {
+      setCommunicationRevision((current) => current + 1);
+    });
+    liveKitRoom.on(RoomEvent.ParticipantDisconnected, () => {
+      setCommunicationRevision((current) => current + 1);
+    });
+    liveKitRoom.on(RoomEvent.Reconnecting, () => {
+      const message = t("widget.chat.voiceReconnecting");
+      setVoiceConnectionLabel(message);
+      showTemporaryWidgetVoiceNotice(message);
+    });
+    liveKitRoom.on(RoomEvent.Reconnected, () => {
+      const message = t("widget.chat.voiceReconnected");
+      setVoiceConnectionLabel(message);
+      showTemporaryWidgetVoiceNotice(message);
+    });
+    liveKitRoom.on(RoomEvent.Disconnected, () => {
+      if (liveKitRoomRef.current !== liveKitRoom) return;
+      liveKitRoomRef.current = null;
+      detachWidgetRemoteAudio(liveKitRoom);
+      setSpeakingUserIds(new Set());
+      setVoiceParticipantMicMuted({});
+      const message = t("widget.chat.voiceReconnecting");
+      setVoiceConnectionLabel(message);
+      showTemporaryWidgetVoiceNotice(message);
+      scheduleWidgetVoiceReconnect(voiceRoomId, Date.now());
+    });
+  }
+
+  async function connectWidgetLiveKitRoom(voiceRoomId: string, token?: Awaited<ReturnType<typeof widgetCommunicationApi.getVoiceToken>>) {
+    const resolvedToken = token ?? await widgetCommunicationApi.getVoiceToken(voiceRoomId);
+    if (!resolvedToken.serverUrl || !resolvedToken.token) return;
+
+    const liveKitRoom = new Room();
+    bindWidgetLiveKitRoomEvents(liveKitRoom, voiceRoomId);
+
+    const previousRoom = liveKitRoomRef.current;
+    liveKitRoomRef.current = null;
+    if (previousRoom) {
+      detachWidgetRemoteAudio(previousRoom);
+      previousRoom.disconnect();
+    }
+    liveKitRoomRef.current = liveKitRoom;
+
+    await liveKitRoom.connect(resolvedToken.serverUrl, resolvedToken.token);
+    await liveKitRoom.localParticipant.setMicrophoneEnabled(true);
+    setVoiceMicMuted(false);
+  }
+
+  function scheduleWidgetVoiceReconnect(voiceRoomId: string, startedAt: number) {
+    if (voiceRecoveryRoomIdRef.current && voiceRecoveryRoomIdRef.current !== voiceRoomId) return;
+    voiceRecoveryRoomIdRef.current = voiceRoomId;
+    clearWidgetVoiceRecovery();
+    voiceRecoveryTimerRef.current = window.setTimeout(() => {
+      void (async () => {
+        if (voiceRecoveryRoomIdRef.current !== voiceRoomId) return;
+        try {
+          await connectWidgetLiveKitRoom(voiceRoomId);
+          if (voiceRecoveryRoomIdRef.current !== voiceRoomId) return;
+          const room = await widgetDisplayApi.getVoiceRoom(voiceRoomId);
+          setActiveVoiceRoomId(voiceRoomId);
+          setActiveVoiceRoom(room);
+          void emitWidgetVoiceCallStateChanged(voiceRoomId).catch(() => undefined);
+          voiceRecoveryRoomIdRef.current = null;
+          clearWidgetVoiceRecovery();
+          setCommunicationRevision((current) => current + 1);
+          publishWidgetDataChanged("chat");
+          const message = t("widget.chat.voiceReconnected");
+          setVoiceConnectionLabel(message);
+          showTemporaryWidgetVoiceNotice(message);
+        } catch {
+          if (Date.now() - startedAt < VOICE_RECOVERY_TIMEOUT_MS) {
+            scheduleWidgetVoiceReconnect(voiceRoomId, startedAt);
+            return;
+          }
+          await widgetCommunicationApi.leaveVoiceRoom(voiceRoomId).catch(() => undefined);
+          clearWidgetVoiceConnection(t("widget.chat.voiceDisconnected"));
+          setCommunicationRevision((current) => current + 1);
+          publishWidgetDataChanged("chat");
+        }
+      })();
+    }, VOICE_RECOVERY_RETRY_DELAY_MS);
+  }
+
   const cancelOutgoingWidgetCall = useCallback(() => {
     if (!activeVoiceRoomId) return;
     void widgetCommunicationApi.endVoiceRoom(activeVoiceRoomId).catch(() => undefined);
-    if (liveKitRoomRef.current) {
-      detachWidgetRemoteAudio(liveKitRoomRef.current);
-      liveKitRoomRef.current.disconnect();
-      liveKitRoomRef.current = null;
+    voiceRecoveryRoomIdRef.current = null;
+    clearWidgetVoiceRecovery();
+    const room = liveKitRoomRef.current;
+    liveKitRoomRef.current = null;
+    if (room) {
+      detachWidgetRemoteAudio(room);
+      room.disconnect();
     }
     stopCallRingtone();
     setActiveVoiceRoomId(null);
@@ -4435,61 +4588,8 @@ function DesktopWidgetSurface() {
       void widgetCommunicationApi
         .getVoiceToken(voiceRoom.id)
         .then(async (token) => {
-          if (!token.serverUrl || !token.token) return;
-          const liveKitRoom = new Room();
-          liveKitRoom.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
-            attachWidgetRemoteAudioTrack(track);
-            if (track.kind === Track.Kind.Audio && participant.identity) {
-              const identity = participant.identity;
-              setVoiceParticipantMicMuted((current) => ({ ...current, [identity]: track.isMuted }));
-            }
-          });
-          liveKitRoom.on(RoomEvent.TrackUnsubscribed, (track) => {
-            track.detach().forEach((element) => element.remove());
-          });
-          liveKitRoom.on(RoomEvent.TrackMuted, (publication, participant) => {
-            if (publication.kind !== Track.Kind.Audio || !participant.identity) return;
-            const identity = participant.identity;
-            setVoiceParticipantMicMuted((current) => ({ ...current, [identity]: true }));
-          });
-          liveKitRoom.on(RoomEvent.TrackUnmuted, (publication, participant) => {
-            if (publication.kind !== Track.Kind.Audio || !participant.identity) return;
-            const identity = participant.identity;
-            setVoiceParticipantMicMuted((current) => ({ ...current, [identity]: false }));
-          });
-          liveKitRoom.on(RoomEvent.ActiveSpeakersChanged, handleWidgetActiveSpeakersChanged);
-          // 참여자 입장/퇴장 목록은 여전히 REST(voiceRoom.participants)가 원본이지만, 그 재조회가
-          // revision 갱신을 기다려야 해 느렸다 — LiveKit이 실제로 참여자가 붙고 빠지는 순간을
-          // 알려주므로, 그 즉시 재조회를 트리거해 목록이 바로 갱신되게 한다.
-          liveKitRoom.on(RoomEvent.ParticipantConnected, () => {
-            setCommunicationRevision((current) => current + 1);
-          });
-          liveKitRoom.on(RoomEvent.ParticipantDisconnected, () => {
-            setCommunicationRevision((current) => current + 1);
-          });
-          // 상대가 통화를 끊으면(백엔드가 LiveKit 방을 닫음) 여기로 온다 — 내가 먼저 끊을 때는
-          // leaveWidgetVoice/cancelOutgoingWidgetCall이 disconnect() 직후 ref를 바로 비우므로,
-          // 그 경우엔 ref가 이미 이 room이 아니게 되어 아래 안내가 중복으로 뜨지 않는다.
-          liveKitRoom.on(RoomEvent.Disconnected, () => {
-            if (liveKitRoomRef.current !== liveKitRoom) return;
-            liveKitRoomRef.current = null;
-            setActiveVoiceRoomId(null);
-            setActiveVoiceRoom(null);
-            setSpeakingUserIds(new Set());
-            setVoiceParticipantMicMuted({});
-            void emitWidgetVoiceCallStateChanged(null).catch(() => undefined);
-            setVoiceEndedNotice(t("widget.chat.voiceEnded"));
-            window.setTimeout(() => setVoiceEndedNotice(null), 4_000);
-          });
-          if (liveKitRoomRef.current) {
-            detachWidgetRemoteAudio(liveKitRoomRef.current);
-            liveKitRoomRef.current.disconnect();
-          }
-          liveKitRoomRef.current = liveKitRoom;
-          await liveKitRoom.connect(token.serverUrl, token.token);
-          await liveKitRoom.localParticipant.setMicrophoneEnabled(true);
-          setVoiceMicMuted(false);
-          setVoiceConnectionLabel("LiveKit connected");
+          await connectWidgetLiveKitRoom(voiceRoom.id, token);
+          setVoiceConnectionLabel(t("widget.chat.voiceReconnected"));
         })
         .catch(() => {
           setVoiceConnectionLabel("Voice room open; token failed");
@@ -4502,7 +4602,7 @@ function DesktopWidgetSurface() {
       setIncomingVoiceCall(null);
       void emitWidgetIncomingCallChanged(null).catch(() => undefined);
     }
-  }, [handleWidgetActiveSpeakersChanged, incomingVoiceCall, isTauri, publishWidgetDataChanged, t, voiceCallResponding]);
+  }, [incomingVoiceCall, isTauri, publishWidgetDataChanged, t, voiceCallResponding]);
 
   const dismissMessageToast = useCallback((toastId: string) => {
     setMessageToasts((current) => current.filter((toast) => toast.id !== toastId));
@@ -4594,56 +4694,9 @@ function DesktopWidgetSurface() {
       }
 
       if (token.serverUrl && token.token) {
-        const liveKitRoom = new Room();
-        liveKitRoom.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
-          attachWidgetRemoteAudioTrack(track);
-          if (track.kind === Track.Kind.Audio && participant.identity) {
-            const identity = participant.identity;
-            setVoiceParticipantMicMuted((current) => ({ ...current, [identity]: track.isMuted }));
-          }
-        });
-        liveKitRoom.on(RoomEvent.TrackUnsubscribed, (track) => {
-          track.detach().forEach((element) => element.remove());
-        });
-        liveKitRoom.on(RoomEvent.TrackMuted, (publication, participant) => {
-          if (publication.kind !== Track.Kind.Audio || !participant.identity) return;
-          const identity = participant.identity;
-          setVoiceParticipantMicMuted((current) => ({ ...current, [identity]: true }));
-        });
-        liveKitRoom.on(RoomEvent.TrackUnmuted, (publication, participant) => {
-          if (publication.kind !== Track.Kind.Audio || !participant.identity) return;
-          const identity = participant.identity;
-          setVoiceParticipantMicMuted((current) => ({ ...current, [identity]: false }));
-        });
-        liveKitRoom.on(RoomEvent.ActiveSpeakersChanged, handleWidgetActiveSpeakersChanged);
-        liveKitRoom.on(RoomEvent.ParticipantConnected, () => {
-          setCommunicationRevision((current) => current + 1);
-        });
-        liveKitRoom.on(RoomEvent.ParticipantDisconnected, () => {
-          setCommunicationRevision((current) => current + 1);
-        });
-        liveKitRoom.on(RoomEvent.Disconnected, () => {
-          if (liveKitRoomRef.current !== liveKitRoom) return;
-          liveKitRoomRef.current = null;
-          setActiveVoiceRoomId(null);
-          setActiveVoiceRoom(null);
-          setSpeakingUserIds(new Set());
-          setVoiceParticipantMicMuted({});
-          void emitWidgetVoiceCallStateChanged(null).catch(() => undefined);
-          setVoiceEndedNotice(t("widget.chat.voiceEnded"));
-          window.setTimeout(() => setVoiceEndedNotice(null), 4_000);
-        });
-        if (liveKitRoomRef.current) {
-          detachWidgetRemoteAudio(liveKitRoomRef.current);
-          liveKitRoomRef.current.disconnect();
-        }
-        liveKitRoomRef.current = liveKitRoom;
-
         try {
-          await liveKitRoom.connect(token.serverUrl, token.token);
-          await liveKitRoom.localParticipant.setMicrophoneEnabled(true);
-          setVoiceMicMuted(false);
-          setVoiceConnectionLabel("LiveKit connected");
+          await connectWidgetLiveKitRoom(voiceRoom.id, token);
+          setVoiceConnectionLabel(t("widget.chat.voiceReconnected"));
         } catch (error) {
           console.error("[widget voice] LiveKit connect failed", error);
           setVoiceConnectionLabel("Token issued; check microphone permission");
@@ -4665,7 +4718,7 @@ function DesktopWidgetSurface() {
       setCommunicationRevision((current) => current + 1);
       publishWidgetDataChanged("chat");
     },
-    [handleWidgetActiveSpeakersChanged, isTauri, publishWidgetDataChanged, t],
+    [isTauri, publishWidgetDataChanged, t],
   );
 
   const toggleWidgetVoiceMic = useCallback(
@@ -4702,11 +4755,14 @@ function DesktopWidgetSurface() {
       const voiceRoomId = bubble.voiceRoomId ?? activeVoiceRoomId;
       if (!voiceRoomId) return;
 
-      if (liveKitRoomRef.current) {
-        detachWidgetRemoteAudio(liveKitRoomRef.current);
-        liveKitRoomRef.current.disconnect();
-      }
+      voiceRecoveryRoomIdRef.current = null;
+      clearWidgetVoiceRecovery();
+      const room = liveKitRoomRef.current;
       liveKitRoomRef.current = null;
+      if (room) {
+        detachWidgetRemoteAudio(room);
+        room.disconnect();
+      }
       // 1:1 채팅은 "나가기, 상대는 계속 통화"라는 개념이 없다 — 웹(chat/page.tsx)과 동일하게
       // 1:1이면 무조건 종료(endVoiceRoom)한다. leaveVoiceRoom만 부르면 참가자만 빠지고 방은
       // OPEN인 채로 남아, 다음 통화 시도가 이 죽은 방을 계속 재사용하는 문제로 이어진다.
