@@ -8,7 +8,8 @@ const ko = {
   "public.hero.eyebrow": "프리랜서 업무를 자료에서 실행까지",
   "public.hero.descLine1": "요구사항, 회의록, 참고 자료를 할 일과 일정으로 바꾸고",
   "public.hero.descLine2": "오늘 필요한 일을 한 화면에 정리해주는 프리랜서 업무 비서",
-  "public.hero.download": "앱 다운로드",
+  "public.hero.downloadMac": "Mac 다운로드",
+  "public.hero.downloadWindows": "Windows 다운로드",
 
   // 랜딩 네비게이션
   "public.nav.aria": "공개 사이트",
@@ -87,7 +88,6 @@ const ko = {
   "public.home.downloadWinAria": "Windows 앱 다운로드",
   "public.home.downloadWin": "Windows 앱 받기",
   "public.home.downloadLogin": "로그인하고 시작",
-  "public.home.downloadBubble": "버블",
 
   // 홈 - FAQ 섹션
   "public.home.faqChip": "자주 묻는 질문",
@@ -203,7 +203,8 @@ const en: Record<Key, string> = {
   "public.hero.eyebrow": "Freelance work, from files to done",
   "public.hero.descLine1": "Turn requirements, meeting notes, and references into a work structure",
   "public.hero.descLine2": "and line up today's tasks on a single screen, your freelance work assistant.",
-  "public.hero.download": "Download the app",
+  "public.hero.downloadMac": "Download for Mac",
+  "public.hero.downloadWindows": "Download for Windows",
 
   "public.nav.aria": "Public site",
   "public.nav.features": "Features",
@@ -274,7 +275,6 @@ const en: Record<Key, string> = {
   "public.home.downloadWinAria": "Download Windows app",
   "public.home.downloadWin": "Get the Windows app",
   "public.home.downloadLogin": "Log in to start",
-  "public.home.downloadBubble": "Bubble",
 
   "public.home.faqChip": "Frequently asked",
   "public.home.faqTitle": "Bubli, the things people ask",
@@ -382,7 +382,8 @@ const ja: Record<Key, string> = {
   "public.hero.eyebrow": "フリーランスの仕事を、資料から実行まで",
   "public.hero.descLine1": "要件・議事録・参考資料を業務構造に変え、",
   "public.hero.descLine2": "今日必要なことを一画面に整理するフリーランス向け業務アシスタント。",
-  "public.hero.download": "アプリをダウンロード",
+  "public.hero.downloadMac": "Mac版をダウンロード",
+  "public.hero.downloadWindows": "Windows版をダウンロード",
 
   "public.nav.aria": "公開サイト",
   "public.nav.features": "機能",
@@ -453,7 +454,6 @@ const ja: Record<Key, string> = {
   "public.home.downloadWinAria": "Windows アプリをダウンロード",
   "public.home.downloadWin": "Windows アプリを入手",
   "public.home.downloadLogin": "ログインして開始",
-  "public.home.downloadBubble": "バブル",
 
   "public.home.faqChip": "よくある質問",
   "public.home.faqTitle": "Bubli、こんなことが気になります",

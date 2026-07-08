@@ -6,6 +6,7 @@ import { useLiveAuthUser } from "@/features/auth/hooks/use-live-auth-user";
 import { PublicOrbitPreview } from "@/features/public-site/components/public-orbit-preview";
 import { useI18n } from "@/lib/i18n";
 
+const macosInstallerHref = "/downloads/macos/Bubli-macOS-0.1.3-arm64.dmg";
 const windowsInstallerHref = "/downloads/windows/Bubli-Windows-latest.exe";
 
 export function PublicHero() {
@@ -36,14 +37,20 @@ export function PublicHero() {
               <Link className="bubli-button bubli-button--primary bubli-button--lg" href="/app">
                 {t("public.session.openApp")}
               </Link>
+              <Link className="bubli-button bubli-button--lg" download href={macosInstallerHref}>
+                {t("public.hero.downloadMac")}
+              </Link>
               <Link className="bubli-button bubli-button--lg" download href={windowsInstallerHref}>
-                {t("public.hero.download")}
+                {t("public.hero.downloadWindows")}
               </Link>
             </>
           ) : (
             <>
-              <Link className="bubli-button bubli-button--primary bubli-button--lg" download href={windowsInstallerHref}>
-                {t("public.hero.download")}
+              <Link className="bubli-button bubli-button--primary bubli-button--lg" download href={macosInstallerHref}>
+                {t("public.hero.downloadMac")}
+              </Link>
+              <Link className="bubli-button bubli-button--lg" download href={windowsInstallerHref}>
+                {t("public.hero.downloadWindows")}
               </Link>
               <Link className="bubli-button bubli-button--lg" href="/login">
                 {t("common.login")}
