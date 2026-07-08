@@ -327,6 +327,11 @@ assertContains(
   "Root layout must mount TauriRuntimeGates so Tauri guards and explicit QA runners stay available.",
 );
 assertContains(
+  tauriLib,
+  /fn widget_uses_transparent_pointer_passthrough\(widget: &WidgetWindowState\) -> bool \{[\s\S]*cfg!\(target_os = "windows"\) && matches!\(widget\.active_bubble\.as_str\(\), "bar" \| "menu"\)[\s\S]*fn widget_initial_ignore_cursor_events\(widget: &WidgetWindowState\) -> bool \{[\s\S]*widget\.click_through \|\| widget_uses_transparent_pointer_passthrough\(widget\)[\s\S]*if rects\.is_empty\(\) \{[\s\S]*return widget_label_defaults_to_pointer_passthrough\(label\);/,
+  "Windows transparent bar/menu widget chrome must pass clicks through before interactive rects are reported.",
+);
+assertContains(
   tauriRuntimeGates,
   /const realOAuthQaEnabled = process\.env\.NEXT_PUBLIC_BUBLI_TAURI_REAL_OAUTH_QA === "true";[\s\S]*import\("@\/lib\/tauri\/tauri-real-oauth-qa-reporter"\)[\s\S]*realOAuthQaEnabled \? <TauriRealOAuthQaReporter \/> : null/,
   "TauriRuntimeGates must lazy-load TauriRealOAuthQaReporter only when the explicit real OAuth QA flag is enabled.",
@@ -1484,13 +1489,18 @@ assertContains(
 );
 assertContains(
   surfaces,
-  /startupWindowRequiresVisibleWindow[\s\S]*input\.bubbleType === "menu"[\s\S]*startupConfig\.requireMenuWindowDuringStartupReuse[\s\S]*startupWindowStateIsReady[\s\S]*if \(input\.mode === "MINIMIZED"\) return state\.mode === "MINIMIZED" && !state\.windowVisible;[\s\S]*return state\.windowVisible && state\.mode !== "MINIMIZED";[\s\S]*authenticatedStartupWindowsReady[\s\S]*const startupConfig = await readTauriStartupOptimizationConfig\(\);[\s\S]*startupWindows\.filter\(\(input\) => startupWindowRequiresVisibleWindow\(input, startupConfig\)\)[\s\S]*Promise\.all\([\s\S]*getWidgetWindowState\(widgetTargetFromInput\(input\)\)[\s\S]*startupWindowStateIsReady\(input, state\)[\s\S]*readyStates\?\.every\(Boolean\) \?\? false/,
+  /startupWindowRequiresVisibleWindow[\s\S]*input\.bubbleType === "menu"[\s\S]*startupConfig\.requireMenuWindowDuringStartupReuse[\s\S]*startupWindowStateIsReady[\s\S]*if \(input\.mode === "MINIMIZED"\) return state\.mode === "MINIMIZED" && !state\.windowVisible;[\s\S]*return state\.windowVisible && state\.mode !== "MINIMIZED";[\s\S]*authenticatedStartupWindowsReady[\s\S]*const startupConfig = await readTauriStartupOptimizationConfig\(\);[\s\S]*startupWindows\.filter\(\(input\) => startupWindowRequiresVisibleWindow\(input, startupConfig\)\)[\s\S]*Promise\.all\([\s\S]*getWidgetWindowState\(widgetTargetFromInput\(input\)\)[\s\S]*startupWindowStateIsReady\(input, state\)[\s\S]*if \(!readyStates\?\.every\(Boolean\)\) return false;/,
   "launchTauriAuthenticatedSurfaces must reopen stale minimized DEFAULT startup widgets, require the Windows menu orb before reuse, and parallelize startup state probes.",
 );
 assertContains(
   surfaces,
   /getAuthenticatedSurfacesEnabled\(\)[\s\S]*const shouldReuseExistingWindows = launchedAuthenticatedSurfaces \|\| nativeAuthenticatedSurfacesEnabled;[\s\S]*if \(shouldReuseExistingWindows\) \{[\s\S]*authenticatedStartupWindowsReady\(startupWindows\)[\s\S]*if \(startupWindowsReady\) \{[\s\S]*timeline\.completed = true[\s\S]*return;[\s\S]*\}[\s\S]*launchedAuthenticatedSurfaces = false;[\s\S]*closeAllWidgetWindows\(\)/,
   "launchTauriAuthenticatedSurfaces must reuse ready visible windows and recover stale native launched state.",
+);
+assertContains(
+  surfaces,
+  /async function authenticatedStartupWindowsReady\(startupWindows: WidgetWindowOpenInput\[\]\)[\s\S]*if \(startupConfig\.profile !== "windows"\) return true;[\s\S]*const unexpectedVisibleBubble = await Promise\.all\([\s\S]*loginStartupBubbleWindows\.map[\s\S]*getWidgetWindowState\(widgetTargetFromInput\(input\)\)[\s\S]*state\.windowVisible && state\.mode !== "MINIMIZED"[\s\S]*unexpectedVisibleBubble\?\.every\(\(visible\) => !visible\) \?\? false/,
+  "Windows authenticated surface reuse must reject stale visible bubble windows before reusing bar/menu startup windows.",
 );
 assertContains(
   surfaces,

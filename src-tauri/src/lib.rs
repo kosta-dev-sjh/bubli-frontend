@@ -322,6 +322,20 @@ fn widget_manual_click_through(app: &AppHandle, label: &str) -> bool {
         .unwrap_or(false)
 }
 
+fn widget_uses_transparent_pointer_passthrough(widget: &WidgetWindowState) -> bool {
+    cfg!(target_os = "windows") && matches!(widget.active_bubble.as_str(), "bar" | "menu")
+}
+
+fn widget_label_defaults_to_pointer_passthrough(label: &str) -> bool {
+    cfg!(target_os = "windows")
+        && widget_bubble_type_from_window_label(label)
+            .is_some_and(|bubble_type| matches!(bubble_type.as_str(), "bar" | "menu"))
+}
+
+fn widget_initial_ignore_cursor_events(widget: &WidgetWindowState) -> bool {
+    widget.click_through || widget_uses_transparent_pointer_passthrough(widget)
+}
+
 fn widget_pointer_inside_rects(rects: &[WidgetInteractiveRect], x: f64, y: f64) -> bool {
     rects.iter().any(|rect| {
         x >= rect.x - WIDGET_POINTER_RECT_PADDING
@@ -375,8 +389,11 @@ fn widget_pointer_should_ignore(window: &WebviewWindow, label: &str) -> bool {
 
     // pointer_recently_seen: 웹뷰가 방금 상호작용 표면에서 마우스 이벤트를 받았다는 힌트(안전망).
     // rect 좌표 계산이 어긋나도 이 동안은 클릭 통과를 켜지 않아 헤더 드래그가 죽지 않는다.
-    if rects.is_empty() || recently_moved || pointer_recently_seen {
+    if recently_moved || pointer_recently_seen {
         return false;
+    }
+    if rects.is_empty() {
+        return widget_label_defaults_to_pointer_passthrough(label);
     }
 
     // tauri v2 데스크톱 API. 실패(권한/플랫폼 미지원 등) 시 클릭 가능 상태를 유지한다.
@@ -2331,15 +2348,22 @@ fn apply_widget_window_state(
                 .map_err(|error| error.to_string())?;
         }
 
+        let ignore_cursor_events = if widget.click_through {
+            true
+        } else if widget_uses_transparent_pointer_passthrough(widget) {
+            widget_pointer_should_ignore(&window, &label)
+        } else {
+            false
+        };
         let ignore_changed = with_widget_pointer_state(&label, |state| {
-            state.last_applied_ignore != Some(widget.click_through)
+            state.last_applied_ignore != Some(ignore_cursor_events)
         })
         .unwrap_or(true);
         if ignore_changed {
             window
-                .set_ignore_cursor_events(widget.click_through)
+                .set_ignore_cursor_events(ignore_cursor_events)
                 .map_err(|error| error.to_string())?;
-            note_widget_ignore_applied(&label, widget.click_through);
+            note_widget_ignore_applied(&label, ignore_cursor_events);
         }
 
         // 창은 resizable(false) + 고정 min/max로 만들어지므로, 계산 크기가 실제로 바뀔 때만
@@ -2479,10 +2503,11 @@ fn build_widget_window(
         }
     });
 
+    let initial_ignore_cursor_events = widget_initial_ignore_cursor_events(widget);
     window
-        .set_ignore_cursor_events(widget.click_through)
+        .set_ignore_cursor_events(initial_ignore_cursor_events)
         .map_err(|error| error.to_string())?;
-    note_widget_ignore_applied(&label, widget.click_through);
+    note_widget_ignore_applied(&label, initial_ignore_cursor_events);
     // 빌더가 이미 적용한 값을 캐시에 기록해, 바로 뒤의 apply가 같은 setter를 중복 호출하지 않게 한다.
     with_widget_applied_window_state(&label, |applied| {
         applied.always_on_top = Some(widget.always_on_top);
@@ -6274,6 +6299,34 @@ mod widget_runtime_tests {
         assert!(!widget_pointer_inside_rects(&rects, 10.0, 10.0));
         assert!(!widget_pointer_inside_rects(&rects, 180.0, 40.0));
         assert!(!widget_pointer_inside_rects(&[], 24.0, 160.0));
+    }
+
+    #[test]
+    fn windows_widget_chrome_defaults_to_pointer_passthrough_before_rects() {
+        let bar = default_widget_window_state("bar", Some("bar".to_string()));
+        let menu = default_widget_window_state("menu", Some("menu".to_string()));
+        let todo = default_widget_window_state("todo", Some("todo".to_string()));
+
+        assert_eq!(
+            widget_initial_ignore_cursor_events(&bar),
+            cfg!(target_os = "windows")
+        );
+        assert_eq!(
+            widget_initial_ignore_cursor_events(&menu),
+            cfg!(target_os = "windows")
+        );
+        assert!(!widget_initial_ignore_cursor_events(&todo));
+        assert_eq!(
+            widget_label_defaults_to_pointer_passthrough("bubli-widget-bar"),
+            cfg!(target_os = "windows")
+        );
+        assert_eq!(
+            widget_label_defaults_to_pointer_passthrough("bubli-widget-menu"),
+            cfg!(target_os = "windows")
+        );
+        assert!(!widget_label_defaults_to_pointer_passthrough(
+            "bubli-widget-todo"
+        ));
     }
 
     #[test]

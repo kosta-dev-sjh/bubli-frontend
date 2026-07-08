@@ -193,7 +193,17 @@ async function authenticatedStartupWindowsReady(startupWindows: WidgetWindowOpen
     }),
   ).catch(() => null);
 
-  return readyStates?.every(Boolean) ?? false;
+  if (!readyStates?.every(Boolean)) return false;
+  if (startupConfig.profile !== "windows") return true;
+
+  const unexpectedVisibleBubble = await Promise.all(
+    loginStartupBubbleWindows.map(async (input) => {
+      const state = await tauriCommands.getWidgetWindowState(widgetTargetFromInput(input));
+      return state.windowVisible && state.mode !== "MINIMIZED";
+    }),
+  ).catch(() => null);
+
+  return unexpectedVisibleBubble?.every((visible) => !visible) ?? false;
 }
 
 async function openWidgetWindowWithRetry(
