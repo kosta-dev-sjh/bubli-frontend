@@ -1717,7 +1717,9 @@ function DesktopWidgetSurface() {
   const [barItems, setBarItems] = useState<WidgetWindowState[]>([]);
   const [widgetRoomOptions, setWidgetRoomOptions] = useState<WidgetRoomOption[]>([]);
   const [displayBubbles, setDisplayBubbles] = useState<Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>>(() =>
-    withWidgetDisplayLoadState(buildEmptyDisplayBubbles(t, requestedRoomId), "loading"),
+    startupOptimization.profile === "windows"
+      ? buildEmptyDisplayBubbles(t, requestedRoomId)
+      : withWidgetDisplayLoadState(buildEmptyDisplayBubbles(t, requestedRoomId), "loading"),
   );
   const [activeVoiceRoomId, setActiveVoiceRoomId] = useState<string | null>(devVoiceRoomId);
   // 발신자 링백 판단용 — 최근 로드된 통화방을 들고 있는다(참여자·상태·개설자).
@@ -2060,6 +2062,7 @@ function DesktopWidgetSurface() {
         const nextState = requestedMode !== state.mode
           ? await tauriCommands.setWidgetWindowMode({
             bubbleType: requestedBubble,
+            clearSelectedRoomId: selectedWidgetRoomId === null,
             mode: requestedMode,
             selectedRoomId: selectedWidgetRoomId,
             windowId,
@@ -2701,9 +2704,13 @@ function DesktopWidgetSurface() {
           voiceConnectionLabel,
           voiceRoom: voiceValue,
         }, t);
-      const persistedItemStates = await widgetApi
-        .listItemStates(collectWidgetItemIds(nextDisplayBubbles))
-        .catch(() => []);
+      const deferInitialWindowsItemStateSync = isWindowsStartupProfile && !hadLoadedDisplay;
+      const nextDisplayItemIds = collectWidgetItemIds(nextDisplayBubbles);
+      const persistedItemStates = deferInitialWindowsItemStateSync
+        ? []
+        : await widgetApi
+            .listItemStates(nextDisplayItemIds)
+            .catch(() => []);
       const persistedOverrides = itemStateResponseToOverrides(persistedItemStates);
       const nextBubblesBase = applyItemStateOverrides(nextDisplayBubbles, { ...persistedOverrides, ...itemStateOverrides });
       const nextBubbles = hadLoadedDisplay ? nextBubblesBase : withFailedWidgetDisplayBubbles(nextBubblesBase, failedBubbles);
@@ -2716,6 +2723,18 @@ function DesktopWidgetSurface() {
         ),
       );
       displayLoadedOnceRef.current = true;
+      if (deferInitialWindowsItemStateSync && nextDisplayItemIds.length > 0) {
+        void widgetApi
+          .listItemStates(nextDisplayItemIds)
+          .then((items) => {
+            if (cancelled || items.length === 0) return;
+            const deferredOverrides = itemStateResponseToOverrides(items);
+            setDisplayBubbles((current) =>
+              keepBubbleMapIfDeepEqual(current, applyItemStateOverrides(current, { ...deferredOverrides, ...itemStateOverrides })),
+            );
+          })
+          .catch(() => undefined);
+      }
     }
 
     void loadDisplayApiState().catch(() => {
@@ -2810,6 +2829,7 @@ function DesktopWidgetSurface() {
       try {
         const state = await tauriCommands.setWidgetWindowMode({
           bubbleType: activeBubble,
+          clearSelectedRoomId: selectedWidgetRoomId === null,
           mode: nextMode,
           selectedRoomId: selectedWidgetRoomId,
           windowId,
@@ -2894,6 +2914,7 @@ function DesktopWidgetSurface() {
     try {
       const state = await tauriCommands.openWidgetWindow({
         bubbleType: activeBubble,
+        clearSelectedRoomId: selectedWidgetRoomId === null,
         mode: "DEFAULT",
         selectedRoomId: selectedWidgetRoomId,
         windowId,
@@ -2988,6 +3009,7 @@ function DesktopWidgetSurface() {
         // 넘기면(레거시 "todo-…" 등) Rust 스토어 키가 갈라져 같은 버블 창이 두 개 열렸다.
         const state = await tauriCommands.openWidgetWindow({
           bubbleType,
+          clearSelectedRoomId: selectedRoomId === null,
           mode: "DEFAULT",
           selectedRoomId,
           windowId: bubbleType,

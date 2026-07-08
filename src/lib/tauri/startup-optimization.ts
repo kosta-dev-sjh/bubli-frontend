@@ -84,7 +84,7 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
   },
   windows: {
     bubbleOpenStaggerMs: 0,
-    deferredBarFullDisplayDelayMs: 350,
+    deferredBarFullDisplayDelayMs: 120,
     deferBarAgentCollectionsOnInitialDisplay: true,
     deferBarFullDisplayUntilAfterFirstPaint: true,
     initialDisplayPageSize: 30,

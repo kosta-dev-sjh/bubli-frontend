@@ -73,6 +73,32 @@ for (const reference of wrapperReferences) {
   }
 }
 
+assertContains(
+  commandsText,
+  /export type WidgetWindowModeInput = \{[\s\S]*clearSelectedRoomId\?: boolean;[\s\S]*selectedRoomId\?: string \| null;/,
+  "WidgetWindowModeInput must expose clearSelectedRoomId so explicit personal mode can clear stale native room context.",
+);
+assertContains(
+  commandsText,
+  /export type WidgetWindowOpenInput = \{[\s\S]*clearSelectedRoomId\?: boolean;[\s\S]*selectedRoomId\?: string \| null;/,
+  "WidgetWindowOpenInput must expose clearSelectedRoomId so explicit personal mode can clear stale native room context.",
+);
+assertContains(
+  handlerText,
+  /struct WidgetWindowModeInput \{[\s\S]*clear_selected_room_id: Option<bool>,[\s\S]*selected_room_id: Option<String>,/,
+  "Rust WidgetWindowModeInput must deserialize clearSelectedRoomId separately from omitted selectedRoomId.",
+);
+assertContains(
+  handlerText,
+  /struct WidgetWindowOpenInput \{[\s\S]*clear_selected_room_id: Option<bool>,[\s\S]*selected_room_id: Option<String>,/,
+  "Rust WidgetWindowOpenInput must deserialize clearSelectedRoomId separately from omitted selectedRoomId.",
+);
+assertContains(
+  handlerText,
+  /if let Some\(selected_room_id\) = selected_room_id \{[\s\S]*widget\.selected_room_id = Some\(selected_room_id\);[\s\S]*\} else if clear_selected_room_id \{[\s\S]*widget\.selected_room_id = None;/,
+  "Native widget room context updates must preserve omitted room ids and clear only when clearSelectedRoomId is explicit.",
+);
+
 if (failures.length > 0) {
   console.error("Tauri command contract check failed.");
   for (const failure of failures) {
@@ -88,6 +114,12 @@ function readRequiredFile(filePath) {
     throw new Error(`Missing file: ${toRepoPath(filePath)}`);
   }
   return readFileSync(filePath, "utf8");
+}
+
+function assertContains(source, pattern, message) {
+  if (!pattern.test(source)) {
+    failures.push(message);
+  }
 }
 
 function parseFlatStringObject(text, objectName) {

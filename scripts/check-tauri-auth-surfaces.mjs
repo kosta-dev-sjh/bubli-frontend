@@ -245,7 +245,7 @@ assertContains(
 );
 assertContains(
   startupOptimization,
-  /windows:\s*\{[\s\S]*bubbleOpenStaggerMs:\s*0,[\s\S]*deferBarAgentCollectionsOnInitialDisplay:\s*true,[\s\S]*deferBarFullDisplayUntilAfterFirstPaint:\s*true,[\s\S]*initialDisplayPageSize:\s*30,[\s\S]*initialNotificationScanPages:\s*2,[\s\S]*menuOrbBadgeRefreshIntervalMs:\s*20_000,[\s\S]*preloadWidgetSettingsDuringStartup:\s*false,[\s\S]*requireMenuWindowDuringStartupReuse:\s*true,[\s\S]*summaryPrewarmTimeoutMs:\s*1_800,[\s\S]*widgetContextRefreshIntervalMs:\s*30_000/,
+  /windows:\s*\{[\s\S]*bubbleOpenStaggerMs:\s*0,[\s\S]*deferredBarFullDisplayDelayMs:\s*120,[\s\S]*deferBarAgentCollectionsOnInitialDisplay:\s*true,[\s\S]*deferBarFullDisplayUntilAfterFirstPaint:\s*true,[\s\S]*initialDisplayPageSize:\s*30,[\s\S]*initialNotificationScanPages:\s*2,[\s\S]*menuOrbBadgeRefreshIntervalMs:\s*20_000,[\s\S]*preloadWidgetSettingsDuringStartup:\s*false,[\s\S]*requireMenuWindowDuringStartupReuse:\s*true,[\s\S]*summaryPrewarmTimeoutMs:\s*1_800,[\s\S]*widgetContextRefreshIntervalMs:\s*30_000/,
   "Windows startup optimization must use batched widget opening, defer duplicate bar agent collection loads, bounded initial display loads, bounded initial notification scans, slower fallback polling, no startup settings prefetch, menu reuse verification, first-paint deferral, and summary prewarm.",
 );
 assertContains(
@@ -1499,6 +1499,11 @@ assertContains(
 );
 assertContains(
   surfaces,
+  /function widgetOpenInputForRoom\(input: WidgetWindowOpenInput, selectedRoomId: string \| null\): WidgetWindowOpenInput \{[\s\S]*clearSelectedRoomId: selectedRoomId === null,[\s\S]*selectedRoomId,[\s\S]*tauriCommands\.openWidgetWindow\(widgetOpenInputForRoom\(input, selectedRoomId\)\)[\s\S]*inputs\.map\(\(input\) => widgetOpenInputForRoom\(input, selectedRoomId\)\)/,
+  "launchTauriAuthenticatedSurfaces must send clearSelectedRoomId when explicit personal mode opens native widget windows.",
+);
+assertContains(
+  surfaces,
   /const \[startupWindows, selectedRoomId\] = await Promise\.all\(\[startupWindowsPromise, selectedRoomPromise\]\);[\s\S]*const launchFailureKey = autoLaunchFailureKey\(verifiedSession\?\.user\.id \?\? initialSession\.user\.id, selectedRoomId\)[\s\S]*const applyAutoLaunchCooldown = shouldApplyAutoLaunchCooldown\(options\)[\s\S]*if \(applyAutoLaunchCooldown && shouldSuppressAutoLaunchRetry\(launchFailureKey\)\)[\s\S]*retrySuppressedAt[\s\S]*await tauriCommands\.setAuthenticatedSurfacesEnabled\(\{ enabled: true \}\);/,
   "launchTauriAuthenticatedSurfaces must allow personal-mode widgets when no project-room context exists and suppress only opt-in auto retries.",
 );
@@ -1825,6 +1830,11 @@ assertContains(
   widgetPage,
   /const initialDisplayPageSize =[\s\S]*startupOptimization\.initialDisplayPageSize[\s\S]*const initialNotificationScanPages =[\s\S]*isTauri && !displayLoadedOnceRef\.current && startupOptimization\.initialNotificationScanPages > 0[\s\S]*widgetDisplayApi\.listSchedules\(selectedRoomId, initialDisplayPageSize\)[\s\S]*widgetDisplayApi\.listResources\(selectedRoomId, initialDisplayPageSize\)[\s\S]*widgetDisplayApi\.listMemos\(selectedRoomId, initialDisplayPageSize\)[\s\S]*listWidgetVisibleUnreadNotifications\(WIDGET_NOTIFICATION_DISPLAY_LIMIT, initialNotificationScanPages\)[\s\S]*startupOptimization\.initialDisplayPageSize[\s\S]*startupOptimization\.initialNotificationScanPages/,
   "Desktop widget must use the Windows startup profile to bound first-load schedule/resource/memo requests and notification scans without affecting later refreshes.",
+);
+assertContains(
+  widgetPage,
+  /startupOptimization\.profile === "windows"[\s\S]*\? buildEmptyDisplayBubbles\(t, requestedRoomId\)[\s\S]*: withWidgetDisplayLoadState\(buildEmptyDisplayBubbles\(t, requestedRoomId\), "loading"\)[\s\S]*const deferInitialWindowsItemStateSync = isWindowsStartupProfile && !hadLoadedDisplay[\s\S]*deferInitialWindowsItemStateSync[\s\S]*\? \[\][\s\S]*listItemStates\(nextDisplayItemIds\)[\s\S]*displayLoadedOnceRef\.current = true[\s\S]*deferInitialWindowsItemStateSync && nextDisplayItemIds\.length > 0[\s\S]*listItemStates\(nextDisplayItemIds\)/,
+  "Desktop widget Windows profile must show the first frame without the blocking loading copy and defer item-state sync until after first display.",
 );
 assertContains(
   widgetPage,

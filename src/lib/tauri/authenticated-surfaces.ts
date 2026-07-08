@@ -144,6 +144,14 @@ function widgetTargetFromInput(input: WidgetWindowOpenInput) {
   };
 }
 
+function widgetOpenInputForRoom(input: WidgetWindowOpenInput, selectedRoomId: string | null): WidgetWindowOpenInput {
+  return {
+    ...input,
+    clearSelectedRoomId: selectedRoomId === null,
+    selectedRoomId,
+  };
+}
+
 async function prewarmWidgetSummaryCache(selectedRoomId: string | null): Promise<boolean> {
   const startupConfig = await readTauriStartupOptimizationConfig();
   if (startupConfig.summaryPrewarmTimeoutMs <= 0) return false;
@@ -203,7 +211,7 @@ async function openWidgetWindowWithRetry(
 
     try {
       await withTimeout(
-        tauriCommands.openWidgetWindow({ ...input, selectedRoomId }),
+        tauriCommands.openWidgetWindow(widgetOpenInputForRoom(input, selectedRoomId)),
         startupConfig.openCommandTimeoutMs,
         "Tauri widget open timed out",
       );
@@ -242,14 +250,14 @@ async function openWidgetWindowsWithRetry(
         for (const input of inputs) {
           if (!shouldContinue()) throw new Error("Tauri widget launch cancelled");
           await withTimeout(
-            tauriCommands.openWidgetWindow({ ...input, selectedRoomId }),
+            tauriCommands.openWidgetWindow(widgetOpenInputForRoom(input, selectedRoomId)),
             startupConfig.openCommandTimeoutMs,
             "Tauri widget open timed out",
           );
           await delay(startupConfig.bubbleOpenStaggerMs);
         }
       } else {
-        const windows = inputs.map((input) => ({ ...input, selectedRoomId }));
+        const windows = inputs.map((input) => widgetOpenInputForRoom(input, selectedRoomId));
         await withTimeout(tauriCommands.openWidgetWindows({ windows }), startupConfig.openCommandTimeoutMs, "Tauri widget open timed out");
       }
       return inputs.map((input) => ({ input, status: "fulfilled" as const }));
