@@ -17979,9 +17979,9 @@ html {
   background-clip: text;
   -webkit-text-fill-color: transparent;
   font-size: clamp(52px, 6.5vw, 98px);
-  font-weight: 920;
+  font-weight: 700;
   letter-spacing: 0;
-  line-height: 0.9;
+  line-height: 1.08;
 }
 
 .landing-download__head h2 {
@@ -18482,7 +18482,7 @@ html {
 
   .landing-download__label {
     font-size: clamp(48px, 14vw, 66px);
-    line-height: 1.02;
+    line-height: 1.08;
   }
 
   .landing-download__head h2 {
@@ -18769,9 +18769,9 @@ html {
   background-clip: text;
   -webkit-text-fill-color: transparent;
   font-size: clamp(52px, 6.5vw, 98px);
-  font-weight: 920;
+  font-weight: 700;
   letter-spacing: 0;
-  line-height: 0.9;
+  line-height: 1.08;
 }
 
 .landing-download__head strong {
@@ -19028,7 +19028,7 @@ html {
   .landing-download__label {
     margin-top: 46px;
     font-size: clamp(48px, 14vw, 66px);
-    line-height: 1.02;
+    line-height: 1.08;
   }
 
   .landing-download__head h2 {

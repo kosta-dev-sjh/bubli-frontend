@@ -8,6 +8,8 @@ export type TauriStartupOptimizationConfig = {
   deferredBarFullDisplayDelayMs: number;
   deferBarFullDisplayUntilAfterFirstPaint: boolean;
   deferBarAgentCollectionsOnInitialDisplay: boolean;
+  displayRefreshThrottleMs: number;
+  displayRequestTimeoutMs: number;
   initialDisplayPageSize: number;
   initialNotificationScanPages: number;
   menuOrbBadgeRefreshIntervalMs: number;
@@ -33,6 +35,8 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
     deferredBarFullDisplayDelayMs: 1_200,
     deferBarAgentCollectionsOnInitialDisplay: false,
     deferBarFullDisplayUntilAfterFirstPaint: true,
+    displayRefreshThrottleMs: 0,
+    displayRequestTimeoutMs: 0,
     initialDisplayPageSize: 0,
     initialNotificationScanPages: 0,
     menuOrbBadgeRefreshIntervalMs: 8_000,
@@ -51,6 +55,8 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
     deferredBarFullDisplayDelayMs: 0,
     deferBarAgentCollectionsOnInitialDisplay: false,
     deferBarFullDisplayUntilAfterFirstPaint: false,
+    displayRefreshThrottleMs: 0,
+    displayRequestTimeoutMs: 0,
     initialDisplayPageSize: 0,
     initialNotificationScanPages: 0,
     menuOrbBadgeRefreshIntervalMs: 8_000,
@@ -69,6 +75,8 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
     deferredBarFullDisplayDelayMs: 750,
     deferBarAgentCollectionsOnInitialDisplay: false,
     deferBarFullDisplayUntilAfterFirstPaint: true,
+    displayRefreshThrottleMs: 0,
+    displayRequestTimeoutMs: 0,
     initialDisplayPageSize: 0,
     initialNotificationScanPages: 0,
     menuOrbBadgeRefreshIntervalMs: 8_000,
@@ -84,9 +92,11 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
   },
   windows: {
     bubbleOpenStaggerMs: 0,
-    deferredBarFullDisplayDelayMs: 350,
+    deferredBarFullDisplayDelayMs: 120,
     deferBarAgentCollectionsOnInitialDisplay: true,
     deferBarFullDisplayUntilAfterFirstPaint: true,
+    displayRefreshThrottleMs: 200,
+    displayRequestTimeoutMs: 650,
     initialDisplayPageSize: 30,
     initialNotificationScanPages: 2,
     menuOrbBadgeRefreshIntervalMs: 20_000,

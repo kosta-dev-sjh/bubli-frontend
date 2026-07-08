@@ -245,8 +245,8 @@ assertContains(
 );
 assertContains(
   startupOptimization,
-  /windows:\s*\{[\s\S]*bubbleOpenStaggerMs:\s*0,[\s\S]*deferBarAgentCollectionsOnInitialDisplay:\s*true,[\s\S]*deferBarFullDisplayUntilAfterFirstPaint:\s*true,[\s\S]*initialDisplayPageSize:\s*30,[\s\S]*initialNotificationScanPages:\s*2,[\s\S]*menuOrbBadgeRefreshIntervalMs:\s*20_000,[\s\S]*preloadWidgetSettingsDuringStartup:\s*false,[\s\S]*requireMenuWindowDuringStartupReuse:\s*true,[\s\S]*summaryPrewarmTimeoutMs:\s*1_800,[\s\S]*widgetContextRefreshIntervalMs:\s*30_000/,
-  "Windows startup optimization must use batched widget opening, defer duplicate bar agent collection loads, bounded initial display loads, bounded initial notification scans, slower fallback polling, no startup settings prefetch, menu reuse verification, first-paint deferral, and summary prewarm.",
+  /windows:\s*\{[\s\S]*bubbleOpenStaggerMs:\s*0,[\s\S]*deferredBarFullDisplayDelayMs:\s*120,[\s\S]*deferBarAgentCollectionsOnInitialDisplay:\s*true,[\s\S]*deferBarFullDisplayUntilAfterFirstPaint:\s*true,[\s\S]*displayRefreshThrottleMs:\s*200,[\s\S]*displayRequestTimeoutMs:\s*650,[\s\S]*initialDisplayPageSize:\s*30,[\s\S]*initialNotificationScanPages:\s*2,[\s\S]*menuOrbBadgeRefreshIntervalMs:\s*20_000,[\s\S]*preloadWidgetSettingsDuringStartup:\s*false,[\s\S]*requireMenuWindowDuringStartupReuse:\s*true,[\s\S]*summaryPrewarmTimeoutMs:\s*1_800,[\s\S]*widgetContextRefreshIntervalMs:\s*30_000/,
+  "Windows startup optimization must use batched widget opening, defer duplicate bar agent collection loads, bound display refreshes and display request waits, bounded initial display loads, bounded initial notification scans, slower fallback polling, no startup settings prefetch, menu reuse verification, first-paint deferral, and summary prewarm.",
 );
 assertContains(
   startupOptimization,
@@ -325,6 +325,11 @@ assertContains(
   layout,
   /<TauriRuntimeGates\s*\/>/,
   "Root layout must mount TauriRuntimeGates so Tauri guards and explicit QA runners stay available.",
+);
+assertContains(
+  tauriLib,
+  /fn widget_uses_transparent_pointer_passthrough\(widget: &WidgetWindowState\) -> bool \{[\s\S]*cfg!\(target_os = "windows"\) && matches!\(widget\.active_bubble\.as_str\(\), "bar" \| "menu"\)[\s\S]*fn widget_initial_ignore_cursor_events\(widget: &WidgetWindowState\) -> bool \{[\s\S]*widget\.click_through \|\| widget_uses_transparent_pointer_passthrough\(widget\)[\s\S]*if rects\.is_empty\(\) \{[\s\S]*return widget_label_defaults_to_pointer_passthrough\(label\);/,
+  "Windows transparent bar/menu widget chrome must pass clicks through before interactive rects are reported.",
 );
 assertContains(
   tauriRuntimeGates,
@@ -917,7 +922,7 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /setAuthenticatedSurfacesEnabled\(\{ enabled: true \}\)[\s\S]*openWidgetWindows\(\{[\s\S]*bubbleType: "bar"[\s\S]*\.\.\.smokeWidgetBubbles\.map[\s\S]*native bar and all bubble widget windows opened after login[\s\S]*setWidgetRoomContext\(\{ selectedRoomId: smokeRoomId \}\)[\s\S]*Promise\.all\([\s\S]*getWidgetWindowState\(\{ bubbleType, windowId: bubbleType \}\)[\s\S]*all bubble widget windows visible[\s\S]*project room context propagated to all bubble widgets/,
+  /setAuthenticatedSurfacesEnabled\(\{ enabled: true \}\)[\s\S]*openWidgetWindows\(\{[\s\S]*bubbleType: "bar"[\s\S]*\.\.\.smokeWidgetBubbles\.map[\s\S]*native bar and all bubble widget windows can be opened explicitly[\s\S]*setWidgetRoomContext\(\{ selectedRoomId: smokeRoomId \}\)[\s\S]*Promise\.all\([\s\S]*getWidgetWindowState\(\{ bubbleType, windowId: bubbleType \}\)[\s\S]*all bubble widget windows visible[\s\S]*project room context propagated to all bubble widgets/,
   "TauriRuntimeSmokeRunner must verify post-login native bar plus all bubble widget windows and room context propagation.",
 );
 assertContains(
@@ -1087,8 +1092,8 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /launchTauriAuthenticatedSurfaces\(\)[\s\S]*post-login launcher opened all auto-login bubble widgets with project room context[\s\S]*post-login launcher kept standalone resource widget hidden[\s\S]*isActivityAutoCaptureRunning\(\)[\s\S]*isManagedFolderAutoSyncRunning\(\)[\s\S]*isWidgetUsageAutoSyncRunning\(\)[\s\S]*post-login launcher started activity folder and widget sync loops[\s\S]*stopTauriAuthenticatedSurfaces\(\)[\s\S]*post-login stop cleared active project room context[\s\S]*post-login stop closed all bubble widget windows[\s\S]*post-login stop stopped activity folder and widget sync loops/,
-  "TauriRuntimeSmokeRunner must prove the real post-login authenticated launcher opens widgets, starts sync loops, and stops both widgets and loops.",
+  /launchTauriAuthenticatedSurfaces\(\)[\s\S]*post-login launcher opened only the bar and menu by default[\s\S]*post-login launcher kept bubble widgets hidden by default[\s\S]*post-login launcher seeded bubble restore items without opening them[\s\S]*isActivityAutoCaptureRunning\(\)[\s\S]*isManagedFolderAutoSyncRunning\(\)[\s\S]*isWidgetUsageAutoSyncRunning\(\)[\s\S]*post-login launcher started activity folder and widget sync loops[\s\S]*stopTauriAuthenticatedSurfaces\(\)[\s\S]*post-login stop cleared active project room context[\s\S]*post-login stop closed all bubble widget windows[\s\S]*post-login stop stopped activity folder and widget sync loops/,
+  "TauriRuntimeSmokeRunner must prove the real post-login authenticated launcher opens bar/menu, seeds restore items, starts sync loops, and stops both widgets and loops.",
 );
 assertContains(
   runtimeSmokeRunner,
@@ -1127,7 +1132,7 @@ assertContains(
 );
 assertContains(
   windowsRuntimeSmoke,
-  /const CONTRACT_ONLY = process\.argv\.includes\("--contract"\)[\s\S]*if \(CONTRACT_ONLY\) \{[\s\S]*const contractChecks = runContractCheck\(\);[\s\S]*checks: contractChecks[\s\S]*mode: "contract"[\s\S]*process\.exit\(0\);[\s\S]*function runContractCheck\(\)[\s\S]*runner verifies post-login bar and auto-login bubble widgets with room context[\s\S]*runner verifies real backend widget context and settings persistence[\s\S]*runner verifies SQLite backup creation and restore queueing[\s\S]*runner verifies local file scan reindex watch sync and analysis backfill/,
+  /const CONTRACT_ONLY = process\.argv\.includes\("--contract"\)[\s\S]*if \(CONTRACT_ONLY\) \{[\s\S]*const contractChecks = runContractCheck\(\);[\s\S]*checks: contractChecks[\s\S]*mode: "contract"[\s\S]*process\.exit\(0\);[\s\S]*function runContractCheck\(\)[\s\S]*runner verifies post-login bar menu and hidden bubble restore items[\s\S]*runner verifies real backend widget context and settings persistence[\s\S]*runner verifies SQLite backup creation and restore queueing[\s\S]*runner verifies local file scan reindex watch sync and analysis backfill/,
   "Windows runtime smoke --contract mode must statically verify key runtime smoke functional assertions before reporting pass.",
 );
 assertContains(
@@ -1384,21 +1389,21 @@ assertContains(
   "loginStartupAgentOrbWindow",
   "Login startup windows must include the agent orb window.",
 );
-assertContains(
+assertNotContains(
   startupWindows,
   "...loginStartupBubbleWindows",
-  "Login startup windows must include the default auto-login bubble set.",
+  "Default login startup windows must not fan out every bubble window.",
 );
 assertContains(
   startupBubbleWindows,
   /bubbleType:\s*"todo"[\s\S]*windowId:\s*"todo"/,
-  "Login startup bubble windows must open the TODO bubble automatically.",
+  "Login startup bubble windows must keep the TODO restore definition.",
 );
 for (const required of ["agent", "alert", "chat", "memo", "schedule", "timer"]) {
   assertContains(
     startupBubbleWindows,
     new RegExp(`bubbleType:\\s*"${required}"[\\s\\S]*windowId:\\s*"${required}"`),
-    `Login startup bubble windows must open the ${required} bubble automatically.`,
+    `Login startup bubble windows must keep the ${required} restore definition.`,
   );
 }
 assertNotContains(
@@ -1429,8 +1434,8 @@ assertContains(
 );
 assertContains(
   surfaces,
-  /return loginStartupWindows;/,
-  "The default startup preference must keep first launch to the Bubli bar only.",
+  /preference\.mode === "bar"[\s\S]*return loginStartupWindows;/,
+  "The default bar startup preference must keep first launch to the Bubli bar/menu only.",
 );
 assertNotContains(
   surfaces,
@@ -1484,7 +1489,7 @@ assertContains(
 );
 assertContains(
   surfaces,
-  /startupWindowRequiresVisibleWindow[\s\S]*input\.bubbleType === "menu"[\s\S]*startupConfig\.requireMenuWindowDuringStartupReuse[\s\S]*startupWindowStateIsReady[\s\S]*if \(input\.mode === "MINIMIZED"\) return state\.mode === "MINIMIZED" && !state\.windowVisible;[\s\S]*return state\.windowVisible && state\.mode !== "MINIMIZED";[\s\S]*authenticatedStartupWindowsReady[\s\S]*const startupConfig = await readTauriStartupOptimizationConfig\(\);[\s\S]*startupWindows\.filter\(\(input\) => startupWindowRequiresVisibleWindow\(input, startupConfig\)\)[\s\S]*Promise\.all\([\s\S]*getWidgetWindowState\(widgetTargetFromInput\(input\)\)[\s\S]*startupWindowStateIsReady\(input, state\)[\s\S]*readyStates\?\.every\(Boolean\) \?\? false/,
+  /startupWindowRequiresVisibleWindow[\s\S]*input\.bubbleType === "menu"[\s\S]*startupConfig\.requireMenuWindowDuringStartupReuse[\s\S]*startupWindowStateIsReady[\s\S]*if \(input\.mode === "MINIMIZED"\) return state\.mode === "MINIMIZED" && !state\.windowVisible;[\s\S]*return state\.windowVisible && state\.mode !== "MINIMIZED";[\s\S]*authenticatedStartupWindowsReady[\s\S]*const startupConfig = await readTauriStartupOptimizationConfig\(\);[\s\S]*startupWindows\.filter\(\(input\) => startupWindowRequiresVisibleWindow\(input, startupConfig\)\)[\s\S]*Promise\.all\([\s\S]*getWidgetWindowState\(widgetTargetFromInput\(input\)\)[\s\S]*startupWindowStateIsReady\(input, state\)[\s\S]*if \(!readyStates\?\.every\(Boolean\)\) return false;/,
   "launchTauriAuthenticatedSurfaces must reopen stale minimized DEFAULT startup widgets, require the Windows menu orb before reuse, and parallelize startup state probes.",
 );
 assertContains(
@@ -1494,8 +1499,18 @@ assertContains(
 );
 assertContains(
   surfaces,
+  /async function authenticatedStartupWindowsReady\(startupWindows: WidgetWindowOpenInput\[\]\)[\s\S]*if \(startupConfig\.profile !== "windows"\) return true;[\s\S]*const unexpectedVisibleBubble = await Promise\.all\([\s\S]*loginStartupBubbleWindows\.map[\s\S]*getWidgetWindowState\(widgetTargetFromInput\(input\)\)[\s\S]*state\.windowVisible && state\.mode !== "MINIMIZED"[\s\S]*unexpectedVisibleBubble\?\.every\(\(visible\) => !visible\) \?\? false/,
+  "Windows authenticated surface reuse must reject stale visible bubble windows before reusing bar/menu startup windows.",
+);
+assertContains(
+  surfaces,
   /type LaunchTauriAuthenticatedSurfacesOptions = \{[\s\S]*retryPolicy\?: "cooldown" \| "force";[\s\S]*sessionAlreadyValidated\?: boolean;[\s\S]*selectedRoomId\?: string \| null;[\s\S]*Object\.prototype\.hasOwnProperty\.call\(options, "selectedRoomId"\)[\s\S]*Promise\.resolve\(options\.selectedRoomId \?\? null\)[\s\S]*resolveLaunchSelectedRoomId\(\)/,
   "launchTauriAuthenticatedSurfaces must reuse caller-resolved project-room context, preserve explicit null personal mode, and keep cooldown opt-in before falling back to extra API lookups.",
+);
+assertContains(
+  surfaces,
+  /function widgetOpenInputForRoom\(input: WidgetWindowOpenInput, selectedRoomId: string \| null\): WidgetWindowOpenInput \{[\s\S]*clearSelectedRoomId: selectedRoomId === null,[\s\S]*selectedRoomId,[\s\S]*tauriCommands\.openWidgetWindow\(widgetOpenInputForRoom\(input, selectedRoomId\)\)[\s\S]*inputs\.map\(\(input\) => widgetOpenInputForRoom\(input, selectedRoomId\)\)/,
+  "launchTauriAuthenticatedSurfaces must send clearSelectedRoomId when explicit personal mode opens native widget windows.",
 );
 assertContains(
   surfaces,
@@ -1519,17 +1534,17 @@ assertContains(
 );
 assertContains(
   surfaces,
-  /openWidgetWindowWithRetry\(barWindow, selectedRoomId, shouldContinueLaunch\)[\s\S]*if \(generation !== launchGeneration\) \{[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*return;[\s\S]*openWidgetWindowsWithRetry\(bubbleWindows, selectedRoomId, shouldContinueLaunch\)/,
+  /openWidgetWindowWithRetry\(barWindow, selectedRoomId, shouldContinueLaunch\)[\s\S]*if \(generation !== launchGeneration\) \{[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*return;[\s\S]*openWidgetWindowsWithRetry\(secondaryStartupWindows, selectedRoomId, shouldContinueLaunch\)/,
   "launchTauriAuthenticatedSurfaces must cancel cleanly after opening the bar and before processing optional startup windows.",
 );
 assertContains(
   surfaces,
-  /openWidgetWindowsWithRetry\(bubbleWindows, selectedRoomId, shouldContinueLaunch\)/,
+  /const \[barWindow, \.\.\.secondaryStartupWindows\] = startupWindows[\s\S]*const visibleBubbleWindows = secondaryStartupWindows\.filter\(\(input\) => input\.bubbleType !== "menu"\)[\s\S]*selectedRoomId \|\| visibleBubbleWindows\.length > 0[\s\S]*prewarmWidgetSummaryCache\(selectedRoomId\)[\s\S]*openWidgetWindowsWithRetry\(secondaryStartupWindows, selectedRoomId, shouldContinueLaunch\)/,
   "launchTauriAuthenticatedSurfaces must keep the optional batch IPC path available for non-default startup windows.",
 );
 assertContains(
   surfaces,
-  /openWidgetWindowsWithRetry\(bubbleWindows, selectedRoomId, shouldContinueLaunch\)[\s\S]*if \(generation !== launchGeneration\) \{[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*return;[\s\S]*if \(openedWindows\.length < startupWindows\.length\)/,
+  /openWidgetWindowsWithRetry\(secondaryStartupWindows, selectedRoomId, shouldContinueLaunch\)[\s\S]*if \(generation !== launchGeneration\) \{[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*return;[\s\S]*if \(openedWindows\.length < startupWindows\.length\)/,
   "launchTauriAuthenticatedSurfaces must cancel cleanly after optional startup window attempts and before marking the launch active.",
 );
 assertContains(
@@ -1786,6 +1801,11 @@ assertContains(
   "Widget dev bearer headers must stay web-preview only and must not mask missing Tauri auth sessions.",
 );
 assertContains(
+  widgetAuthHeaders,
+  /isWindowsTauriRuntime[\s\S]*if \(isWindowsTauriRuntime\(\) && !headers && !next\.has\("Authorization"\)\) \{[\s\S]*return undefined;/,
+  "Windows Tauri widget requests must omit empty dev-auth headers so common GET request de-duping stays enabled.",
+);
+assertContains(
   workspacePreviewData,
   /function shouldUseWorkspacePreviewData\(\) \{[\s\S]*if \(isTauriRuntime\(\)\) return false;[\s\S]*NEXT_PUBLIC_BUBLI_PREVIEW_DATA === "true"/,
   "Workspace preview data must be disabled inside Tauri so hybrid app and widgets use real auth/API state.",
@@ -1828,6 +1848,36 @@ assertContains(
 );
 assertContains(
   widgetPage,
+  /startupOptimization\.profile === "windows"[\s\S]*\? buildEmptyDisplayBubbles\(t, requestedRoomId\)[\s\S]*: withWidgetDisplayLoadState\(buildEmptyDisplayBubbles\(t, requestedRoomId\), "loading"\)[\s\S]*const deferInitialWindowsItemStateSync = isWindowsStartupProfile && !hadLoadedDisplay[\s\S]*deferInitialWindowsItemStateSync[\s\S]*\? \[\][\s\S]*listItemStates\(nextDisplayItemIds\)[\s\S]*displayLoadedOnceRef\.current = true[\s\S]*deferInitialWindowsItemStateSync && nextDisplayItemIds\.length > 0[\s\S]*listItemStates\(nextDisplayItemIds\)/,
+  "Desktop widget Windows profile must show the first frame without the blocking loading copy and defer item-state sync until after first display.",
+);
+assertContains(
+  widgetPage,
+  /withWidgetDisplayDeadline[\s\S]*window\.setTimeout\(\(\) => resolve\(fallback\), timeoutMs\)[\s\S]*const displayRequestTimeoutMs = isWindowsStartupProfile \? startupOptimization\.displayRequestTimeoutMs : 0[\s\S]*readWidgetDisplaySummary[\s\S]*displayRequestTimeoutMs[\s\S]*displayRequest\(widgetDisplayApi\.getDashboardWork\(\)\)[\s\S]*displayRequest\(widgetDisplayApi\.listChatRooms\(20\)\)[\s\S]*displayRequest\(agentApi\.listGeneratedDocuments\(\)\)[\s\S]*displayRequest\(widgetDisplayApi\.listChatMessages\(activeRoom\.id, 40\)\)/,
+  "Desktop widget Windows profile must deadline slow display API requests so a delayed server response does not block widget rendering.",
+);
+assertContains(
+  widgetPage,
+  "const displayRefreshThrottleTimerRef = useRef<number | null>(null);",
+  "Desktop widget Windows profile must track a pending display refresh throttle timer.",
+);
+assertContains(
+  widgetPage,
+  /const requestDisplayRefresh = useCallback\(\(\) => \{[\s\S]*startupOptimization\.displayRefreshThrottleMs[\s\S]*if \(displayRefreshThrottleTimerRef\.current !== null\) return;[\s\S]*displayRefreshThrottleTimerRef\.current = window\.setTimeout[\s\S]*bumpRevision\(\);/,
+  "Desktop widget Windows profile must coalesce bursty display refresh requests instead of starting duplicate server refreshes.",
+);
+assertContains(
+  widgetPage,
+  /startupOptimization\.profile !== "windows"[\s\S]*buildEmptyDisplayBubbles\(t, selectedWidgetRoomId\)[\s\S]*setDisplayBubbles\(\(current\) => \{[\s\S]*current\[activeBubble\][\s\S]*notificationLabel: "widget\.data\.loading"[\s\S]*panelBody: "widget\.data\.loadingBody"/,
+  "Desktop widget Windows profile must update the active bubble presentation immediately while slower server data catches up.",
+);
+assertContains(
+  widgetPage,
+  /allowServerFallback\?: boolean[\s\S]*if \(options\.allowServerFallback === false\) return null[\s\S]*const isWindowsStartupProfile = isTauri && startupOptimization\.profile === "windows"[\s\S]*const deferInitialWindowsBarServerLoad =[\s\S]*isWindowsStartupProfile && isBubbleBar && !loadFullDisplay && !displayLoadedOnceRef\.current[\s\S]*allowServerFallback: !deferInitialWindowsBarServerLoad[\s\S]*refreshServerOnCacheHit: isBubbleBar && !deferInitialWindowsBarServerLoad[\s\S]*const loadRoom =[\s\S]*\(loadFullDisplay \|\| \(!isBubbleBar && activeBubble !== "alert"\) \|\| \(isBubbleBar && !isWindowsStartupProfile\)\)[\s\S]*const loadProjectRooms =[\s\S]*\(isBubbleBar && \(!isWindowsStartupProfile \|\| loadFullDisplay \|\| displayLoadedOnceRef\.current\)\)/,
+  "Desktop widget must let the Windows startup profile defer initial bar server fallback, server refresh, room detail, and project-room list loads until the bar is ready.",
+);
+assertContains(
+  widgetPage,
   /const deferBarAgentCollections =[\s\S]*startupOptimization\.deferBarAgentCollectionsOnInitialDisplay[\s\S]*!displayLoadedOnceRef\.current[\s\S]*const loadSuggestions = shouldLoadBubbleData\("agent"\) && !deferBarAgentCollections[\s\S]*const loadGeneratedDocuments = shouldLoadBubbleData\("agent"\) && !deferBarAgentCollections[\s\S]*startupOptimization\.deferBarAgentCollectionsOnInitialDisplay/,
   "Desktop widget must let the Windows startup profile skip duplicate bar agent collection requests on the initial full bar display.",
 );
@@ -1840,6 +1890,16 @@ assertContains(
   widgetPage,
   /refreshWidgetContext[\s\S]*window\.setInterval\(\(\) => \{[\s\S]*startupOptimization\.widgetContextRefreshIntervalMs[\s\S]*startupOptimization\.widgetContextRefreshIntervalMs/,
   "Desktop widget windows must use the startup profile for fallback room-context polling instead of a hard-coded fast interval.",
+);
+assertContains(
+  widgetPage,
+  /listenWidgetBarItemsChanged\(\(\) => \{[\s\S]*void loadBarItems\(\);[\s\S]*requestDisplayRefresh\(\);[\s\S]*const intervalId = window\.setInterval\(\(\) => \{[\s\S]*void loadBarItems\(\);[\s\S]*\}, isTauri \? 15000 : 4000\)/,
+  "Desktop widget bar fallback polling must refresh only bar items while native bar-item events own full display refreshes.",
+);
+assertNotContains(
+  widgetPage,
+  /const intervalId = window\.setInterval\(\(\) => \{[\s\S]{0,120}void loadBarItems\(\);[\s\S]{0,120}requestDisplayRefresh\(\);[\s\S]{0,120}\}, isTauri \? 15000 : 4000\)/,
+  "Desktop widget bar fallback polling must not trigger full display refreshes every 15 seconds.",
 );
 
 assertContains(

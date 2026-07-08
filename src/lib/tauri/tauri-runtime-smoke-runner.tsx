@@ -10,6 +10,7 @@ import { agentApi } from "@/features/agent/api/agentApi";
 import { activityApi } from "@/features/activity/api/activityApi";
 import { authApi } from "@/features/auth/api/authApi";
 import { calendarApi } from "@/features/calendar/api/calendarApi";
+import { saveDesktopWidgetStartupPreference } from "@/features/onboarding/lib/onboarding-storage";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
@@ -87,7 +88,6 @@ const smokeWidgetBubbles: SmokeWidgetBubble[] = [
   "resource",
   "alert",
 ];
-const smokeAutoLoginWidgetBubbles = smokeWidgetBubbles.filter((bubbleType) => bubbleType !== "resource");
 
 function runtimeSmokeWidgetPosition(bubbleType: SmokeWidgetBubble) {
   const index = smokeWidgetBubbles.indexOf(bubbleType);
@@ -1051,6 +1051,7 @@ async function runSmoke() {
       "tauri dev access token resolved seed user",
       devToken?.user,
     );
+    saveDesktopWidgetStartupPreference(devToken.user.id, "bar");
     assert(getStoredAuthSession(), "tauri auth session is available");
 
     const privacyConsents = await settingsApi.updatePrivacyConsents({
@@ -1160,7 +1161,7 @@ async function runSmoke() {
       windows.length >= smokeWidgetBubbles.length + 1 &&
         smokeWidgetBubbles.every((bubbleType) => openedWidgetIds.has(bubbleType)) &&
         openedWidgetIds.has("bar"),
-      "native bar and all bubble widget windows opened after login",
+      "native bar and all bubble widget windows can be opened explicitly",
       windows.map((window) => ({
         activeBubble: window.activeBubble,
         selectedRoomId: window.selectedRoomId,
@@ -1736,26 +1737,31 @@ async function runSmoke() {
     await measureSmokeTiming(timings, "launchTauriAuthenticatedSurfaces", () =>
       launchTauriAuthenticatedSurfaces(),
     );
+    const launcherBarState = await tauriCommands.getWidgetWindowState({ bubbleType: "bar", windowId: "bar" });
+    const launcherMenuState = await tauriCommands.getWidgetWindowState({ bubbleType: "menu", windowId: "menu" });
+    assert(
+      launcherBarState.windowVisible && launcherMenuState.windowVisible,
+      "post-login launcher opened only the bar and menu by default",
+      { bar: launcherBarState, menu: launcherMenuState },
+    );
     const launcherWidgetStates = await measureSmokeTiming(timings, "tauriCommands.readWidgetStates.launcher", () =>
       Promise.all(
-        smokeAutoLoginWidgetBubbles.map((bubbleType) =>
+        smokeWidgetBubbles.map((bubbleType) =>
           tauriCommands.getWidgetWindowState({ bubbleType, windowId: bubbleType }),
         ),
       ),
     );
     assert(
-      launcherWidgetStates.every((widget) => widget.windowVisible && widget.selectedRoomId === smokeRoomId),
-      "post-login launcher opened all auto-login bubble widgets with project room context",
+      launcherWidgetStates.every((widget) => !widget.windowVisible),
+      "post-login launcher kept bubble widgets hidden by default",
       launcherWidgetStates,
     );
-    const launcherResourceWidgetState = await tauriCommands.getWidgetWindowState({
-      bubbleType: "resource",
-      windowId: "resource",
-    });
+    const launcherBarItems = await tauriCommands.getWidgetBarItems();
+    const launcherBarItemIds = new Set(launcherBarItems.map((item) => item.windowId ?? item.activeBubble));
     assert(
-      !launcherResourceWidgetState.windowVisible,
-      "post-login launcher kept standalone resource widget hidden",
-      launcherResourceWidgetState,
+      smokeWidgetBubbles.every((bubbleType) => launcherBarItemIds.has(bubbleType)),
+      "post-login launcher seeded bubble restore items without opening them",
+      launcherBarItems,
     );
     await tauriCommands.closeWidgetWindow({ bubbleType: "chat", windowId: "chat" });
     const closedChatWidgetState = await tauriCommands.getWidgetWindowState({ bubbleType: "chat", windowId: "chat" });
