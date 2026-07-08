@@ -20,6 +20,12 @@ import { authApi } from "@/features/auth/api/authApi";
 import { chatApi } from "@/features/communication/api/chatApi";
 import { voiceApi } from "@/features/communication/api/voiceApi";
 import { notificationApi } from "@/features/notification/api/notificationApi";
+import {
+  formatNotificationContent,
+  isDisplayableNotification,
+  isNotificationInboxItem,
+  isUnreadNotificationInboxItem,
+} from "@/features/notification/format-notification";
 import { FirstRunController } from "@/features/onboarding";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
@@ -502,18 +508,19 @@ export function AppShell({ children }: AppShellProps) {
     void refreshShellLists();
   }, [refreshShellLists]);
 
-  function pushNotificationToast(kind: NotificationToastKind, notification: NotificationResponse, chatRoomId?: string) {
+  const pushNotificationToast = useCallback((kind: NotificationToastKind, notification: NotificationResponse, chatRoomId?: string) => {
     const toastId = notification.id;
+    const display = formatNotificationContent(t, notification);
     setMessageToasts((current) =>
       [
         ...current.filter((toast) => toast.id !== toastId),
-        { chatRoomId, id: toastId, kind, senderName: notification.title, text: notification.body ?? "" },
+        { chatRoomId, id: toastId, kind, senderName: display.title || notification.title, text: display.body ?? "" },
       ].slice(-MAX_MESSAGE_TOASTS),
     );
     window.setTimeout(() => {
       setMessageToasts((current) => current.filter((toast) => toast.id !== toastId));
     }, 6_000);
-  }
+  }, [t]);
 
   // 새 채팅 메시지 등으로 생성된 알림을 실시간으로 받아 벨 배지/목록에 즉시 반영한다.
   // 창이 백그라운드에 있으면(Notification API 지원 시) 데스크톱 알림도 함께 띄운다.
@@ -534,10 +541,13 @@ export function AppShell({ children }: AppShellProps) {
           : current,
       );
       notifyDataChanged("notification", { source: "app-shell" });
+      const displayableNotification = isDisplayableNotification(notification);
 
-      // 새 알림이 도착하면 사용자가 어디에 있든 즉시 소리로 알린다(미읽음 카운트 변화와 무관).
+      // 표시 대상 새 알림이 도착하면 사용자가 어디에 있든 즉시 소리로 알린다(미읽음 카운트 변화와 무관).
       // 자동재생 정책상 최초 사용자 제스처 전에는 조용히 무시된다(sound 모듈 내부 처리).
-      playNotificationSound();
+      if (displayableNotification) {
+        playNotificationSound();
+      }
 
       if (notification.sourceType === "VOICE_CALL" && notification.sourceId) {
         const call = {
@@ -618,17 +628,21 @@ export function AppShell({ children }: AppShellProps) {
       if (!userIsElsewhere) {
         return;
       }
+      if (!displayableNotification) {
+        return;
+      }
+      const display = formatNotificationContent(t, notification);
       if (Notification.permission === "granted") {
         // OS 알림에도 버블리 마크가 뜨게 아이콘을 지정한다(데스크탑 앱은 앱 아이콘이 자동으로 붙는다).
-        new Notification(notification.title, {
-          body: notification.body ?? undefined,
+        new Notification(display.title || notification.title, {
+          body: display.body ?? undefined,
           icon: "/brand/icon-public-180.png",
         });
       } else if (Notification.permission === "default") {
         void Notification.requestPermission();
       }
     });
-  }, [state.kind]);
+  }, [pushNotificationToast, readyUserId, state.kind, t]);
 
   // 상대(발신자)에게 거절/타임아웃을 알려야 마이크가 켜진 채로 대기하는 발신자 화면을 자동으로 끊을 수 있다.
   // createRoom("있으면 join, 없으면 create")으로 방 id를 구하면, 타이밍 등으로 기존 방을 못 찾을 때
@@ -879,7 +893,8 @@ export function AppShell({ children }: AppShellProps) {
 
   const rooms = state.kind === "ready" ? state.rooms : [];
   const notifications = state.kind === "ready" ? state.notifications : [];
-  const unreadNotificationCount = notifications.filter((item) => item.status === "UNREAD").length;
+  const visibleNotifications = notifications.filter(isNotificationInboxItem);
+  const unreadNotificationCount = notifications.filter(isUnreadNotificationInboxItem).length;
   const roomFromPath = rooms.find((room) => isActiveRoom(pathname, room.id));
   const roomIdFromQuery = searchParams.get("roomId");
   const roomFromQuery = roomIdFromQuery ? rooms.find((room) => room.id === roomIdFromQuery) : undefined;
@@ -1058,7 +1073,10 @@ export function AppShell({ children }: AppShellProps) {
           }
         : current,
     );
-    void notificationApi.markAllRead().catch(() => undefined);
+    void notificationApi
+      .markAllRead()
+      .then(() => notifyDataChanged("notification", { source: "app-shell" }))
+      .catch(() => undefined);
   }
 
   function handleArchiveAllNotifications() {
@@ -1348,7 +1366,7 @@ export function AppShell({ children }: AppShellProps) {
                 acceptingInvitationId={acceptingInvitationId}
                 id={TOPBAR_NOTIFICATIONS_PANEL_ID}
                 invitations={myInvitations}
-                items={notifications}
+                items={visibleNotifications}
                 onAcceptInvitation={(invitation) => void handleAcceptInvitation(invitation)}
                 onArchive={handleArchiveNotification}
                 onArchiveAll={handleArchiveAllNotifications}

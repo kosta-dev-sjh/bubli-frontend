@@ -5,7 +5,7 @@ import { BellOff, FolderKanban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { formatNotificationContent } from "@/features/notification/format-notification";
+import { formatNotificationContent, isNotificationInboxItem } from "@/features/notification/format-notification";
 import type { NotificationResponse } from "@/types/api/notification";
 import type { ProjectRoomInvitationResponse } from "@/types/api/projectRoom";
 
@@ -38,7 +38,7 @@ export function TopbarNotificationsPanel({
   onOpen,
 }: TopbarNotificationsPanelProps) {
   const { locale, t } = useI18n();
-  const visibleItems = items.filter((item) => item.status !== "ARCHIVED");
+  const visibleItems = items.filter(isNotificationInboxItem);
   const unreadCount = visibleItems.filter((item) => item.status === "UNREAD").length;
 
   function formatTime(isoValue: string) {

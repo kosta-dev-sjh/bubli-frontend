@@ -43,7 +43,7 @@ const WIDGET_DEFAULT_WIDTH: f64 = 324.0;
 const WIDGET_DEFAULT_HEIGHT: f64 = 360.0;
 const WIDGET_WINDOW_GUTTER: f64 = 44.0;
 // 바 창은 pill(하단 고정 64px)만 시각적으로 유지한다. Bubli 메뉴는 바 창 안에서
-// 브랜드 칩이 pill 위 투명 영역으로 morph해 열리는 인라인 패널이다(별도 menu 창 자동 실행 없음).
+// 브랜드 칩이 pill 위 투명 영역으로 morph해 열리는 인라인 패널이다.
 // 창 높이는 pill 위 hover 요약 팝오버 + 메뉴 패널(280×≈532, bottom 68px 앵커)이 들어갈
 // 투명 여유를 포함한다 — desktop-widget-bubble.module.css .barRoot/.barPopover/.barMenuPanel과
 // 동기화한다(68 + 532 + hover/그림자 여유 ≈ 640).
@@ -72,8 +72,7 @@ const WIDGET_MACOS_DOCK_GUARD: f64 = 92.0;
 // 직전 릴리스의 바 창 높이. 저장 레이아웃에 barLayoutHeight가 없으면 이 값으로 간주하고,
 // 바 pill이 창 하단 고정이므로 높이 델타만큼 저장 y를 위로 당겨 pill의 화면 위치를 유지한다.
 const WIDGET_BAR_LEGACY_HEIGHT: f64 = 220.0;
-// (deprecated) 메뉴 창: Bubli 메뉴가 바 인라인 패널로 통합되면서 로그인 자동 실행 목록에서
-// 빠졌다. ?bubble=menu 창을 수동으로 열면 기존 크기/동작이 그대로 유지된다.
+// menu 창은 이제 메뉴 패널이 아니라 에이전트 챗봇 전용 오브 표면으로 쓴다.
 const WIDGET_MENU_WIDTH: f64 = 248.0;
 // 메뉴 패널이 개인/룸 컨텍스트 행 + 8개 버블(1열) + 액션까지 담도록 높이를 넉넉히.
 // 닫힘 상태(오브만)에서는 그림자를 껐고 투명 영역이라 큰 창이 보이지 않는다.
@@ -762,11 +761,20 @@ fn widget_default_cascade_index(bubble_type: &str) -> f64 {
     }
 }
 
+fn widget_default_always_on_top(bubble_type: &str) -> bool {
+    matches!(bubble_type, "bar" | "menu" | "agent")
+}
+
+fn enforce_widget_default_always_on_top(widget: &mut WidgetWindowState) {
+    if widget_default_always_on_top(&widget.active_bubble) {
+        widget.always_on_top = true;
+    }
+}
+
 fn default_widget_window_state(bubble_type: &str, window_id: Option<String>) -> WidgetWindowState {
     WidgetWindowState {
-        // 기본은 비고정 — 위젯/메뉴가 처음부터 다른 앱 위에 고정돼 불편하던 것을 개선한다.
-        // 바(dock)만 접근성상 고정 유지(잃어버려도 우클릭 복구가 별도로 있다).
-        always_on_top: bubble_type == "bar",
+        // 기본은 비고정 — 바(dock)와 에이전트 챗봇만 접근성상 고정 유지한다.
+        always_on_top: widget_default_always_on_top(bubble_type),
         active_bubble: bubble_type.to_string(),
         click_through: false,
         dock_orb_visible: false,
@@ -861,6 +869,9 @@ fn toggle_widget_window_from_shortcut(app: &AppHandle) -> Result<(), String> {
         } else {
             "MINIMIZED".to_string()
         };
+        if widget.window_visible {
+            enforce_widget_default_always_on_top(widget);
+        }
         widget.dock_orb_visible = false;
     })?;
 
@@ -996,6 +1007,7 @@ fn apply_widget_window_mode_update(
     // GHOST는 시각 모드일 뿐 영구 OS click-through로 저장하지 않는다.
     // true로 두면 set_ignore_cursor_events(true)가 창 전체에 걸려 고스트 해제 클릭도 받을 수 없다.
     widget.click_through = false;
+    enforce_widget_default_always_on_top(widget);
     // 고스트는 항상 최상단에 떠야 한다 — 핀이 안 된 위젯이 다른 창 뒤로 묻히는 문제 수정.
     if widget.mode == "GHOST" {
         widget.always_on_top = true;
@@ -1014,7 +1026,7 @@ fn apply_open_widget_window_update(
 ) {
     widget.mode = next_mode;
     widget.click_through = false;
-    // 열 때 자동으로 고정핀을 걸지 않는다 — 사용자가 원할 때만 핀을 켠다(기본 비고정).
+    enforce_widget_default_always_on_top(widget);
     widget.dock_orb_visible = false;
     if let Some(selected_room_id) = selected_room_id {
         widget.selected_room_id = Some(selected_room_id);
@@ -1072,6 +1084,7 @@ fn widget_window_store_from_layout(layout: StoredWidgetWindowLayout) -> WidgetWi
     for mut widget in layout.bubbles {
         widget.active_bubble = normalize_bubble_type(Some(widget.active_bubble));
         widget.mode = normalize_widget_mode(widget.mode);
+        enforce_widget_default_always_on_top(&mut widget);
         if widget.mode == "GHOST" {
             widget.click_through = false;
         }
@@ -2590,6 +2603,7 @@ fn widget_bar_state_for_show(store: &mut WidgetWindowStore) -> WidgetWindowState
         .or_insert_with(|| default_widget_window_state("bar", Some("bar".to_string())));
     widget.mode = "DEFAULT".to_string();
     widget.click_through = false;
+    enforce_widget_default_always_on_top(widget);
     widget.window_visible = true;
     widget.clone()
 }
@@ -4883,9 +4897,9 @@ fn close_widget_window(
         widget.window_visible = false;
     })?;
     persist_widget_window_state(&app, &state)?;
-    emit_widget_window_state_changed(&app, &widget);
     emit_widget_bar_items_changed(&app);
     if widget_keeps_webview_when_hidden(&widget) {
+        emit_widget_window_state_changed(&app, &widget);
         apply_widget_window_state(&app, &monitor_state, &widget)
     } else {
         let label = widget_window_label(&widget);
@@ -4919,6 +4933,9 @@ fn toggle_widget_window(
         } else {
             "MINIMIZED".to_string()
         };
+        if widget.window_visible {
+            enforce_widget_default_always_on_top(widget);
+        }
         widget.dock_orb_visible = false;
     })?;
     if !widget.window_visible
@@ -4960,6 +4977,43 @@ mod tests {
             window_id: window_id.map(str::to_string),
             window_visible: true,
         }
+    }
+
+    #[test]
+    fn agent_widget_stays_topmost_when_opened_or_restored() {
+        assert!(default_widget_window_state("agent", Some("agent".to_string())).always_on_top);
+        assert!(default_widget_window_state("menu", Some("menu".to_string())).always_on_top);
+        assert!(!default_widget_window_state("todo", Some("todo".to_string())).always_on_top);
+
+        let mut agent = WidgetWindowState {
+            always_on_top: false,
+            ..default_widget_window_state("agent", Some("agent".to_string()))
+        };
+        apply_open_widget_window_update(&mut agent, "DEFAULT".to_string(), None);
+        assert!(agent.always_on_top);
+
+        let mut menu = WidgetWindowState {
+            always_on_top: false,
+            ..default_widget_window_state("menu", Some("menu".to_string()))
+        };
+        apply_open_widget_window_update(&mut menu, "DEFAULT".to_string(), None);
+        assert!(menu.always_on_top);
+
+        let store = widget_window_store_from_layout(StoredWidgetWindowLayout {
+            active_bubble: "agent".to_string(),
+            bar_layout_height: Some(WIDGET_BAR_HEIGHT),
+            bubbles: vec![WidgetWindowState {
+                always_on_top: false,
+                ..widget("agent", Some("agent"), 240, 64)
+            }],
+        });
+        assert!(
+            store
+                .bubbles
+                .get("agent")
+                .expect("agent widget")
+                .always_on_top
+        );
     }
 
     #[test]
@@ -5478,6 +5532,7 @@ pub fn run() {
             local_db::list_local_sqlite_backups,
             local_db::mark_activity_context_synced,
             local_db::read_active_project_room,
+            local_db::read_local_agent_messages,
             local_db::read_tauri_auth_session,
             local_db::read_widget_pref,
             local_db::read_widget_summary_cache,
@@ -5487,6 +5542,8 @@ pub fn run() {
             local_db::read_room_messages,
             local_db::stage_activity_contexts_for_sync,
             local_db::store_active_project_room,
+            local_db::store_local_agent_messages,
+            local_db::store_local_agent_suggestions,
             local_db::store_tauri_auth_session,
             local_db::store_widget_pref,
             local_db::store_widget_summary_cache,

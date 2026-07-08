@@ -1,5 +1,13 @@
 import { apiRequest } from "@/lib/api/client";
-import type { ChatMessageListResponse, ChatMessageResponse, ChatRoomResponse, GroupChatRoomRequest, RoomAgentCommandRequest, RoomAgentCommandResponse } from "@/types/api/chat";
+import type {
+  ChatMessageListResponse,
+  ChatMessageResponse,
+  ChatRoomResponse,
+  GroupChatRoomRequest,
+  RoomAgentCommandMode,
+  RoomAgentCommandRequest,
+  RoomAgentCommandResponse,
+} from "@/types/api/chat";
 import type { FriendRequestApiResponse, FriendResponse } from "@/types/api/friend";
 import type { VoiceParticipantResponse, VoiceRoomResponse, VoiceTokenResponse } from "@/types/api/voice";
 import { withWidgetDevAuthHeaders } from "./widgetAuthHeaders";
@@ -11,6 +19,43 @@ export type WidgetChatRoomPageResponse = {
   size: number;
   totalElements: number;
   totalPages: number;
+};
+
+export type PersonalAgentMemoryMessage = {
+  role: "USER" | "AGENT";
+  text: string;
+  createdAt: string;
+};
+
+export type PersonalAgentMemorySummary = {
+  summary: string;
+  fromCreatedAt: string;
+  toCreatedAt: string;
+};
+
+export type PersonalAgentCommandRequest = {
+  memory?: {
+    recentMessages?: PersonalAgentMemoryMessage[];
+    summaries?: PersonalAgentMemorySummary[];
+  };
+  message: string;
+  mode?: RoomAgentCommandMode;
+  resourceIds?: string[];
+};
+
+export type PersonalAgentCommandResponse = {
+  message: {
+    body: Record<string, unknown>;
+    createdAt: string;
+    messageType: "AGENT_RESPONSE";
+    senderType: "AGENT";
+  };
+  suggestions: Array<{
+    evidence: Record<string, unknown> | null;
+    localSuggestionId: string | null;
+    payload: Record<string, unknown>;
+    suggestionType: string;
+  }>;
 };
 
 function widgetCommunicationRequest<T>(path: string, options: Parameters<typeof apiRequest<T>>[1] = {}) {
@@ -50,6 +95,13 @@ export const widgetCommunicationApi = {
       headers: {
         "Idempotency-Key": clientMessageId,
       },
+      method: "POST",
+    });
+  },
+
+  runPersonalAgentCommand(body: PersonalAgentCommandRequest) {
+    return widgetCommunicationRequest<PersonalAgentCommandResponse>("/api/personal/agent/commands", {
+      body,
       method: "POST",
     });
   },

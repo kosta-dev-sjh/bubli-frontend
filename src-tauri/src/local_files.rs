@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::UNIX_EPOCH;
 
+use encoding_rs::{Encoding, EUC_KR, UTF_8, WINDOWS_1252};
 use flate2::read::DeflateDecoder;
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use rusqlite::{params, Connection, OptionalExtension};
@@ -1827,7 +1828,7 @@ fn extract_rtf_text(path: &Path) -> Result<String, String> {
     }
 
     let bytes = std::fs::read(path).map_err(|error| error.to_string())?;
-    let source = decode_text_bytes(&bytes);
+    let source = decode_rtf_text_bytes(&bytes);
     let text = extract_rtf_plain_text(&source);
     if text.is_empty() {
         return Err("EMPTY".to_string());
@@ -1942,6 +1943,28 @@ fn decode_text_bytes(bytes: &[u8]) -> String {
         String::from_utf8_lossy(bytes).to_string()
     };
 
+    normalize_decoded_text(text)
+}
+
+fn decode_rtf_text_bytes(bytes: &[u8]) -> String {
+    let provisional = decode_text_bytes(bytes);
+    if bytes.starts_with(&[0xff, 0xfe])
+        || bytes.starts_with(&[0xfe, 0xff])
+        || bytes.starts_with(&[0xef, 0xbb, 0xbf])
+    {
+        return provisional;
+    }
+
+    let Some(ansi_encoding) =
+        extract_rtf_ansi_codepage(&provisional).and_then(rtf_encoding_for_codepage)
+    else {
+        return provisional;
+    };
+    let (decoded, _, _) = ansi_encoding.decode(bytes);
+    normalize_decoded_text(decoded.into_owned())
+}
+
+fn normalize_decoded_text(text: String) -> String {
     text.replace('\0', " ")
         .replace('\r', "\n")
         .trim()
@@ -1969,15 +1992,19 @@ fn extract_rtf_plain_text(source: &str) -> String {
     let mut index = 0usize;
     let mut unicode_fallback_skip = 0usize;
     let mut unicode_skip_count = 1usize;
+    let ansi_encoding = rtf_ansi_encoding(source);
+    let mut pending_hex_bytes = Vec::new();
 
     while index < chars.len() {
         match chars[index] {
             '{' => {
+                flush_rtf_hex_bytes(&mut pending_hex_bytes, &mut output, ansi_encoding);
                 let parent_skip = *group_skip_stack.last().unwrap_or(&false);
                 group_skip_stack.push(parent_skip);
                 index += 1;
             }
             '}' => {
+                flush_rtf_hex_bytes(&mut pending_hex_bytes, &mut output, ansi_encoding);
                 if group_skip_stack.len() > 1 {
                     group_skip_stack.pop();
                 }
@@ -1992,9 +2019,9 @@ fn extract_rtf_plain_text(source: &str) -> String {
                 let token = chars[index];
                 if token == '\'' {
                     if let Some(byte) = read_rtf_hex_byte(&chars, index + 1) {
-                        push_rtf_literal_char(
-                            char::from(byte),
-                            &mut output,
+                        push_rtf_hex_byte(
+                            byte,
+                            &mut pending_hex_bytes,
                             &mut unicode_fallback_skip,
                             rtf_group_is_skipped(&group_skip_stack),
                         );
@@ -2037,6 +2064,7 @@ fn extract_rtf_plain_text(source: &str) -> String {
                         index += 1;
                     }
 
+                    flush_rtf_hex_bytes(&mut pending_hex_bytes, &mut output, ansi_encoding);
                     handle_rtf_control_word(
                         &word,
                         number,
@@ -2049,6 +2077,7 @@ fn extract_rtf_plain_text(source: &str) -> String {
                 }
 
                 index += 1;
+                flush_rtf_hex_bytes(&mut pending_hex_bytes, &mut output, ansi_encoding);
                 handle_rtf_control_symbol(
                     token,
                     &mut output,
@@ -2057,6 +2086,7 @@ fn extract_rtf_plain_text(source: &str) -> String {
                 );
             }
             ch => {
+                flush_rtf_hex_bytes(&mut pending_hex_bytes, &mut output, ansi_encoding);
                 push_rtf_literal_char(
                     ch,
                     &mut output,
@@ -2068,6 +2098,7 @@ fn extract_rtf_plain_text(source: &str) -> String {
         }
     }
 
+    flush_rtf_hex_bytes(&mut pending_hex_bytes, &mut output, ansi_encoding);
     output
         .lines()
         .map(clean_sentence)
@@ -2150,6 +2181,34 @@ fn push_rtf_literal_char(
     }
 }
 
+fn push_rtf_hex_byte(
+    byte: u8,
+    pending_hex_bytes: &mut Vec<u8>,
+    unicode_fallback_skip: &mut usize,
+    skipped: bool,
+) {
+    if *unicode_fallback_skip > 0 {
+        *unicode_fallback_skip -= 1;
+        return;
+    }
+    if !skipped {
+        pending_hex_bytes.push(byte);
+    }
+}
+
+fn flush_rtf_hex_bytes(
+    pending_hex_bytes: &mut Vec<u8>,
+    output: &mut String,
+    ansi_encoding: &'static Encoding,
+) {
+    if pending_hex_bytes.is_empty() {
+        return;
+    }
+    let (decoded, _, _) = ansi_encoding.decode(pending_hex_bytes);
+    output.push_str(&decoded);
+    pending_hex_bytes.clear();
+}
+
 fn read_rtf_hex_byte(chars: &[char], start: usize) -> Option<u8> {
     if start + 1 >= chars.len() {
         return None;
@@ -2157,6 +2216,33 @@ fn read_rtf_hex_byte(chars: &[char], start: usize) -> Option<u8> {
     let high = chars[start].to_digit(16)?;
     let low = chars[start + 1].to_digit(16)?;
     Some(((high << 4) | low) as u8)
+}
+
+fn rtf_ansi_encoding(source: &str) -> &'static Encoding {
+    extract_rtf_ansi_codepage(source)
+        .and_then(rtf_encoding_for_codepage)
+        .unwrap_or(WINDOWS_1252)
+}
+
+fn extract_rtf_ansi_codepage(source: &str) -> Option<i32> {
+    let marker = "\\ansicpg";
+    let start = source.find(marker)? + marker.len();
+    let digits = source[start..]
+        .chars()
+        .take_while(|character| character.is_ascii_digit())
+        .collect::<String>();
+    digits.parse().ok()
+}
+
+fn rtf_encoding_for_codepage(code_page: i32) -> Option<&'static Encoding> {
+    match code_page {
+        65001 => Some(UTF_8),
+        949 | 1361 => Some(EUC_KR),
+        _ => {
+            let label = format!("windows-{code_page}");
+            Encoding::for_label(label.as_bytes())
+        }
+    }
 }
 
 fn rtf_unicode_char(value: i32) -> Option<char> {
@@ -5030,6 +5116,19 @@ mod tests {
         br"{\rtf1\ansi\uc1{\fonttbl{\f0 Arial;}}\f0 RtfPreviewSignal captures rich text notes.\par Unicode: \u54620?\u44544? \tab Hex: \'41}".to_vec()
     }
 
+    fn cp949_rtf_bytes() -> Vec<u8> {
+        br"{\rtf1\ansi\ansicpg949\uc1{\fonttbl{\f0 Arial;}}\f0 Cp949RtfPreviewSignal: \'c7\'d1\'b1\'db \'c0\'da\'b7\'e1 \par}".to_vec()
+    }
+
+    fn raw_cp949_rtf_bytes() -> Vec<u8> {
+        let mut bytes =
+            br"{\rtf1\ansi\ansicpg949\uc1{\fonttbl{\f0 Arial;}}\f0 RawCp949RtfPreviewSignal: "
+                .to_vec();
+        bytes.extend_from_slice(&[0xc7, 0xd1, 0xb1, 0xdb, 0x20, 0xc0, 0xda, 0xb7, 0xe1]);
+        bytes.extend_from_slice(br" \par}");
+        bytes
+    }
+
     fn minimal_html_bytes() -> Vec<u8> {
         br#"<!doctype html><html><head><style>.hidden{display:none}</style><script>const hidden = "NoIndexSignal";</script></head><body><h1>HtmlPreviewSignal</h1><p>Visible planning notes &amp; project context.</p></body></html>"#.to_vec()
     }
@@ -5987,7 +6086,10 @@ mod tests {
         // stale 행은 연결이 풀리고 LOCAL_ONLY로 되돌아간다.
         assert_eq!(stale_row, (None, "LOCAL_ONLY".to_string(), 30));
         // 서버에 남아 있는 자료 연결은 그대로 유지된다.
-        assert_eq!(kept_row, (Some("res-keep".to_string()), "SYNCED".to_string()));
+        assert_eq!(
+            kept_row,
+            (Some("res-keep".to_string()), "SYNCED".to_string())
+        );
     }
 
     #[test]
@@ -6827,6 +6929,54 @@ mod tests {
         assert!(sentences
             .iter()
             .any(|sentence| sentence.text.contains("RtfPreviewSignal")));
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn reads_cp949_rtf_hex_text_for_preview_and_key_sentence_extraction() {
+        let path =
+            std::env::temp_dir().join(format!("bubli-local-cp949-rtf-test-{}.rtf", Uuid::new_v4()));
+        std::fs::write(&path, cp949_rtf_bytes()).expect("write temp cp949 rtf");
+
+        let (preview, status, truncated) =
+            read_local_text_preview(&path, 500).expect("read cp949 rtf preview");
+        let text = read_local_text_for_key_sentences(&path)
+            .expect("read cp949 rtf text")
+            .0
+            .expect("cp949 rtf text");
+        let sentences = extract_key_sentences(&text, 3, 300);
+        let preview = preview.unwrap_or_default();
+
+        assert_eq!(status, "READY");
+        assert!(!truncated);
+        assert!(preview.contains("Cp949RtfPreviewSignal"));
+        assert!(preview.contains("한글 자료"));
+        assert!(!preview.contains("ÇÑ"));
+        assert!(sentences
+            .iter()
+            .any(|sentence| sentence.text.contains("한글 자료")));
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn reads_raw_cp949_rtf_text_for_preview() {
+        let path = std::env::temp_dir().join(format!(
+            "bubli-local-raw-cp949-rtf-test-{}.rtf",
+            Uuid::new_v4()
+        ));
+        std::fs::write(&path, raw_cp949_rtf_bytes()).expect("write temp raw cp949 rtf");
+
+        let (preview, status, truncated) =
+            read_local_text_preview(&path, 500).expect("read raw cp949 rtf preview");
+        let preview = preview.unwrap_or_default();
+
+        assert_eq!(status, "READY");
+        assert!(!truncated);
+        assert!(preview.contains("RawCp949RtfPreviewSignal"));
+        assert!(preview.contains("한글 자료"));
+        assert!(!preview.contains('�'));
 
         let _ = std::fs::remove_file(path);
     }
