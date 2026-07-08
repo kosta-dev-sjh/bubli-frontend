@@ -11,6 +11,7 @@ export type TauriStartupOptimizationConfig = {
   initialNotificationScanPages: number;
   menuOrbBadgeRefreshIntervalMs: number;
   openCommandTimeoutMs: number;
+  preloadWidgetSettingsDuringStartup: boolean;
   profile: TauriStartupOptimizationProfile;
   retryAttempts: number;
   retryDelayMs: number;
@@ -32,6 +33,7 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
     initialNotificationScanPages: 0,
     menuOrbBadgeRefreshIntervalMs: 8_000,
     openCommandTimeoutMs: 6_000,
+    preloadWidgetSettingsDuringStartup: true,
     profile: "aggressive",
     retryAttempts: 1,
     retryDelayMs: 450,
@@ -47,6 +49,7 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
     initialNotificationScanPages: 0,
     menuOrbBadgeRefreshIntervalMs: 8_000,
     openCommandTimeoutMs: 10_000,
+    preloadWidgetSettingsDuringStartup: true,
     profile: "balanced",
     retryAttempts: 2,
     retryDelayMs: 650,
@@ -62,6 +65,7 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
     initialNotificationScanPages: 0,
     menuOrbBadgeRefreshIntervalMs: 8_000,
     openCommandTimeoutMs: 8_000,
+    preloadWidgetSettingsDuringStartup: true,
     profile: "fast",
     retryAttempts: 2,
     retryDelayMs: 550,
@@ -77,6 +81,7 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
     initialNotificationScanPages: 2,
     menuOrbBadgeRefreshIntervalMs: 20_000,
     openCommandTimeoutMs: 8_000,
+    preloadWidgetSettingsDuringStartup: false,
     profile: "windows",
     retryAttempts: 2,
     retryDelayMs: 500,
