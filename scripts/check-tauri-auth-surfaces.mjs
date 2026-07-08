@@ -1519,17 +1519,17 @@ assertContains(
 );
 assertContains(
   surfaces,
-  /openWidgetWindowWithRetry\(barWindow, selectedRoomId, shouldContinueLaunch\)[\s\S]*if \(generation !== launchGeneration\) \{[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*return;[\s\S]*openWidgetWindowsWithRetry\(bubbleWindows, selectedRoomId, shouldContinueLaunch\)/,
+  /openWidgetWindowWithRetry\(barWindow, selectedRoomId, shouldContinueLaunch\)[\s\S]*if \(generation !== launchGeneration\) \{[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*return;[\s\S]*openWidgetWindowsWithRetry\(secondaryStartupWindows, selectedRoomId, shouldContinueLaunch\)/,
   "launchTauriAuthenticatedSurfaces must cancel cleanly after opening the bar and before processing optional startup windows.",
 );
 assertContains(
   surfaces,
-  /openWidgetWindowsWithRetry\(bubbleWindows, selectedRoomId, shouldContinueLaunch\)/,
+  /const \[barWindow, \.\.\.secondaryStartupWindows\] = startupWindows[\s\S]*const visibleBubbleWindows = secondaryStartupWindows\.filter\(\(input\) => input\.bubbleType !== "menu"\)[\s\S]*selectedRoomId \|\| visibleBubbleWindows\.length > 0[\s\S]*prewarmWidgetSummaryCache\(selectedRoomId\)[\s\S]*openWidgetWindowsWithRetry\(secondaryStartupWindows, selectedRoomId, shouldContinueLaunch\)/,
   "launchTauriAuthenticatedSurfaces must keep the optional batch IPC path available for non-default startup windows.",
 );
 assertContains(
   surfaces,
-  /openWidgetWindowsWithRetry\(bubbleWindows, selectedRoomId, shouldContinueLaunch\)[\s\S]*if \(generation !== launchGeneration\) \{[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*return;[\s\S]*if \(openedWindows\.length < startupWindows\.length\)/,
+  /openWidgetWindowsWithRetry\(secondaryStartupWindows, selectedRoomId, shouldContinueLaunch\)[\s\S]*if \(generation !== launchGeneration\) \{[\s\S]*closeAllWidgetWindows\(\)[\s\S]*setAuthenticatedSurfacesEnabled\(\{ enabled: false \}\)[\s\S]*return;[\s\S]*if \(openedWindows\.length < startupWindows\.length\)/,
   "launchTauriAuthenticatedSurfaces must cancel cleanly after optional startup window attempts and before marking the launch active.",
 );
 assertContains(
@@ -1828,6 +1828,11 @@ assertContains(
 );
 assertContains(
   widgetPage,
+  /allowServerFallback\?: boolean[\s\S]*if \(options\.allowServerFallback === false\) return null[\s\S]*const isWindowsStartupProfile = isTauri && startupOptimization\.profile === "windows"[\s\S]*const deferInitialWindowsBarServerLoad =[\s\S]*isWindowsStartupProfile && isBubbleBar && !loadFullDisplay && !displayLoadedOnceRef\.current[\s\S]*allowServerFallback: !deferInitialWindowsBarServerLoad[\s\S]*refreshServerOnCacheHit: isBubbleBar && !deferInitialWindowsBarServerLoad[\s\S]*const loadRoom =[\s\S]*\(loadFullDisplay \|\| \(!isBubbleBar && activeBubble !== "alert"\) \|\| \(isBubbleBar && !isWindowsStartupProfile\)\)[\s\S]*const loadProjectRooms =[\s\S]*\(isBubbleBar && \(!isWindowsStartupProfile \|\| loadFullDisplay \|\| displayLoadedOnceRef\.current\)\)/,
+  "Desktop widget must let the Windows startup profile defer initial bar server fallback, server refresh, room detail, and project-room list loads until the bar is ready.",
+);
+assertContains(
+  widgetPage,
   /const deferBarAgentCollections =[\s\S]*startupOptimization\.deferBarAgentCollectionsOnInitialDisplay[\s\S]*!displayLoadedOnceRef\.current[\s\S]*const loadSuggestions = shouldLoadBubbleData\("agent"\) && !deferBarAgentCollections[\s\S]*const loadGeneratedDocuments = shouldLoadBubbleData\("agent"\) && !deferBarAgentCollections[\s\S]*startupOptimization\.deferBarAgentCollectionsOnInitialDisplay/,
   "Desktop widget must let the Windows startup profile skip duplicate bar agent collection requests on the initial full bar display.",
 );
@@ -1840,6 +1845,16 @@ assertContains(
   widgetPage,
   /refreshWidgetContext[\s\S]*window\.setInterval\(\(\) => \{[\s\S]*startupOptimization\.widgetContextRefreshIntervalMs[\s\S]*startupOptimization\.widgetContextRefreshIntervalMs/,
   "Desktop widget windows must use the startup profile for fallback room-context polling instead of a hard-coded fast interval.",
+);
+assertContains(
+  widgetPage,
+  /listenWidgetBarItemsChanged\(\(\) => \{[\s\S]*void loadBarItems\(\);[\s\S]*requestDisplayRefresh\(\);[\s\S]*const intervalId = window\.setInterval\(\(\) => \{[\s\S]*void loadBarItems\(\);[\s\S]*\}, isTauri \? 15000 : 4000\)/,
+  "Desktop widget bar fallback polling must refresh only bar items while native bar-item events own full display refreshes.",
+);
+assertNotContains(
+  widgetPage,
+  /const intervalId = window\.setInterval\(\(\) => \{[\s\S]{0,120}void loadBarItems\(\);[\s\S]{0,120}requestDisplayRefresh\(\);[\s\S]{0,120}\}, isTauri \? 15000 : 4000\)/,
+  "Desktop widget bar fallback polling must not trigger full display refreshes every 15 seconds.",
 );
 
 assertContains(
