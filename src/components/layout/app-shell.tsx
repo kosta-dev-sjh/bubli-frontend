@@ -700,25 +700,40 @@ export function AppShell({ children }: AppShellProps) {
 
   // 상대가 거절했다는 실시간 알림(websocket)이 유실되면(연결이 잠깐 끊기는 등) 발신 팝업이
   // 영영 안 닫힌다 — 거절 자체는 서버에 이미 반영됐는데(알림함엔 남음) 화면만 못 따라간다.
-  // 채팅 페이지가 통화방 상태를 폴링으로 이중 확인하는 것과 같은 이유로, 여기서도 방 상태를
-  // 직접 조회해 안전망을 둔다.
+  // declineVoiceRoom은 방 상태를 안 바꾸고 알림만 만든다(끊는 건 이 알림을 받은 발신자 쪽
+  // 클라이언트 책임) — 그래서 방 상태를 폴링해선 거절을 절대 못 잡는다(방은 계속 OPEN).
+  // 대신 알림 목록에서 이 통화방으로 온 거절 알림 자체를 직접 찾는다.
   useEffect(() => {
     if (!isCallerRingingBack || !persistVoice) return;
     const voiceRoomId = persistVoice.room.id;
+    const chatRoomId = persistVoice.room.chatRoomId;
+    if (!chatRoomId) return;
+    const callStartedAt = persistVoice.room.createdAt ? new Date(persistVoice.room.createdAt).getTime() : 0;
     const interval = window.setInterval(() => {
-      void voiceApi
-        .getRoom(voiceRoomId)
-        .then((room) => {
-          if (room.status !== "OPEN") {
-            voiceStore.update({ voice: { kind: "ready", room } });
-            if (getActiveLiveKitVoiceRoomId() === voiceRoomId) void disconnectLiveKitRoom();
-            stopCallRingtone();
-          }
+      void notificationApi
+        .list({ page: 0, size: 10 })
+        .then((page) => {
+          const declined = page.items.find(
+            (item) =>
+              item.sourceType === "VOICE_CALL_DECLINED" &&
+              item.sourceId === chatRoomId &&
+              new Date(item.createdAt).getTime() >= callStartedAt,
+          );
+          if (!declined) return;
+          void voiceApi
+            .end(voiceRoomId)
+            .then((room) => voiceStore.update({ voice: { kind: "ready", room } }))
+            .catch(() => undefined);
+          if (getActiveLiveKitVoiceRoomId() === voiceRoomId) void disconnectLiveKitRoom();
+          stopCallRingtone();
+          setOutgoingCallNotice(t("layout.voiceCall.declinedNotice"));
+          window.setTimeout(() => setOutgoingCallNotice(null), 3_000);
+          void notificationApi.markRead(declined.id).catch(() => undefined);
         })
         .catch(() => undefined);
     }, 3_000);
     return () => window.clearInterval(interval);
-  }, [isCallerRingingBack, persistVoice]);
+  }, [isCallerRingingBack, persistVoice, t]);
 
   const cancelOutgoingCall = useCallback(() => {
     if (!persistVoice) return;

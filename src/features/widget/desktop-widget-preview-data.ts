@@ -92,6 +92,8 @@ export type WidgetPreviewBubble = {
   voiceParticipants?: string;
   /** 말하는 중 애니메이션(웹과 동일)을 그리기 위한 참여자별 원본 데이터. */
   voiceParticipantList?: { userId: string; userName: string }[];
+  /** 스레드 화면의 전체 대화 스크롤용(rows의 최근 3개짜리 미리보기와 별개). */
+  messageThread?: { createdAt: string; id: string; mine: boolean; senderName: string; text: string }[];
 };
 
 export type WidgetNotificationSignal = {
