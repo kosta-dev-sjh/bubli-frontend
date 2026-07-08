@@ -264,11 +264,13 @@ async function openWidgetWindowsWithRetry(
 export async function resolveLoginStartupWindows(): Promise<WidgetWindowOpenInput[]> {
   const startupConfig = await readTauriStartupOptimizationConfig();
   // 설정 응답 자체는 시작 창 구성에 쓰지 않는다 — 백엔드 웜업 겸 타임아웃 가드만 유지한다.
-  void withTimeout(
-    widgetApi.getSettings(),
-    startupConfig.settingsTimeoutMs,
-    "Tauri widget startup settings timed out",
-  ).catch(() => null);
+  if (startupConfig.preloadWidgetSettingsDuringStartup) {
+    void withTimeout(
+      widgetApi.getSettings(),
+      startupConfig.settingsTimeoutMs,
+      "Tauri widget startup settings timed out",
+    ).catch(() => null);
+  }
   const preference = readDesktopWidgetStartupPreference();
   if (preference.mode === "board") {
     return [loginStartupBarWindow, loginStartupAgentOrbWindow, ...desktopWidgetBoardWindows];

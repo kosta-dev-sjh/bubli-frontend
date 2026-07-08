@@ -243,8 +243,8 @@ assertContains(
 );
 assertContains(
   startupOptimization,
-  /windows:\s*\{[\s\S]*bubbleOpenStaggerMs:\s*0,[\s\S]*deferBarFullDisplayUntilAfterFirstPaint:\s*true,[\s\S]*initialDisplayPageSize:\s*30,[\s\S]*initialNotificationScanPages:\s*2,[\s\S]*menuOrbBadgeRefreshIntervalMs:\s*20_000,[\s\S]*summaryPrewarmTimeoutMs:\s*1_800,[\s\S]*widgetContextRefreshIntervalMs:\s*30_000/,
-  "Windows startup optimization must use batched widget opening, bounded initial display loads, bounded initial notification scans, slower fallback polling, first-paint deferral, and summary prewarm.",
+  /windows:\s*\{[\s\S]*bubbleOpenStaggerMs:\s*0,[\s\S]*deferBarFullDisplayUntilAfterFirstPaint:\s*true,[\s\S]*initialDisplayPageSize:\s*30,[\s\S]*initialNotificationScanPages:\s*2,[\s\S]*menuOrbBadgeRefreshIntervalMs:\s*20_000,[\s\S]*preloadWidgetSettingsDuringStartup:\s*false,[\s\S]*summaryPrewarmTimeoutMs:\s*1_800,[\s\S]*widgetContextRefreshIntervalMs:\s*30_000/,
+  "Windows startup optimization must use batched widget opening, bounded initial display loads, bounded initial notification scans, slower fallback polling, no startup settings prefetch, first-paint deferral, and summary prewarm.",
 );
 assertContains(
   publishTauriWindowsDownload,
@@ -1389,6 +1389,11 @@ assertContains(
   surfaces,
   /readDesktopWidgetStartupPreference/,
   "resolveLoginStartupWindows must read the user's desktop widget startup preference from onboarding storage.",
+);
+assertContains(
+  surfaces,
+  /if \(startupConfig\.preloadWidgetSettingsDuringStartup\) \{[\s\S]*widgetApi\.getSettings\(\)[\s\S]*startupConfig\.settingsTimeoutMs[\s\S]*\}/,
+  "Tauri login startup must gate widget settings prefetch behind the startup optimization profile so Windows can avoid an extra backend request while opening windows.",
 );
 assertContains(
   surfaces,
