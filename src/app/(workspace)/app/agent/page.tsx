@@ -13,6 +13,7 @@ import {
   Pause,
   RefreshCw,
   Sparkles,
+  Trash2,
   Wand2,
   X,
 } from "lucide-react";
@@ -330,6 +331,8 @@ function AgentPageContent() {
   const [startingSummaryJob, setStartingSummaryJob] = useState(false);
   const [generatingRequirements, setGeneratingRequirements] = useState(false);
   const [checkingJob, setCheckingJob] = useState(false);
+  const [deletingDocumentId, setDeletingDocumentId] = useState<string | null>(null);
+  const [pendingDeleteDocumentId, setPendingDeleteDocumentId] = useState<string | null>(null);
   const [activeJob, setActiveJob] = useState<ActiveJobState | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [jobEventMessage, setJobEventMessage] = useState<string | null>(null);
@@ -928,6 +931,39 @@ function AgentPageContent() {
     }
   }, [t]);
 
+  const deleteGeneratedDocument = useCallback(async (documentId: string) => {
+    if (pendingDeleteDocumentId !== documentId) {
+      setPendingDeleteDocumentId(documentId);
+      setNotice("한 번 더 누르면 생성 문서가 삭제됩니다.");
+      return;
+    }
+
+    setDeletingDocumentId(documentId);
+    try {
+      await agentApi.deleteGeneratedDocument(documentId);
+      setState((current) =>
+        current.kind === "ready"
+          ? {
+              ...current,
+              generatedDocuments: current.generatedDocuments.filter((document) => document.id !== documentId),
+            }
+          : current,
+      );
+      setSelectedDocument((current) => (current?.id === documentId ? null : current));
+      setPendingDeleteDocumentId(null);
+      setNotice("생성 문서를 삭제했습니다.");
+      notifyDataChanged("agent", { source: AGENT_PAGE_EVENT_SOURCE });
+      notifyDataChanged("resource");
+    } catch (error) {
+      setState({
+        kind: "offline",
+        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : "생성 문서를 삭제하지 못했습니다.",
+      });
+    } finally {
+      setDeletingDocumentId(null);
+    }
+  }, [pendingDeleteDocumentId]);
+
   return (
     <section className={`workspace-route ${styles.page}`} aria-labelledby="agent-title">
       <header className={`workspace-route__header ${styles.header}`}>
@@ -1183,6 +1219,16 @@ function AgentPageContent() {
                               variant="quiet"
                             >
                               {t("agent.page.export")}
+                            </Button>
+                            <Button
+                              icon={<Trash2 aria-hidden size={14} strokeWidth={2} />}
+                              loading={deletingDocumentId === item.documentId}
+                              onClick={() => void deleteGeneratedDocument(item.documentId ?? "")}
+                              size="sm"
+                              title={pendingDeleteDocumentId === item.documentId ? "한 번 더 누르면 삭제됩니다" : "생성 문서 삭제"}
+                              variant={pendingDeleteDocumentId === item.documentId ? "primary" : "quiet"}
+                            >
+                              {pendingDeleteDocumentId === item.documentId ? "삭제 확인" : "삭제"}
                             </Button>
                           </span>
                         ) : null}

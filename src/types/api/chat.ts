@@ -3,6 +3,17 @@ import type { AgentSuggestionResponse } from "@/types/api/agent";
 
 export type ChatMessageType = "TEXT" | "FILE" | "AGENT_COMMAND" | "AGENT_RESPONSE" | "SYSTEM";
 
+export type AgentCitationRetrievalMode = "SEMANTIC" | "TITLE_MATCH" | "RECENT_SUMMARY";
+
+export type AgentAnswerCompleteness = "ANSWERED" | "PARTIAL" | "NO_EVIDENCE";
+
+export type AgentMissingInfo =
+  | "AMBIGUOUS_RESOURCE_INTENT"
+  | "NO_RELEVANT_DOCUMENT"
+  | "NO_RELEVANT_PERSONAL_DOCUMENT"
+  | "NO_RELEVANT_PROJECT_GROUNDING"
+  | "PARTIAL_EVIDENCE";
+
 export type ChatMessageResponse = {
   body: Record<string, unknown>;
   chatRoomId: string;
@@ -20,7 +31,8 @@ export type AgentCitation = {
   endLine?: number | null;
   pageNumber?: number | null;
   quote?: string | null;
-  resourceId: string;
+  retrievalMode?: AgentCitationRetrievalMode | null;
+  resourceId?: string | null;
   similarityScore?: number | null;
   startLine?: number | null;
   title: string;

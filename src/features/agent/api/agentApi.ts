@@ -176,6 +176,12 @@ export const agentApi = {
     return apiRequest<GeneratedDocumentResponse>(`/api/generated-documents/${documentId}`);
   },
 
+  deleteGeneratedDocument(documentId: string) {
+    return apiRequest<void>(`/api/generated-documents/${documentId}`, {
+      method: "DELETE",
+    });
+  },
+
   async exportGeneratedDocument(documentId: string): Promise<GeneratedDocumentExport> {
     const headers = new Headers();
     const accessToken = getAuthAccessToken();

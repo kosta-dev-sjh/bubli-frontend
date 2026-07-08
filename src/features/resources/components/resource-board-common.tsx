@@ -722,11 +722,17 @@ export function ResourceRow({
 export function GeneratedDocumentRow({
   document,
   selected,
+  deleteBusy = false,
+  deletePending = false,
+  onDelete,
   onDownload,
   onSelect,
 }: {
   document: GeneratedDocumentResponse;
   selected: boolean;
+  deleteBusy?: boolean;
+  deletePending?: boolean;
+  onDelete?: () => void;
   onDownload: () => void;
   onSelect: () => void;
 }) {
@@ -755,6 +761,18 @@ export function GeneratedDocumentRow({
         <button aria-label={t("resources.common.download")} className={styles.iconButton} onClick={onDownload} title={t("resources.common.download")} type="button">
           <Download aria-hidden size={15} strokeWidth={2} />
         </button>
+        {onDelete ? (
+          <button
+            aria-label={deletePending ? "생성 문서 삭제 확인" : "생성 문서 삭제"}
+            className={cn(styles.iconButton, styles.iconDanger, deletePending && styles.iconDangerActive)}
+            disabled={deleteBusy}
+            onClick={onDelete}
+            title={deletePending ? "한 번 더 누르면 삭제됩니다" : "생성 문서 삭제"}
+            type="button"
+          >
+            <Trash2 aria-hidden size={15} strokeWidth={2} />
+          </button>
+        ) : null}
       </span>
     </li>
   );
