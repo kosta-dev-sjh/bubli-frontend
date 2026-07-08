@@ -650,8 +650,10 @@ struct WidgetWindowPositionInput {
 #[serde(rename_all = "camelCase")]
 struct WidgetBarDragInput {
     #[serde(default)]
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     cursor_x: Option<f64>,
     #[serde(default)]
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     cursor_y: Option<f64>,
     grab_x: f64,
     grab_y: f64,
@@ -1289,6 +1291,13 @@ fn widget_window_title(widget: &WidgetWindowState) -> &'static str {
 
 fn is_widget_window_label(label: &str) -> bool {
     label.starts_with(&format!("{WIDGET_WINDOW_LABEL_PREFIX}-"))
+}
+
+fn widget_bubble_type_from_window_label(label: &str) -> Option<String> {
+    let suffix = label
+        .strip_prefix(WIDGET_WINDOW_LABEL_PREFIX)
+        .and_then(|value| value.strip_prefix('-'))?;
+    Some(normalize_bubble_type(Some(suffix.to_string())))
 }
 
 fn widget_window_url(widget: &WidgetWindowState) -> String {
@@ -3028,7 +3037,10 @@ fn drag_widget_bar_window(
     input: WidgetBarDragInput,
 ) -> Result<WidgetBarDragResult, String> {
     let label = window.label().to_string();
-    let is_bar_or_menu = label.ends_with("-bar") || label.ends_with("-menu");
+    let target_bubble = widget_bubble_type_from_window_label(&label).ok_or_else(|| {
+        "drag_widget_bar_window can only be called from a widget window".to_string()
+    })?;
+    let is_bar_or_menu = target_bubble == "bar" || target_bubble == "menu";
     if !is_widget_window_label(&label) || !is_bar_or_menu {
         return Err(
             "drag_widget_bar_window can only be called from the bar or menu widget".to_string(),
@@ -3094,8 +3106,8 @@ fn drag_widget_bar_window(
 
         let widget = with_widget_state(
             &state,
-            Some("bar".to_string()),
-            Some("bar".to_string()),
+            Some(target_bubble.clone()),
+            Some(target_bubble.clone()),
             |widget| {
                 widget.position = WidgetWindowPosition {
                     x: (geometry.next_x - origin_x).round() as i32,
@@ -3175,8 +3187,8 @@ fn drag_widget_bar_window(
 
         let widget = with_widget_state(
             &state,
-            Some("bar".to_string()),
-            Some("bar".to_string()),
+            Some(target_bubble.clone()),
+            Some(target_bubble.clone()),
             |widget| {
                 widget.position = WidgetWindowPosition {
                     x: ((geometry.next_x - origin_x) / scale).round() as i32,
@@ -5189,6 +5201,23 @@ mod tests {
             0,
             0
         )));
+    }
+
+    #[test]
+    fn widget_window_label_resolves_drag_target_bubble() {
+        assert_eq!(
+            widget_bubble_type_from_window_label("bubli-widget-bar").as_deref(),
+            Some("bar")
+        );
+        assert_eq!(
+            widget_bubble_type_from_window_label("bubli-widget-menu").as_deref(),
+            Some("menu")
+        );
+        assert_eq!(
+            widget_bubble_type_from_window_label("bubli-widget-agent").as_deref(),
+            Some("agent")
+        );
+        assert!(widget_bubble_type_from_window_label("bubli-window-menu").is_none());
     }
 
     #[test]
