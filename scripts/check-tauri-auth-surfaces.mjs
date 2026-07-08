@@ -19,7 +19,10 @@ const files = {
   appShell: "src/components/layout/app-shell.tsx",
   appChat: "src/app/(workspace)/app/chat/page.tsx",
   appAgent: "src/app/(workspace)/app/agent/page.tsx",
+  projectRoomsPage: "src/app/(workspace)/app/project-rooms/page.tsx",
+  projectRoomWorkRoute: "src/app/(workspace)/app/project-rooms/[roomId]/work/page.tsx",
   workspaceDashboard: "src/features/dashboard/components/workspace-dashboard.tsx",
+  memoDashboardCard: "src/features/memo/components/memo-dashboard-card.tsx",
   apiClient: "src/lib/api/client.ts",
   authApi: "src/features/auth/api/authApi.ts",
   authPanel: "src/features/auth/components/auth-panel.tsx",
@@ -28,6 +31,7 @@ const files = {
   activityClient: "src/lib/local/activity-client.ts",
   authenticatedSurfaces: "src/lib/tauri/authenticated-surfaces.ts",
   startupOptimization: "src/lib/tauri/startup-optimization.ts",
+  windowsRouteCache: "src/lib/tauri/windows-route-cache.ts",
   chatWidgetRouting: "src/lib/tauri/chat-widget-routing.ts",
   chatRealtime: "src/lib/websocket/chat-realtime.ts",
   desktopWidgetPage: "src/app/desktop-widget/page.tsx",
@@ -204,13 +208,17 @@ const localAutoSyncSoak = read(files.localAutoSyncSoak);
 const windowsRuntimeSoak = read(files.windowsRuntimeSoak);
 const surfaces = read(files.authenticatedSurfaces);
 const startupOptimization = read(files.startupOptimization);
+const windowsRouteCache = read(files.windowsRouteCache);
 const chatWidgetRouting = read(files.chatWidgetRouting);
 const chatRealtime = read(files.chatRealtime);
 const appNav = read(files.appNav);
 const appShell = read(files.appShell);
 const appChat = read(files.appChat);
 const appAgent = read(files.appAgent);
+const projectRoomsPage = read(files.projectRoomsPage);
+const projectRoomWorkRoute = read(files.projectRoomWorkRoute);
 const workspaceDashboard = read(files.workspaceDashboard);
+const memoDashboardCard = read(files.memoDashboardCard);
 const apiClient = read(files.apiClient);
 const authApi = read(files.authApi);
 const authPanel = read(files.authPanel);
@@ -269,9 +277,44 @@ assertContains(
   "Windows Tauri dashboard must switch out of the loading state after a bounded initial wait and finish the slower server summary in the background.",
 );
 assertContains(
+  memoDashboardCard,
+  /readWindowsMemoInitialTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*withMemoInitialDeadline[\s\S]*const memosRequest = roomId \? memoApi\.listRoom\(roomId, \{ size: MEMO_PAGE_SIZE \}\) : memoApi\.listPersonal\(\{ size: MEMO_PAGE_SIZE \}\)[\s\S]*const initialPage = await withMemoInitialDeadline\(memosRequest, initialTimeoutMs\)[\s\S]*setState\(\(current\) => \(current\.kind === "ready" \? current : \{ kind: "ready", memos: \[\] \}\)\)[\s\S]*memosRequest\.then\(applyMemoPage\)/,
+  "Windows Tauri memo dashboard card must not hold the dashboard on memo server latency; it should deadline-bound the first load and backfill memos.",
+);
+assertContains(
   appAgent,
   /readWindowsAgentInitialTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*withAgentInitialDeadline[\s\S]*const loadData = Promise\.all\([\s\S]*projectRoomApi\.list\(\)[\s\S]*agentApi\.listDailySummaries\(\)[\s\S]*const initialData = await withAgentInitialDeadline\(loadData, initialTimeoutMs\)[\s\S]*emptyAgentLoadData\(roomId, rooms\)[\s\S]*loadData\.then\(applyLoadedData\)/,
   "Windows Tauri agent page must switch out of loading after a bounded initial wait and finish slower agent collections in the background.",
+);
+assertContains(
+  appChat,
+  /isWindowsTauriRuntime[\s\S]*const messagesRequest = chatApi\.getMessages\(chatRoomId, \{ size: 40 \}\)[\s\S]*if \(isWindowsTauriRuntime\(\)\) \{[\s\S]*readCachedRoomMessages\(chatRoomId, 40\)[\s\S]*setMessagesState\(\{ kind: "ready", messages: withAgentCommandMessages\(t, cachedMessages\) \}\)[\s\S]*const page = await messagesRequest[\s\S]*syncCachedRoomMessages\(chatRoomId, sortedMessages, 0\)/,
+  "Windows Tauri chat messages must show cached SQLite messages before waiting on the server, then backfill with the latest server page.",
+);
+assertContains(
+  appChat,
+  /readWindowsChatRoomsCache[\s\S]*writeWindowsChatRoomsCache[\s\S]*const cachedRooms = await readWindowsChatRoomsCache\(\)[\s\S]*setRoomsState\(\{ kind: "ready", rooms: cachedRooms \}\)[\s\S]*setRoomsState\(\{ kind: "loading" \}\)[\s\S]*chatApi\.listRooms\(\)[\s\S]*void writeWindowsChatRoomsCache\(page\.items\)/,
+  "Windows Tauri chat room lists must render the recent successful room list before waiting on the server, then replace it with the latest server list.",
+);
+assertContains(
+  projectRoomsPage,
+  /readWindowsProjectRoomsCache[\s\S]*writeWindowsProjectRoomsCache[\s\S]*const cachedRooms = await readWindowsProjectRoomsCache\(\)[\s\S]*setState\(cachedRooms \? \{ kind: "ready", rooms: cachedRooms \} : \{ kind: "loading" \}\)[\s\S]*projectRoomApi\.list\(\)[\s\S]*void writeWindowsProjectRoomsCache\(page\.items\)/,
+  "Windows Tauri project room lists must render the recent successful room list before waiting on the server, then replace it with the latest server list.",
+);
+assertContains(
+  windowsRouteCache,
+  /WINDOWS_CHAT_ROOMS_CACHE_KEY[\s\S]*WINDOWS_PROJECT_ROOMS_CACHE_KEY[\s\S]*isWindowsTauriRuntime\(\)[\s\S]*tauriCommands\.readWidgetPref[\s\S]*isWindowsTauriRuntime\(\)[\s\S]*tauriCommands\.storeWidgetPref[\s\S]*readWindowsChatRoomsCache[\s\S]*writeWindowsChatRoomsCache[\s\S]*readWindowsProjectRoomsCache[\s\S]*writeWindowsProjectRoomsCache/,
+  "Windows route caches must use Tauri SQLite widget preferences instead of browser localStorage.",
+);
+assertContains(
+  appShell,
+  /writeWindowsChatRoomsCache[\s\S]*writeWindowsProjectRoomsCache[\s\S]*void writeWindowsProjectRoomsCache\(roomPage\.items\)[\s\S]*void writeWindowsProjectRoomsCache\(roomPage\.value\.items\)[\s\S]*chatApi[\s\S]*\.listRooms\(\)[\s\S]*writeWindowsChatRoomsCache\(page\.items\)/,
+  "AppShell must prewarm Windows route caches so first navigation does not wait on room-list server calls.",
+);
+assertContains(
+  projectRoomWorkRoute,
+  /readWindowsWorkMembersTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*withWorkMembersDeadline[\s\S]*const membersPromise = projectRoomApi\.getMembers\(roomId\)[\s\S]*Promise\.all\(\[[\s\S]*authApi\.getMe\(\)[\s\S]*projectRoomApi\.get\(roomId\)[\s\S]*wbsApi\.getBoard\(roomId\)[\s\S]*const membersPage = await withWorkMembersDeadline\(membersPromise, membersTimeoutMs\)[\s\S]*applyReadyState\(membersPage\)[\s\S]*membersPromise\.then/,
+  "Project room work route must not block Windows board entry on member-list hydration; members should be deadline-bound and backfilled.",
 );
 assertContains(
   startupOptimization,

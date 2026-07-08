@@ -49,6 +49,7 @@ import { tauriCommands } from "@/lib/tauri/commands";
 import { listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
+import { writeWindowsChatRoomsCache, writeWindowsProjectRoomsCache } from "@/lib/tauri/windows-route-cache";
 import {
   ACTIVE_PROJECT_ROOM_CHANGE_EVENT,
   getActiveProjectRoomId,
@@ -379,6 +380,7 @@ export function AppShell({ children }: AppShellProps) {
           roomPage: Awaited<ReturnType<typeof projectRoomApi.list>>,
           widgetContext: Awaited<ReturnType<typeof widgetApi.getContext>> | null,
         ) => {
+          void writeWindowsProjectRoomsCache(roomPage.items);
           const contextRoom = widgetContext?.selectedRoomId
             ? roomPage.items.find((room) => room.id === widgetContext.selectedRoomId)
             : undefined;
@@ -548,6 +550,7 @@ export function AppShell({ children }: AppShellProps) {
     ]);
 
     if (roomPage.status === "fulfilled") {
+      void writeWindowsProjectRoomsCache(roomPage.value.items);
       setState((current) => (current.kind === "ready" ? { ...current, rooms: roomPage.value.items } : current));
     }
     if (notificationPage.status === "fulfilled") {
@@ -561,6 +564,15 @@ export function AppShell({ children }: AppShellProps) {
   const handleShellListsRefresh = useCallback(() => {
     void refreshShellLists();
   }, [refreshShellLists]);
+
+  useEffect(() => {
+    if (!shellReady) return;
+
+    void chatApi
+      .listRooms()
+      .then((page) => writeWindowsChatRoomsCache(page.items))
+      .catch(() => undefined);
+  }, [shellReady]);
 
   const pushNotificationToast = useCallback((kind: NotificationToastKind, notification: NotificationResponse, chatRoomId?: string) => {
     const toastId = notification.id;

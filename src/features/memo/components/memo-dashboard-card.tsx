@@ -9,6 +9,8 @@ import { memoApi } from "@/features/memo/api/memoApi";
 import { ApiClientError } from "@/lib/api/errors";
 import { notifyDataChanged, useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
+import { isWindowsTauriRuntime } from "@/lib/tauri/platform";
+import { readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
 import type { MemoResponse } from "@/types/api/memo";
 
 import styles from "./memo-dashboard-card.module.css";
@@ -21,6 +23,7 @@ type MemoListState =
 
 const MEMO_PAGE_SIZE = 10;
 const MEMO_VISIBLE_COUNT = 4;
+const WINDOWS_MEMO_INITIAL_TIMEOUT_FALLBACK_MS = 650;
 // 데이터 변경 이벤트 발행 주체 — 카드 자신이 이미 낙관적으로 갱신한 변경으로 재조회하지 않게 한다.
 const MEMO_CARD_EVENT_SOURCE = "memo-dashboard-card";
 
@@ -33,6 +36,29 @@ function normalizeMemoItems(items: MemoResponse[]) {
 }
 
 // 장문 대응 컴포저 — 1줄에서 시작해 최대 약 5줄(≈123px)까지 늘고 이후 내부 스크롤.
+async function readWindowsMemoInitialTimeoutMs() {
+  if (!isWindowsTauriRuntime()) return 0;
+  const config = await readTauriStartupOptimizationConfig();
+  return config.displayRequestTimeoutMs || WINDOWS_MEMO_INITIAL_TIMEOUT_FALLBACK_MS;
+}
+
+function withMemoInitialDeadline<T>(request: Promise<T>, timeoutMs: number): Promise<T | null> {
+  if (timeoutMs <= 0) return request;
+  return new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => resolve(null), timeoutMs);
+    request.then(
+      (value) => {
+        window.clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (error: unknown) => {
+        window.clearTimeout(timeoutId);
+        reject(error);
+      },
+    );
+  });
+}
+
 const MEMO_TEXTAREA_MAX_HEIGHT = 123;
 
 function autoGrowTextarea(node: HTMLTextAreaElement | null) {
@@ -103,8 +129,22 @@ export function MemoDashboardCard({ roomId = null }: { roomId?: string | null })
     if (!options?.quiet) setState({ kind: "loading" });
 
     try {
-      const page = roomId ? await memoApi.listRoom(roomId, { size: MEMO_PAGE_SIZE }) : await memoApi.listPersonal({ size: MEMO_PAGE_SIZE });
-      setState({ kind: "ready", memos: normalizeMemoItems(page.items) });
+      const memosRequest = roomId ? memoApi.listRoom(roomId, { size: MEMO_PAGE_SIZE }) : memoApi.listPersonal({ size: MEMO_PAGE_SIZE });
+      const applyMemoPage = (page: Awaited<typeof memosRequest>) => {
+        setState({ kind: "ready", memos: normalizeMemoItems(page.items) });
+      };
+      const initialTimeoutMs = await readWindowsMemoInitialTimeoutMs();
+      const initialPage = await withMemoInitialDeadline(memosRequest, initialTimeoutMs);
+      if (initialPage) {
+        applyMemoPage(initialPage);
+      } else {
+        setState((current) => (current.kind === "ready" ? current : { kind: "ready", memos: [] }));
+        void memosRequest.then(applyMemoPage).catch((error: unknown) => {
+          if (error instanceof ApiClientError && error.status === 401) {
+            setState({ kind: "auth" });
+          }
+        });
+      }
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         setState({ kind: "auth" });
