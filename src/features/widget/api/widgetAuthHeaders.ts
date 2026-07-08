@@ -1,5 +1,6 @@
 import { getAuthAccessToken } from "@/lib/auth/auth-session";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { isWindowsTauriRuntime } from "@/lib/tauri/platform";
 
 function shouldUseWidgetDevAuthToken() {
   return (
@@ -9,13 +10,17 @@ function shouldUseWidgetDevAuthToken() {
   );
 }
 
-export function withWidgetDevAuthHeaders(headers?: HeadersInit): HeadersInit {
+export function withWidgetDevAuthHeaders(headers?: HeadersInit): HeadersInit | undefined {
   const next = new Headers(headers);
   const token = process.env.NEXT_PUBLIC_BUBLI_DEV_ACCESS_TOKEN;
   const sessionToken = getAuthAccessToken();
 
   if (token && !sessionToken && shouldUseWidgetDevAuthToken() && !next.has("Authorization")) {
     next.set("Authorization", `Bearer ${token}`);
+  }
+
+  if (isWindowsTauriRuntime() && !headers && !next.has("Authorization")) {
+    return undefined;
   }
 
   return next;

@@ -1801,6 +1801,11 @@ assertContains(
   "Widget dev bearer headers must stay web-preview only and must not mask missing Tauri auth sessions.",
 );
 assertContains(
+  widgetAuthHeaders,
+  /isWindowsTauriRuntime[\s\S]*if \(isWindowsTauriRuntime\(\) && !headers && !next\.has\("Authorization"\)\) \{[\s\S]*return undefined;/,
+  "Windows Tauri widget requests must omit empty dev-auth headers so common GET request de-duping stays enabled.",
+);
+assertContains(
   workspacePreviewData,
   /function shouldUseWorkspacePreviewData\(\) \{[\s\S]*if \(isTauriRuntime\(\)\) return false;[\s\S]*NEXT_PUBLIC_BUBLI_PREVIEW_DATA === "true"/,
   "Workspace preview data must be disabled inside Tauri so hybrid app and widgets use real auth/API state.",
