@@ -1259,8 +1259,12 @@ function buildDisplayBubbles(input: {
       metric: String(input.messages.length),
       notificationLabel: unreadCount > 0 ? t("widget.chat.unreadCount", { count: unreadCount }) : t("widget.chat.noNew"),
       panelBody: t("widget.chat.body"),
-      // DIRECT 채팅방은 백엔드 chat room name을 쓰고, 룸 채팅은 프로젝트룸 라벨을 쓴다.
-      panelLabel: t("widget.chat.panelLabel", { label: input.chatRoom?.name?.trim() || label }),
+      // 1:1/그룹 채팅은 백엔드 chat room name을, 프로젝트룸 채팅은 항상 프로젝트룸 이름 자체를
+      // 쓴다 — chatRoom.name이 빈 문자열이 아닌 다른 값으로 채워져 있으면 예전처럼 || 폴백만
+      // 믿었을 때 엉뚱한 값이 새어나올 수 있어 스코프로 명확히 나눈다.
+      panelLabel: t("widget.chat.panelLabel", {
+        label: input.chatScope === "direct" ? input.chatRoom?.name?.trim() || label : label,
+      }),
       participantLabels: input.friends.slice(0, 3).map((item) => item.name),
       roomId: input.chatScope === "direct" ? null : input.roomId,
       roomLabel: label,

@@ -1256,17 +1256,16 @@ function ChatBody({
     }
   };
 
+  // 스레드를 열면 자동으로 조용히 읽음 처리한다 — 예전엔 버튼을 눌러야 했고 결과를
+  // "읽음 처리됨" 문구로 보여줬는데, 자동으로 바뀐 뒤로는 매번 뜨는 그 문구가 그냥 소음이었다.
   const markRead = useCallback(async () => {
     if (!onMarkChatRead) return;
-
-    setStatusText(null);
     try {
       await onMarkChatRead(bubble);
-      setStatusText(t("widget.chat.markedRead"));
     } catch {
-      setStatusText(t("widget.chat.markReadFailed"));
+      // 자동 읽음 처리라 실패해도 조용히 무시한다.
     }
-  }, [bubble, onMarkChatRead, t]);
+  }, [bubble, onMarkChatRead]);
 
   // 대화 스레드를 열면(또는 새 메시지가 오면) 맨 아래로 자동 스크롤한다 — 웹 채팅창과 동일한 동작.
   useEffect(() => {
@@ -1416,9 +1415,12 @@ function ChatBody({
           <button aria-label={t("widget.chat.back")} className={styles.chatBackButton} onClick={backToList} type="button">
             <ChevronLeft aria-hidden size={14} strokeWidth={2.4} />
           </button>
-        ) : null}
+        ) : (
+          // 뒤로가기 자리(그리드 1열)를 비워두지 않아야 이름이 계속 2열에 자리잡고, 보이스
+          // 버튼이 3열로 밀려나 줄바꿈 없이 한 줄에 나란히 놓인다.
+          <span aria-hidden className={styles.chatBackButton} />
+        )}
         <span>{t(bubble.panelLabel as MessageKey)}</span>
-        <b>{visibleRows.length}</b>
         {!voiceOpen ? (
           <button
             aria-label={t("widget.chat.startVoice")}
