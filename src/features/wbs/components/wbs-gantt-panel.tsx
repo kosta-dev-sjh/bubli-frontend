@@ -28,6 +28,8 @@ import { ApiClientError } from "@/lib/api/errors";
 import { notifyDataChanged } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
+import { isWindowsTauriRuntime } from "@/lib/tauri/platform";
+import { readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
 import type { GoogleCalendarConnectionResponse, RoomCalendarResponse } from "@/types/api/calendar";
 import type { ScheduleResponse, WbsItemResponse, WbsStatus } from "@/types/api/work";
@@ -54,6 +56,27 @@ const wbsGanttStatusNameKeys: Record<WbsStatus, MessageKey> = {
 
 const DEFAULT_BAR_DAYS = 6;
 const LOCAL_ID_PREFIX = "local-wbs-";
+
+async function readWindowsWbsCalendarTimeoutMs() {
+  if (!isWindowsTauriRuntime()) return 0;
+
+  const startupConfig = await readTauriStartupOptimizationConfig().catch(() => null);
+  if (startupConfig?.profile !== "windows") return 0;
+  return startupConfig.settingsTimeoutMs;
+}
+
+function withWindowsWbsCalendarDeadline<T>(request: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+  if (timeoutMs <= 0 || typeof window === "undefined") return request;
+
+  let timeoutId: number | null = null;
+  const timeout = new Promise<T>((resolve) => {
+    timeoutId = window.setTimeout(() => resolve(fallback), timeoutMs);
+  });
+
+  return Promise.race([request, timeout]).finally(() => {
+    if (timeoutId !== null) window.clearTimeout(timeoutId);
+  });
+}
 
 export type WbsGanttRange = { startAt: Date; endAt: Date };
 export type WbsGanttRangeEditRequest = {
@@ -158,12 +181,20 @@ export function WbsGanttPanel({
 
   useEffect(() => {
     let cancelled = false;
+    const request = calendarApi.getEvents({ roomId, ...scheduleRangeQuery() });
 
-    void calendarApi
-      .getEvents({ roomId, ...scheduleRangeQuery() })
+    void readWindowsWbsCalendarTimeoutMs()
+      .then((timeoutMs) => withWindowsWbsCalendarDeadline(request, timeoutMs, null))
       .then((page) => {
-        if (!cancelled) {
+        if (!cancelled && page) {
           setSchedules(page.items.filter((schedule) => schedule.wbsItemId));
+        }
+        if (isWindowsTauriRuntime() && !page) {
+          void request
+            .then((latest) => {
+              if (!cancelled) setSchedules(latest.items.filter((schedule) => schedule.wbsItemId));
+            })
+            .catch(() => undefined);
         }
       })
       .catch(() => {
@@ -197,14 +228,25 @@ export function WbsGanttPanel({
 
   useEffect(() => {
     let cancelled = false;
+    const request = calendarApi.getGoogleConnection();
 
-    void calendarApi
-      .getGoogleConnection()
+    void readWindowsWbsCalendarTimeoutMs()
+      .then((timeoutMs) => withWindowsWbsCalendarDeadline<GoogleCalendarConnectionResponse | null>(request, timeoutMs, null))
       .then((connection: GoogleCalendarConnectionResponse | null) => {
         if (cancelled) return;
         const isActive = connection?.status === "ACTIVE";
         setCalendarSync(isActive ? "recording" : "off");
         setGoogleAccountEmail(isActive ? connection?.googleAccountEmail ?? null : null);
+        if (isWindowsTauriRuntime() && !connection) {
+          void request
+            .then((latestConnection) => {
+              if (cancelled) return;
+              const latestIsActive = latestConnection?.status === "ACTIVE";
+              setCalendarSync(latestIsActive ? "recording" : "off");
+              setGoogleAccountEmail(latestIsActive ? latestConnection?.googleAccountEmail ?? null : null);
+            })
+            .catch(() => undefined);
+        }
       })
       .catch(() => {
         if (cancelled) return;
@@ -225,11 +267,22 @@ export function WbsGanttPanel({
 
     let cancelled = false;
     const { from, to } = scheduleRangeQuery();
+    const request = calendarApi.getGroupedEvents({ from, roomId, to });
 
-    void calendarApi
-      .getGroupedEvents({ from, roomId, to })
+    void readWindowsWbsCalendarTimeoutMs()
+      .then((timeoutMs) => withWindowsWbsCalendarDeadline(request, timeoutMs, null))
       .then((groups) => {
-        if (cancelled) return;
+        if (isWindowsTauriRuntime() && !groups) {
+          void request
+            .then((latestGroups) => {
+              if (cancelled) return;
+              const latestRoomGroup = latestGroups.find((group) => group.groupType === "PROJECT_ROOM" && group.roomId === roomId);
+              setRoomGroupEventCount(latestRoomGroup?.eventCount ?? 0);
+            })
+            .catch(() => undefined);
+          return;
+        }
+        if (cancelled || !groups) return;
         const roomGroup = groups.find((group) => group.groupType === "PROJECT_ROOM" && group.roomId === roomId);
         setRoomGroupEventCount(roomGroup?.eventCount ?? 0);
       })

@@ -21,6 +21,7 @@ const files = {
   appAgent: "src/app/(workspace)/app/agent/page.tsx",
   projectRoomsPage: "src/app/(workspace)/app/project-rooms/page.tsx",
   projectRoomWorkRoute: "src/app/(workspace)/app/project-rooms/[roomId]/work/page.tsx",
+  wbsGanttPanel: "src/features/wbs/components/wbs-gantt-panel.tsx",
   workspaceDashboard: "src/features/dashboard/components/workspace-dashboard.tsx",
   memoDashboardCard: "src/features/memo/components/memo-dashboard-card.tsx",
   apiClient: "src/lib/api/client.ts",
@@ -217,6 +218,7 @@ const appChat = read(files.appChat);
 const appAgent = read(files.appAgent);
 const projectRoomsPage = read(files.projectRoomsPage);
 const projectRoomWorkRoute = read(files.projectRoomWorkRoute);
+const wbsGanttPanel = read(files.wbsGanttPanel);
 const workspaceDashboard = read(files.workspaceDashboard);
 const memoDashboardCard = read(files.memoDashboardCard);
 const apiClient = read(files.apiClient);
@@ -325,6 +327,11 @@ assertContains(
   projectRoomWorkRoute,
   /readWindowsWorkMembersTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*withWorkMembersDeadline[\s\S]*const membersPromise = projectRoomApi\.getMembers\(roomId\)[\s\S]*Promise\.all\(\[[\s\S]*authApi\.getMe\(\)[\s\S]*projectRoomApi\.get\(roomId\)[\s\S]*wbsApi\.getBoard\(roomId\)[\s\S]*const membersPage = await withWorkMembersDeadline\(membersPromise, membersTimeoutMs\)[\s\S]*applyReadyState\(membersPage\)[\s\S]*membersPromise\.then/,
   "Project room work route must not block Windows board entry on member-list hydration; members should be deadline-bound and backfilled.",
+);
+assertContains(
+  wbsGanttPanel,
+  /readWindowsWbsCalendarTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*withWindowsWbsCalendarDeadline[\s\S]*const request = calendarApi\.getEvents\(\{ roomId, \.\.\.scheduleRangeQuery\(\) \}\)[\s\S]*withWindowsWbsCalendarDeadline\(request, timeoutMs, null\)[\s\S]*setSchedules\(page\.items\.filter[\s\S]*request[\s\S]*setSchedules\(latest\.items\.filter[\s\S]*const request = calendarApi\.getGoogleConnection\(\)[\s\S]*withWindowsWbsCalendarDeadline<GoogleCalendarConnectionResponse \| null>\(request, timeoutMs, null\)[\s\S]*setCalendarSync\(isActive \? "recording" : "off"\)[\s\S]*const request = calendarApi\.getGroupedEvents\(\{ from, roomId, to \}\)[\s\S]*setRoomGroupEventCount/,
+  "WBS Gantt panel must not block Windows work-board rendering on auxiliary calendar/Google status calls; it should deadline-bound and backfill those calendar details.",
 );
 assertContains(
   startupOptimization,
