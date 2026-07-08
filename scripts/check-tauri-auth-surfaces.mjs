@@ -17,6 +17,7 @@ const files = {
   appNav: "src/components/layout/app-nav.tsx",
   appShell: "src/components/layout/app-shell.tsx",
   appChat: "src/app/(workspace)/app/chat/page.tsx",
+  appAgent: "src/app/(workspace)/app/agent/page.tsx",
   workspaceDashboard: "src/features/dashboard/components/workspace-dashboard.tsx",
   apiClient: "src/lib/api/client.ts",
   authApi: "src/features/auth/api/authApi.ts",
@@ -206,6 +207,7 @@ const chatRealtime = read(files.chatRealtime);
 const appNav = read(files.appNav);
 const appShell = read(files.appShell);
 const appChat = read(files.appChat);
+const appAgent = read(files.appAgent);
 const workspaceDashboard = read(files.workspaceDashboard);
 const apiClient = read(files.apiClient);
 const authApi = read(files.authApi);
@@ -263,6 +265,11 @@ assertContains(
   workspaceDashboard,
   /readWindowsDashboardInitialTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*withDashboardInitialDeadline[\s\S]*dashboardApi\.getWork\(\)[\s\S]*setState\(\{ data: emptyDashboard, kind: "ready" \}\)[\s\S]*workPromise[\s\S]*setState\(hasDashboardItems\(data\)/,
   "Windows Tauri dashboard must switch out of the loading state after a bounded initial wait and finish the slower server summary in the background.",
+);
+assertContains(
+  appAgent,
+  /readWindowsAgentInitialTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*withAgentInitialDeadline[\s\S]*const loadData = Promise\.all\([\s\S]*projectRoomApi\.list\(\)[\s\S]*agentApi\.listDailySummaries\(\)[\s\S]*const initialData = await withAgentInitialDeadline\(loadData, initialTimeoutMs\)[\s\S]*emptyAgentLoadData\(roomId, rooms\)[\s\S]*loadData\.then\(applyLoadedData\)/,
+  "Windows Tauri agent page must switch out of loading after a bounded initial wait and finish slower agent collections in the background.",
 );
 assertContains(
   startupOptimization,

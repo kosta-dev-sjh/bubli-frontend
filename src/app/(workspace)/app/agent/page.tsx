@@ -31,6 +31,8 @@ import { ApiClientError } from "@/lib/api/errors";
 import { notifyDataChanged, useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
+import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
 import { useActiveProjectRoom } from "@/lib/use-active-project-room";
 import { setActiveProjectRoomId } from "@/lib/workspace-active-room";
 import {
@@ -69,6 +71,8 @@ type AgentPageState =
     }
   | { kind: "auth" }
   | { kind: "offline"; message: string };
+type AgentReadyState = Extract<AgentPageState, { kind: "ready" }>;
+type AgentLoadData = Omit<AgentReadyState, "kind">;
 
 type ActiveJobState = {
   jobId: string;
@@ -315,6 +319,48 @@ const AGENT_PAGE_EVENT_SOURCE = "agent-page";
 
 // 진행 중 AI 작업은 5초 간격으로 자동 확인한다(수동 확인 버튼은 보조 수단).
 const JOB_POLL_INTERVAL_MS = 5000;
+const WINDOWS_AGENT_INITIAL_TIMEOUT_FALLBACK_MS = 650;
+
+function isWindowsTauriRuntime() {
+  return isTauriRuntime() && typeof navigator !== "undefined" && /\bWindows\b/i.test(navigator.userAgent);
+}
+
+async function readWindowsAgentInitialTimeoutMs() {
+  if (!isWindowsTauriRuntime()) return 0;
+  const config = await readTauriStartupOptimizationConfig();
+  return config.displayRequestTimeoutMs || WINDOWS_AGENT_INITIAL_TIMEOUT_FALLBACK_MS;
+}
+
+function withAgentInitialDeadline<T>(request: Promise<T>, timeoutMs: number): Promise<T | null> {
+  if (timeoutMs <= 0) return request;
+  return new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => resolve(null), timeoutMs);
+    request.then(
+      (value) => {
+        window.clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (error: unknown) => {
+        window.clearTimeout(timeoutId);
+        reject(error);
+      },
+    );
+  });
+}
+
+function emptyAgentLoadData(roomId: string | null, rooms: ProjectRoomResponse[] = []): AgentLoadData {
+  return {
+    confirmedRequirements: [],
+    contractReferences: [],
+    dailySummaries: [],
+    generatedDocuments: [],
+    heldSuggestions: [],
+    roomAiDocuments: [],
+    rooms,
+    selectedRoomId: roomId,
+    suggestions: [],
+  };
+}
 
 function AgentPageContent() {
   const { locale, t } = useI18n();
@@ -382,7 +428,7 @@ function AgentPageContent() {
     });
 
     try {
-      const [roomPage, suggestions, heldSuggestions, dailySummaryPage, generatedDocumentPage, confirmedRequirements, contractReferences, roomAiDocuments] = await Promise.all([
+      const loadData = Promise.all([
         projectRoomApi.list(),
         roomId ? agentApi.listRoomSuggestions(roomId, { status: "DRAFT" }) : agentApi.listPersonalSuggestions({ status: "DRAFT" }),
         // 보류한 후보도 함께 불러와 보류함 필터에서 다시 볼 수 있게 한다.
@@ -416,24 +462,55 @@ function AgentPageContent() {
                 return [] as RoomAiDocumentResponse[];
               })
           : Promise.resolve([] as RoomAiDocumentResponse[]),
-      ]);
-      const selectedRoom = roomId ? roomPage.items.find((room) => room.id === roomId) : null;
-      if (selectedRoom) {
-        setActiveProjectRoomId(selectedRoom.id, selectedRoom.name);
-      }
+      ]).then(
+        ([
+          roomPage,
+          suggestions,
+          heldSuggestions,
+          dailySummaryPage,
+          generatedDocumentPage,
+          confirmedRequirements,
+          contractReferences,
+          roomAiDocuments,
+        ]): AgentLoadData => {
+          const selectedRoom = roomId ? roomPage.items.find((room) => room.id === roomId) : null;
+          return {
+            confirmedRequirements,
+            contractReferences,
+            dailySummaries: dailySummaryPage.items,
+            generatedDocuments: generatedDocumentPage.items,
+            heldSuggestions,
+            roomAiDocuments,
+            rooms: roomPage.items,
+            selectedRoomId: selectedRoom?.id ?? null,
+            suggestions,
+          };
+        },
+      );
 
-      setState({
-        confirmedRequirements,
-        contractReferences,
-        dailySummaries: dailySummaryPage.items,
-        generatedDocuments: generatedDocumentPage.items,
-        heldSuggestions,
-        kind: "ready",
-        roomAiDocuments,
-        rooms: roomPage.items,
-        selectedRoomId: selectedRoom?.id ?? null,
-        suggestions,
-      });
+      const applyLoadedData = (data: AgentLoadData) => {
+        const selectedRoom = data.selectedRoomId ? data.rooms.find((room) => room.id === data.selectedRoomId) : null;
+        if (selectedRoom) {
+          setActiveProjectRoomId(selectedRoom.id, selectedRoom.name);
+        }
+        setState({ ...data, kind: "ready", selectedRoomId: selectedRoom?.id ?? null });
+      };
+
+      const initialTimeoutMs = await readWindowsAgentInitialTimeoutMs();
+      const initialData = await withAgentInitialDeadline(loadData, initialTimeoutMs);
+      if (initialData) {
+        applyLoadedData(initialData);
+      } else {
+        setState((current) => {
+          const rooms = current.kind === "ready" ? current.rooms : [];
+          return { ...emptyAgentLoadData(roomId, rooms), kind: "ready" };
+        });
+        void loadData.then(applyLoadedData).catch((error: unknown) => {
+          if (error instanceof ApiClientError && error.status === 401) {
+            setState({ kind: "auth" });
+          }
+        });
+      }
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         setState({ kind: "auth" });
