@@ -47,6 +47,7 @@ import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
 import { tauriCommands } from "@/lib/tauri/commands";
 import { listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
 import {
   ACTIVE_PROJECT_ROOM_CHANGE_EVENT,
   getActiveProjectRoomId,
@@ -179,6 +180,19 @@ async function withTimeout<T>(task: Promise<T>, timeoutMs: number, fallback: T) 
       window.clearTimeout(timeoutId);
     }
   }
+}
+
+async function readWindowsWorkspaceHydrationTimeoutMs() {
+  if (!isTauriRuntime()) return 0;
+
+  const startupConfig = await readTauriStartupOptimizationConfig().catch(() => null);
+  if (startupConfig?.profile !== "windows") return 0;
+  return startupConfig.settingsTimeoutMs;
+}
+
+function boundWindowsWorkspaceHydration<T>(task: Promise<T>, timeoutMs: number, fallback: T) {
+  if (timeoutMs <= 0) return task;
+  return withTimeout(task, timeoutMs, fallback);
 }
 
 async function restoreInitialWorkspaceSession() {
@@ -360,9 +374,73 @@ export function AppShell({ children }: AppShellProps) {
             : { kind: "ready", notifications: [], rooms: roomsRef.current, user },
         );
 
+        const applyWorkspaceHydration = async (
+          roomPage: Awaited<ReturnType<typeof projectRoomApi.list>>,
+          widgetContext: Awaited<ReturnType<typeof widgetApi.getContext>> | null,
+        ) => {
+          const contextRoom = widgetContext?.selectedRoomId
+            ? roomPage.items.find((room) => room.id === widgetContext.selectedRoomId)
+            : undefined;
+          if (contextRoom) {
+            seedActiveProjectRoomId(contextRoom.id, contextRoom.name);
+            if (isCurrentRun()) {
+              setSelectedRoomId(contextRoom.id);
+              setSelectedRoomLabel(contextRoom.name);
+            }
+          }
+
+          if (!contextRoom) {
+            await restoreActiveProjectRoomFromTauri();
+            if (!isCurrentRun()) return;
+            const restoredRoomId = getActiveProjectRoomId();
+            const restoredRoom = restoredRoomId ? roomPage.items.find((room) => room.id === restoredRoomId) : undefined;
+            if (restoredRoom) {
+              seedActiveProjectRoomId(restoredRoom.id, restoredRoom.name);
+              void widgetApi.updateContext({ selectedRoomId: restoredRoom.id }).catch(() => undefined);
+              if (isCurrentRun()) {
+                setSelectedRoomId(restoredRoom.id);
+                setSelectedRoomLabel(restoredRoom.name);
+              }
+            }
+          }
+
+          if (isTauriRuntime() && !getActiveProjectRoomId() && roomPage.items[0]) {
+            const firstRoom = roomPage.items[0];
+            seedActiveProjectRoomId(firstRoom.id, firstRoom.name);
+            void widgetApi.updateContext({ selectedRoomId: firstRoom.id }).catch(() => undefined);
+            if (!isCurrentRun()) return;
+            setSelectedRoomId(firstRoom.id);
+            setSelectedRoomLabel(firstRoom.name);
+          }
+
+          if (isCurrentRun()) setState({ kind: "ready", notifications: [], rooms: roomPage.items, user });
+        };
+
+        const queueWorkspaceHydration = () => {
+          void Promise.allSettled([projectRoomApi.list(), widgetApi.getContext()]).then(
+            async ([roomPageRetryResult, widgetContextRetryResult]) => {
+              if (!isCurrentRun()) return;
+
+              if (roomPageRetryResult.status === "rejected") {
+                if (roomPageRetryResult.reason instanceof ApiClientError && roomPageRetryResult.reason.status === 401) {
+                  setAuthOrDesktopRedirectState();
+                  redirectToLoginWhenTauri();
+                }
+                return;
+              }
+
+              await applyWorkspaceHydration(
+                roomPageRetryResult.value,
+                widgetContextRetryResult.status === "fulfilled" ? widgetContextRetryResult.value : null,
+              );
+            },
+          );
+        };
+
+        const workspaceHydrationTimeoutMs = await readWindowsWorkspaceHydrationTimeoutMs();
         const [roomPageResult, widgetContextResult] = await Promise.allSettled([
-          projectRoomApi.list(),
-          widgetApi.getContext(),
+          boundWindowsWorkspaceHydration(projectRoomApi.list(), workspaceHydrationTimeoutMs, null),
+          boundWindowsWorkspaceHydration(widgetApi.getContext(), workspaceHydrationTimeoutMs, null),
         ]);
 
         if (!isCurrentRun()) return;
@@ -379,43 +457,18 @@ export function AppShell({ children }: AppShellProps) {
         }
 
         const roomPage = roomPageResult.value;
+        if (!roomPage) {
+          const restoredRoom = await restoreActiveProjectRoomFromTauri();
+          if (isCurrentRun() && restoredRoom?.roomId) {
+            setSelectedRoomId(restoredRoom.roomId);
+            setSelectedRoomLabel(restoredRoom.roomLabel ?? null);
+          }
+          queueWorkspaceHydration();
+          return;
+        }
+
         const widgetContext = widgetContextResult.status === "fulfilled" ? widgetContextResult.value : null;
-        const contextRoom = widgetContext?.selectedRoomId
-          ? roomPage.items.find((room) => room.id === widgetContext.selectedRoomId)
-          : undefined;
-        if (contextRoom) {
-          seedActiveProjectRoomId(contextRoom.id, contextRoom.name);
-          if (isCurrentRun()) {
-            setSelectedRoomId(contextRoom.id);
-            setSelectedRoomLabel(contextRoom.name);
-          }
-        }
-
-        if (!contextRoom) {
-          await restoreActiveProjectRoomFromTauri();
-          if (!isCurrentRun()) return;
-          const restoredRoomId = getActiveProjectRoomId();
-          const restoredRoom = restoredRoomId ? roomPage.items.find((room) => room.id === restoredRoomId) : undefined;
-          if (restoredRoom) {
-            seedActiveProjectRoomId(restoredRoom.id, restoredRoom.name);
-            await widgetApi.updateContext({ selectedRoomId: restoredRoom.id }).catch(() => undefined);
-            if (isCurrentRun()) {
-              setSelectedRoomId(restoredRoom.id);
-              setSelectedRoomLabel(restoredRoom.name);
-            }
-          }
-        }
-
-        if (isTauriRuntime() && !getActiveProjectRoomId() && roomPage.items[0]) {
-          const firstRoom = roomPage.items[0];
-          seedActiveProjectRoomId(firstRoom.id, firstRoom.name);
-          await widgetApi.updateContext({ selectedRoomId: firstRoom.id }).catch(() => undefined);
-          if (!isCurrentRun()) return;
-          setSelectedRoomId(firstRoom.id);
-          setSelectedRoomLabel(firstRoom.name);
-        }
-
-        if (isCurrentRun()) setState({ kind: "ready", notifications: [], rooms: roomPage.items, user });
+        await applyWorkspaceHydration(roomPage, widgetContext);
 
         void Promise.allSettled([notificationApi.list(), projectRoomApi.getMyInvitations("PENDING")]).then(
           ([notificationPageResult, invitationPageResult]) => {
