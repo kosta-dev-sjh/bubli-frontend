@@ -9,12 +9,14 @@ export type TauriStartupOptimizationConfig = {
   deferBarFullDisplayUntilAfterFirstPaint: boolean;
   initialDisplayPageSize: number;
   initialNotificationScanPages: number;
+  menuOrbBadgeRefreshIntervalMs: number;
   openCommandTimeoutMs: number;
   profile: TauriStartupOptimizationProfile;
   retryAttempts: number;
   retryDelayMs: number;
   settingsTimeoutMs: number;
   summaryPrewarmTimeoutMs: number;
+  widgetContextRefreshIntervalMs: number;
 };
 
 const STARTUP_OPTIMIZATION_CACHE_KEY = "tauri-runtime";
@@ -28,12 +30,14 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
     deferBarFullDisplayUntilAfterFirstPaint: true,
     initialDisplayPageSize: 0,
     initialNotificationScanPages: 0,
+    menuOrbBadgeRefreshIntervalMs: 8_000,
     openCommandTimeoutMs: 6_000,
     profile: "aggressive",
     retryAttempts: 1,
     retryDelayMs: 450,
     settingsTimeoutMs: 650,
     summaryPrewarmTimeoutMs: 900,
+    widgetContextRefreshIntervalMs: 15_000,
   },
   balanced: {
     bubbleOpenStaggerMs: 0,
@@ -41,12 +45,14 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
     deferBarFullDisplayUntilAfterFirstPaint: false,
     initialDisplayPageSize: 0,
     initialNotificationScanPages: 0,
+    menuOrbBadgeRefreshIntervalMs: 8_000,
     openCommandTimeoutMs: 10_000,
     profile: "balanced",
     retryAttempts: 2,
     retryDelayMs: 650,
     settingsTimeoutMs: 2_500,
     summaryPrewarmTimeoutMs: 0,
+    widgetContextRefreshIntervalMs: 15_000,
   },
   fast: {
     bubbleOpenStaggerMs: 90,
@@ -54,12 +60,14 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
     deferBarFullDisplayUntilAfterFirstPaint: true,
     initialDisplayPageSize: 0,
     initialNotificationScanPages: 0,
+    menuOrbBadgeRefreshIntervalMs: 8_000,
     openCommandTimeoutMs: 8_000,
     profile: "fast",
     retryAttempts: 2,
     retryDelayMs: 550,
     settingsTimeoutMs: 1_200,
     summaryPrewarmTimeoutMs: 1_400,
+    widgetContextRefreshIntervalMs: 15_000,
   },
   windows: {
     bubbleOpenStaggerMs: 0,
@@ -67,12 +75,14 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
     deferBarFullDisplayUntilAfterFirstPaint: true,
     initialDisplayPageSize: 30,
     initialNotificationScanPages: 2,
+    menuOrbBadgeRefreshIntervalMs: 20_000,
     openCommandTimeoutMs: 8_000,
     profile: "windows",
     retryAttempts: 2,
     retryDelayMs: 500,
     settingsTimeoutMs: 1_000,
     summaryPrewarmTimeoutMs: 1_800,
+    widgetContextRefreshIntervalMs: 30_000,
   },
 };
 
