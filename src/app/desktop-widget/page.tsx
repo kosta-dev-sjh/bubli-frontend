@@ -2300,13 +2300,19 @@ function DesktopWidgetSurface() {
     void refreshMenuOrbAgentReplyBadge();
     const intervalId = window.setInterval(() => {
       void refreshMenuOrbAgentReplyBadge();
-    }, 8_000);
+    }, startupOptimization.menuOrbBadgeRefreshIntervalMs);
 
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [communicationRevision, isMenuOrb, selectedWidgetRoomId, widgetSessionReady]);
+  }, [
+    communicationRevision,
+    isMenuOrb,
+    selectedWidgetRoomId,
+    startupOptimization.menuOrbBadgeRefreshIntervalMs,
+    widgetSessionReady,
+  ]);
 
   useEffect(() => {
     if (!widgetSessionReady || isWidgetChrome || activeBubble !== "agent" || !selectedWidgetRoomId) return;
@@ -2358,13 +2364,13 @@ function DesktopWidgetSurface() {
 
     const intervalId = window.setInterval(() => {
       void refreshWidgetContext();
-    }, 15000);
+    }, startupOptimization.widgetContextRefreshIntervalMs);
 
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [isWidgetChrome, requestedRoomId, widgetSessionReady]);
+  }, [isWidgetChrome, requestedRoomId, startupOptimization.widgetContextRefreshIntervalMs, widgetSessionReady]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;

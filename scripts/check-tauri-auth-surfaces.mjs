@@ -243,8 +243,8 @@ assertContains(
 );
 assertContains(
   startupOptimization,
-  /windows:\s*\{[\s\S]*bubbleOpenStaggerMs:\s*0,[\s\S]*deferBarFullDisplayUntilAfterFirstPaint:\s*true,[\s\S]*initialDisplayPageSize:\s*30,[\s\S]*initialNotificationScanPages:\s*2,[\s\S]*summaryPrewarmTimeoutMs:\s*1_800/,
-  "Windows startup optimization must use batched widget opening, bounded initial display loads, bounded initial notification scans, first-paint deferral, and summary prewarm.",
+  /windows:\s*\{[\s\S]*bubbleOpenStaggerMs:\s*0,[\s\S]*deferBarFullDisplayUntilAfterFirstPaint:\s*true,[\s\S]*initialDisplayPageSize:\s*30,[\s\S]*initialNotificationScanPages:\s*2,[\s\S]*menuOrbBadgeRefreshIntervalMs:\s*20_000,[\s\S]*summaryPrewarmTimeoutMs:\s*1_800,[\s\S]*widgetContextRefreshIntervalMs:\s*30_000/,
+  "Windows startup optimization must use batched widget opening, bounded initial display loads, bounded initial notification scans, slower fallback polling, first-paint deferral, and summary prewarm.",
 );
 assertContains(
   publishTauriWindowsDownload,
@@ -1798,6 +1798,16 @@ assertContains(
   widgetPage,
   /const initialDisplayPageSize =[\s\S]*startupOptimization\.initialDisplayPageSize[\s\S]*const initialNotificationScanPages =[\s\S]*isTauri && !displayLoadedOnceRef\.current && startupOptimization\.initialNotificationScanPages > 0[\s\S]*widgetDisplayApi\.listSchedules\(selectedRoomId, initialDisplayPageSize\)[\s\S]*widgetDisplayApi\.listResources\(selectedRoomId, initialDisplayPageSize\)[\s\S]*widgetDisplayApi\.listMemos\(selectedRoomId, initialDisplayPageSize\)[\s\S]*listWidgetVisibleUnreadNotifications\(WIDGET_NOTIFICATION_DISPLAY_LIMIT, initialNotificationScanPages\)[\s\S]*startupOptimization\.initialDisplayPageSize[\s\S]*startupOptimization\.initialNotificationScanPages/,
   "Desktop widget must use the Windows startup profile to bound first-load schedule/resource/memo requests and notification scans without affecting later refreshes.",
+);
+assertContains(
+  widgetPage,
+  /refreshMenuOrbAgentReplyBadge[\s\S]*window\.setInterval\(\(\) => \{[\s\S]*startupOptimization\.menuOrbBadgeRefreshIntervalMs[\s\S]*startupOptimization\.menuOrbBadgeRefreshIntervalMs/,
+  "Desktop widget menu orb must use the startup profile for fallback agent badge polling instead of a hard-coded fast interval.",
+);
+assertContains(
+  widgetPage,
+  /refreshWidgetContext[\s\S]*window\.setInterval\(\(\) => \{[\s\S]*startupOptimization\.widgetContextRefreshIntervalMs[\s\S]*startupOptimization\.widgetContextRefreshIntervalMs/,
+  "Desktop widget windows must use the startup profile for fallback room-context polling instead of a hard-coded fast interval.",
 );
 
 assertContains(
