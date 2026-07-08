@@ -2584,7 +2584,9 @@ function DesktopWidgetSurface() {
       const loadChat = shouldLoadBubbleData("chat");
       const loadRoom =
         Boolean(selectedRoomId) &&
-        (loadFullDisplay || (!isBubbleBar && activeBubble !== "alert") || (isBubbleBar && !isWindowsStartupProfile));
+        ((loadFullDisplay && !deferInitialWindowsBarCollectionLoad) ||
+          (!isBubbleBar && activeBubble !== "alert") ||
+          (isBubbleBar && !isWindowsStartupProfile));
       const loadRoomBoard = Boolean(selectedRoomId) && shouldLoadBubbleData("todo");
       const initialDisplayPageSize =
         isTauri && !displayLoadedOnceRef.current && startupOptimization.initialDisplayPageSize > 0
@@ -2595,8 +2597,11 @@ function DesktopWidgetSurface() {
           ? startupOptimization.initialNotificationScanPages
           : 0;
       const loadProjectRooms =
-        (isBubbleBar && (!isWindowsStartupProfile || loadFullDisplay || displayLoadedOnceRef.current)) ||
-        loadFullDisplay ||
+        (isBubbleBar &&
+          (!isWindowsStartupProfile ||
+            (loadFullDisplay && !deferInitialWindowsBarCollectionLoad) ||
+            displayLoadedOnceRef.current)) ||
+        (loadFullDisplay && !deferInitialWindowsBarCollectionLoad) ||
         activeBubble === "agent" ||
         activeBubble === "todo" ||
         activeBubble === "memo" ||
