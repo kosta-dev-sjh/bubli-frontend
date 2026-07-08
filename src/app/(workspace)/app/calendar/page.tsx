@@ -203,6 +203,31 @@ type CalendarSpanBar = {
 
 // 한 주 행에 보여줄 최대 이벤트 줄 수(관통 막대 + 시간 칩 공용). 넘치면 "+N"으로 접어 셀 높이를 고정한다.
 const CALENDAR_MAX_ROW_LANES = 3;
+const GOOGLE_EVENTS_CACHE_TTL_MS = 5 * 60_000;
+const AUTO_SYNC_MIN_INTERVAL_MS = 5 * 60_000;
+const FOCUS_REFRESH_MIN_INTERVAL_MS = 60_000;
+
+type GoogleEventsCacheEntry = {
+  calendars: GoogleCalendarListEntry[];
+  fetchedAt: number;
+  groups: CalendarEventGroupResponse[];
+};
+
+const googleEventsCache = new Map<string, GoogleEventsCacheEntry>();
+const googleEventsInFlight = new Map<string, Promise<GoogleEventsCacheEntry>>();
+
+function googleEventsCacheKey(accountEmail: string | null | undefined, range: { end: string; start: string }) {
+  return [accountEmail || "connected", range.start, range.end].join("|");
+}
+
+function isFreshGoogleEventsCache(entry: GoogleEventsCacheEntry | undefined) {
+  return Boolean(entry && Date.now() - entry.fetchedAt < GOOGLE_EVENTS_CACHE_TTL_MS);
+}
+
+function clearGoogleEventsCache() {
+  googleEventsCache.clear();
+  googleEventsInFlight.clear();
+}
 
 function computeRowSpanBars(
   rowDays: Date[],
@@ -503,27 +528,62 @@ function CalendarPageContent() {
 
   // 구글 연동이 활성일 때, 보이는 기간(월/주 범위)의 모든 구글 캘린더 일정을 원본 그대로 가져온다.
   // 수동 동기화(pull) 없이도 격자에 바로 보이게 하는 경로다.
-  const loadGoogleEvents = useCallback(async () => {
-    setGoogleEventsLoading(true);
+  const loadGoogleEvents = useCallback(async (options?: { force?: boolean; quiet?: boolean }) => {
+    const accountEmail = googleConnection.kind === "connected" ? googleConnection.value.googleAccountEmail : null;
+    const cacheKey = googleEventsCacheKey(accountEmail, range);
+    const cached = googleEventsCache.get(cacheKey);
+
+    if (!options?.force && isFreshGoogleEventsCache(cached)) {
+      setGoogleGroups(cached!.groups);
+      setGoogleCalendars(cached!.calendars);
+      setGoogleEventsError(false);
+      setGoogleEventsLoading(false);
+      return;
+    }
+
+    if (cached) {
+      setGoogleGroups(cached.groups);
+      setGoogleCalendars(cached.calendars);
+    }
+    if (!options?.quiet && !cached) setGoogleEventsLoading(true);
     setGoogleEventsError(false);
 
-    // 로컬 일정은 /api/schedules로 이미 받으므로 그룹 API에서는 구글 캘린더 그룹만 필요하다(localLimit 최소화).
-    const [groupsResult, calendarsResult] = await Promise.allSettled([
-      calendarApi.getGroupedEvents({ from: range.start, localLimit: 1, to: range.end }),
-      calendarApi.getGoogleCalendars(),
-    ]);
+    try {
+      let request = googleEventsInFlight.get(cacheKey);
+      if (!request) {
+        request = (async () => {
+          // 로컬 일정은 /api/schedules로 이미 받으므로 그룹 API에서는 구글 캘린더 그룹만 필요하다(localLimit 최소화).
+          const [groupsResult, calendarsResult] = await Promise.allSettled([
+            calendarApi.getGroupedEvents({ from: range.start, localLimit: 1, to: range.end }),
+            calendarApi.getGoogleCalendars(),
+          ]);
 
-    if (groupsResult.status === "fulfilled") {
-      setGoogleGroups(groupsResult.value.filter((group) => group.groupType === "GOOGLE_CALENDAR"));
-    } else {
+          if (groupsResult.status === "rejected") {
+            throw groupsResult.reason;
+          }
+
+          const entry: GoogleEventsCacheEntry = {
+            calendars: calendarsResult.status === "fulfilled" ? calendarsResult.value : cached?.calendars ?? [],
+            fetchedAt: Date.now(),
+            groups: groupsResult.value.filter((group) => group.groupType === "GOOGLE_CALENDAR"),
+          };
+          googleEventsCache.set(cacheKey, entry);
+          return entry;
+        })().finally(() => {
+          googleEventsInFlight.delete(cacheKey);
+        });
+        googleEventsInFlight.set(cacheKey, request);
+      }
+
+      const entry = await request;
+      setGoogleGroups(entry.groups);
+      setGoogleCalendars(entry.calendars);
+    } catch {
       setGoogleEventsError(true);
+    } finally {
+      setGoogleEventsLoading(false);
     }
-    // 캘린더 목록은 칩 색(backgroundColor) 표시에만 쓰므로 실패해도 그룹 표시는 유지한다.
-    if (calendarsResult.status === "fulfilled") {
-      setGoogleCalendars(calendarsResult.value);
-    }
-    setGoogleEventsLoading(false);
-  }, [range]);
+  }, [googleConnection, range]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -921,12 +981,17 @@ function CalendarPageContent() {
   // 진입/월 이동/생성·수정·삭제 후에 호출되며, 동시 실행 가드(autoSyncInFlightRef)로 중복을 막는다.
   // 룸 일정은 백엔드 ensureRoomCalendar가 룸 전용 캘린더를 지연 생성해 그쪽으로 보낸다.
   const autoSyncInFlightRef = useRef(false);
-  const autoSyncToGoogle = async () => {
+  const lastAutoSyncAtRef = useRef(0);
+  const lastFocusRefreshAtRef = useRef(0);
+  const autoSyncToGoogle = async (options?: { force?: boolean }) => {
     if (!googleConnected || autoSyncInFlightRef.current) return;
+    const nowMs = Date.now();
+    if (!options?.force && nowMs - lastAutoSyncAtRef.current < AUTO_SYNC_MIN_INTERVAL_MS) return;
     autoSyncInFlightRef.current = true;
+    lastAutoSyncAtRef.current = nowMs;
     try {
       const pullRange = {
-        calendarIds: googleCalendars.length > 0 ? googleCalendars.map((calendar) => calendar.id) : undefined,
+        calendarIds: googleCalendars.length > 0 ? googleCalendars.filter((calendar) => calendar.selected !== false).map((calendar) => calendar.id) : undefined,
         from: range.start,
         to: range.end,
       };
@@ -936,13 +1001,16 @@ function CalendarPageContent() {
         .pushUnsyncedGoogleEvents({ from: range.start, to: range.end })
         .catch(() => [] as ScheduleResponse[]);
       if (pushed.length > 0) mergeSyncedEvents(pushed);
-      if (pulled.length > 0 || pushed.length > 0) void loadGoogleEvents();
+      if (pulled.length > 0 || pushed.length > 0) {
+        clearGoogleEventsCache();
+        void loadGoogleEvents({ force: true, quiet: true });
+      }
     } finally {
       autoSyncInFlightRef.current = false;
     }
   };
 
-  // 진입/월 이동 시 자동 동기화 — 최신 콜백을 ref로 잡아 디바운스(연속 이동 시 마지막 한 번만) 실행한다.
+  // 진입/월 이동 시 자동 동기화 — 최신 콜백을 ref로 잡아 디바운스하되, 최소 간격으로 Google API 호출을 제한한다.
   const autoSyncRef = useRef(autoSyncToGoogle);
   useEffect(() => {
     autoSyncRef.current = autoSyncToGoogle;
@@ -953,6 +1021,29 @@ function CalendarPageContent() {
     return () => window.clearTimeout(timeoutId);
   }, [googleConnected, range.start, range.end]);
 
+  // 오래 쉬다 돌아왔을 때는 버튼을 누르지 않아도 조용히 최신 상태를 확인한다.
+  // 포커스 이벤트는 브라우저가 여러 번 쏘므로 1분에 한 번만 반응하고, 실제 sync는 별도 최소 간격을 따른다.
+  useEffect(() => {
+    if (!googleConnected) return;
+
+    const refreshOnReturn = () => {
+      if (document.visibilityState === "hidden") return;
+      const nowMs = Date.now();
+      if (nowMs - lastFocusRefreshAtRef.current < FOCUS_REFRESH_MIN_INTERVAL_MS) return;
+      lastFocusRefreshAtRef.current = nowMs;
+      void loadEvents({ quiet: true });
+      void loadGoogleEvents({ force: true, quiet: true });
+      void autoSyncRef.current();
+    };
+
+    window.addEventListener("focus", refreshOnReturn);
+    document.addEventListener("visibilitychange", refreshOnReturn);
+    return () => {
+      window.removeEventListener("focus", refreshOnReturn);
+      document.removeEventListener("visibilitychange", refreshOnReturn);
+    };
+  }, [googleConnected, loadEvents, loadGoogleEvents]);
+
   const runGoogleAction = async (action: SyncAction) => {
     setSyncAction(action);
     setGoogleNotice(null);
@@ -961,10 +1052,11 @@ function CalendarPageContent() {
       if (action === "connect") {
         const connection = await startGoogleCalendarConnect();
         if (connection?.status === "ACTIVE") {
+          clearGoogleEventsCache();
           setGoogleConnection({ kind: "connected", value: connection });
           setGoogleNotice(t("calendar.google.connected"));
           void loadEvents({ quiet: true });
-          void loadGoogleEvents();
+          void loadGoogleEvents({ force: true, quiet: true });
           notifyDataChanged("schedule", { source: CALENDAR_PAGE_EVENT_SOURCE });
         }
         return;
@@ -972,14 +1064,18 @@ function CalendarPageContent() {
 
       if (action === "disconnect") {
         await calendarApi.disconnectGoogleConnection();
+        clearGoogleEventsCache();
+        lastAutoSyncAtRef.current = 0;
         setGoogleConnection({ kind: "disconnected" });
+        setGoogleGroups([]);
+        setGoogleCalendars([]);
         setGoogleNotice(t("calendar.notice.disconnected"));
         return;
       }
 
       // 가져오기(pull)는 primary만 도는 백엔드 기본값 대신, 알고 있는 모든 캘린더를 명시해 전체를 동기화한다.
       const pullRange = {
-        calendarIds: googleCalendars.length > 0 ? googleCalendars.map((calendar) => calendar.id) : undefined,
+        calendarIds: googleCalendars.length > 0 ? googleCalendars.filter((calendar) => calendar.selected !== false).map((calendar) => calendar.id) : undefined,
         from: range.start,
         to: range.end,
       };
@@ -991,9 +1087,11 @@ function CalendarPageContent() {
         mergeSyncedEvents(pulledEvents);
         const pushedEvents = await calendarApi.pushUnsyncedGoogleEvents(pushRange);
         mergeSyncedEvents(pushedEvents);
+        lastAutoSyncAtRef.current = Date.now();
         setLastSync({ at: new Date(), pulled: pulledEvents.length, pushed: pushedEvents.length });
         setGoogleNotice(t("calendar.notice.syncDone", { pulled: pulledEvents.length, pushed: pushedEvents.length }));
-        void loadGoogleEvents();
+        clearGoogleEventsCache();
+        void loadGoogleEvents({ force: true, quiet: true });
         return;
       }
 
@@ -1002,6 +1100,7 @@ function CalendarPageContent() {
           ? await calendarApi.syncGoogleEvents(pullRange)
           : await calendarApi.pushUnsyncedGoogleEvents(pushRange);
       mergeSyncedEvents(syncedEvents);
+      lastAutoSyncAtRef.current = Date.now();
       setLastSync((current) => ({
         at: new Date(),
         pulled: action === "pull" ? syncedEvents.length : current?.pulled ?? 0,
@@ -1013,7 +1112,8 @@ function CalendarPageContent() {
           : t("calendar.notice.pushDone", { count: syncedEvents.length }),
       );
       // 동기화 이후 구글 원본 그룹을 다시 받아 중복 제거·표시 상태를 맞춘다.
-      void loadGoogleEvents();
+      clearGoogleEventsCache();
+      void loadGoogleEvents({ force: true, quiet: true });
       // 동기화로 로컬 일정이 늘거나 상태가 바뀌었을 수 있으니 홈 일정 카드 등에도 알린다.
       notifyDataChanged("schedule", { source: CALENDAR_PAGE_EVENT_SOURCE });
     } catch (error) {
