@@ -249,7 +249,7 @@ async function openWidgetWindowsWithRetry(
 export async function resolveLoginStartupWindows(): Promise<WidgetWindowOpenInput[]> {
   const startupConfig = await readTauriStartupOptimizationConfig();
   // 설정 응답 자체는 시작 창 구성에 쓰지 않는다 — 백엔드 웜업 겸 타임아웃 가드만 유지한다.
-  await withTimeout(
+  void withTimeout(
     widgetApi.getSettings(),
     startupConfig.settingsTimeoutMs,
     "Tauri widget startup settings timed out",
@@ -463,12 +463,13 @@ export function launchTauriAuthenticatedSurfaces(options: LaunchTauriAuthenticat
     }
 
     if (summaryPrewarmPromise) {
-      const warmed = await summaryPrewarmPromise;
-      if (warmed) {
-        timeline.summaryPrewarmCompletedAt = nowIso();
-      } else {
-        timeline.summaryPrewarmFailedAt = nowIso();
-      }
+      void summaryPrewarmPromise.then((warmed) => {
+        if (warmed) {
+          timeline.summaryPrewarmCompletedAt = nowIso();
+        } else {
+          timeline.summaryPrewarmFailedAt = nowIso();
+        }
+      });
     }
 
     const bubbleResults = await openWidgetWindowsWithRetry(bubbleWindows, selectedRoomId, shouldContinueLaunch);

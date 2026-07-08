@@ -7,6 +7,10 @@ import { siteConfig } from "@/config/site";
 import { Providers } from "@/app/providers";
 import { TauriRuntimeGates } from "@/lib/tauri/tauri-runtime-gates";
 
+const apiPreconnectOrigin = process.env.NEXT_PUBLIC_API_BASE_URL
+  ? new URL(process.env.NEXT_PUBLIC_API_BASE_URL).origin
+  : "https://bubli.n-e.kr";
+
 export const metadata: Metadata = {
   title: {
     default: siteConfig.name,
@@ -34,6 +38,8 @@ export default function RootLayout({ children }: RootLayoutProps) {
       <head>
         {/* LINE Seed 웹폰트가 CDN에서 오므로 연결을 미리 열어 첫 글꼴 표시를 앞당긴다. */}
         <link crossOrigin="anonymous" href="https://cdn.jsdelivr.net" rel="preconnect" />
+        <link href={apiPreconnectOrigin} rel="dns-prefetch" />
+        <link crossOrigin="anonymous" href={apiPreconnectOrigin} rel="preconnect" />
       </head>
       <body>
         <Providers>

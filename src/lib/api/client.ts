@@ -15,6 +15,9 @@ const DEFAULT_LOCAL_API_BASE_URL = "http://127.0.0.1:8080";
 const DEFAULT_PRODUCTION_API_BASE_URL = "https://bubli.n-e.kr";
 const DEFAULT_API_TIMEOUT_MS = 15000;
 const PREVIEW_API_TIMEOUT_MS = 1200;
+const GET_REQUEST_DEDUPE_ENABLED = process.env.NEXT_PUBLIC_BUBLI_API_GET_DEDUPE !== "false";
+
+const inFlightGetRequests = new Map<string, Promise<unknown>>();
 
 export type ApiRequestOptions = Omit<RequestInit, "body"> & {
   body?: unknown;
@@ -55,6 +58,38 @@ export async function apiRequest<T>(
   options: ApiRequestOptions = {},
 ): Promise<T> {
   const { body, headers, skipAuth = false, skipAuthRefresh = false, ...init } = options;
+  const request = () => performApiRequest<T>(path, { body, headers, init, skipAuth, skipAuthRefresh });
+  const dedupeKey = getInFlightGetRequestKey(path, { body, headers, init, skipAuth });
+  if (!dedupeKey) {
+    return request();
+  }
+
+  const current = inFlightGetRequests.get(dedupeKey);
+  if (current) {
+    return current as Promise<T>;
+  }
+
+  const next = request().finally(() => {
+    if (inFlightGetRequests.get(dedupeKey) === next) {
+      inFlightGetRequests.delete(dedupeKey);
+    }
+  });
+  inFlightGetRequests.set(dedupeKey, next);
+  return next;
+}
+
+type PerformApiRequestInput = {
+  body: unknown;
+  headers: HeadersInit | undefined;
+  init: Omit<RequestInit, "body" | "headers">;
+  skipAuth: boolean;
+  skipAuthRefresh: boolean;
+};
+
+async function performApiRequest<T>(
+  path: string,
+  { body, headers, init, skipAuth, skipAuthRefresh }: PerformApiRequestInput,
+): Promise<T> {
   const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
   const timeoutController = init.signal ? null : new AbortController();
   const timeoutId = timeoutController ? setTimeout(() => timeoutController.abort(), getApiTimeoutMs()) : null;
@@ -103,6 +138,27 @@ export async function apiRequest<T>(
       clearTimeout(timeoutId);
     }
   }
+}
+
+type InFlightGetRequestInput = {
+  body: unknown;
+  headers: HeadersInit | undefined;
+  init: Omit<RequestInit, "body" | "headers">;
+  skipAuth: boolean;
+};
+
+function getInFlightGetRequestKey(path: string, input: InFlightGetRequestInput) {
+  if (!GET_REQUEST_DEDUPE_ENABLED || input.body !== undefined || input.headers || input.init.signal) {
+    return null;
+  }
+
+  const method = (input.init.method ?? "GET").toUpperCase();
+  if (method !== "GET" && method !== "HEAD") {
+    return null;
+  }
+
+  const authKey = input.skipAuth ? "skip-auth" : getAuthAccessToken() ?? "anonymous";
+  return `${method} ${getApiBaseUrl()}${path} ${authKey}`;
 }
 
 type SendApiRequestInput = {
