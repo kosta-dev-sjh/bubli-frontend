@@ -1710,6 +1710,11 @@ async function readWidgetDisplaySummary(
   return serverResult?.status === "ready" ? serverResult.data : null;
 }
 
+async function readCachedWidgetSummaryRoomId() {
+  const summary = await readWidgetDisplaySummary(null, { allowServerFallback: false }).catch(() => null);
+  return normalizeWidgetRoomId(summary?.context.selectedRoomId);
+}
+
 function DesktopWidgetSurface() {
   const { t } = useI18n();
   const isTauri = isTauriRuntime();
@@ -2405,8 +2410,18 @@ function DesktopWidgetSurface() {
 
     async function refreshMenuOrbAgentReplyBadge() {
       let roomId = selectedWidgetRoomId;
+      const displayRequestTimeoutMs = isWindowsStartupProfile ? startupOptimization.displayRequestTimeoutMs : 0;
+      if (!roomId && isWindowsStartupProfile) {
+        roomId = await readCachedWidgetSummaryRoomId();
+        if (cancelled) return;
+        if (roomId) setWidgetContext(widgetContextForRoomId(roomId));
+      }
       if (!roomId) {
-        const context = await widgetApi.getContext().catch(() => null);
+        const context = await withWidgetDisplayDeadline(
+          widgetApi.getContext().catch(() => null),
+          displayRequestTimeoutMs,
+          null,
+        );
         if (cancelled) return;
         roomId = normalizeWidgetRoomId(context?.selectedRoomId);
         if (context) setWidgetContext(widgetContextForRoomId(context.selectedRoomId));
@@ -2438,7 +2453,9 @@ function DesktopWidgetSurface() {
   }, [
     communicationRevision,
     isMenuOrb,
+    isWindowsStartupProfile,
     selectedWidgetRoomId,
+    startupOptimization.displayRequestTimeoutMs,
     startupOptimization.menuOrbBadgeRefreshIntervalMs,
     widgetSessionReady,
   ]);
@@ -2475,7 +2492,11 @@ function DesktopWidgetSurface() {
     let cancelled = false;
 
     async function refreshWidgetContext() {
-      const context = await widgetApi.getContext().catch(() => null);
+      const context = await withWidgetDisplayDeadline(
+        widgetApi.getContext().catch(() => null),
+        isWindowsStartupProfile ? startupOptimization.displayRequestTimeoutMs : 0,
+        null,
+      );
       if (cancelled || !context) return;
 
       setWidgetContext((current) => {
@@ -2499,7 +2520,14 @@ function DesktopWidgetSurface() {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [isWidgetChrome, requestedRoomId, startupOptimization.widgetContextRefreshIntervalMs, widgetSessionReady]);
+  }, [
+    isWidgetChrome,
+    isWindowsStartupProfile,
+    requestedRoomId,
+    startupOptimization.displayRequestTimeoutMs,
+    startupOptimization.widgetContextRefreshIntervalMs,
+    widgetSessionReady,
+  ]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;
@@ -3163,8 +3191,17 @@ function DesktopWidgetSurface() {
 
   const openAgentFromMenuOrb = useCallback(async () => {
     let roomId = selectedWidgetRoomId;
+    const displayRequestTimeoutMs = isWindowsStartupProfile ? startupOptimization.displayRequestTimeoutMs : 0;
+    if (!roomId && isWindowsStartupProfile) {
+      roomId = await readCachedWidgetSummaryRoomId();
+      if (roomId) setWidgetContext(widgetContextForRoomId(roomId));
+    }
     if (!roomId) {
-      const context = await widgetApi.getContext().catch(() => null);
+      const context = await withWidgetDisplayDeadline(
+        widgetApi.getContext().catch(() => null),
+        displayRequestTimeoutMs,
+        null,
+      );
       roomId = normalizeWidgetRoomId(context?.selectedRoomId);
       if (context) setWidgetContext(widgetContextForRoomId(context.selectedRoomId));
     }
@@ -3174,7 +3211,12 @@ function DesktopWidgetSurface() {
       void readWidgetAgentReplyBadgeCount(roomId, { markRead: true }).catch(() => undefined);
     }
     await restoreBubbleFromBar("agent", { selectedRoomId: roomId });
-  }, [restoreBubbleFromBar, selectedWidgetRoomId]);
+  }, [
+    isWindowsStartupProfile,
+    restoreBubbleFromBar,
+    selectedWidgetRoomId,
+    startupOptimization.displayRequestTimeoutMs,
+  ]);
 
   const handleItemStateChange = useCallback(
     async (item: WidgetPreviewItem, state: WidgetItemStateAction) => {
