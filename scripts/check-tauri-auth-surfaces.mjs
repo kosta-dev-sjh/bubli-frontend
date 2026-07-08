@@ -276,6 +276,11 @@ assertContains(
   "Windows Tauri agent page must switch out of loading after a bounded initial wait and finish slower agent collections in the background.",
 );
 assertContains(
+  appChat,
+  /isWindowsTauriRuntime[\s\S]*const messagesRequest = chatApi\.getMessages\(chatRoomId, \{ size: 40 \}\)[\s\S]*if \(isWindowsTauriRuntime\(\)\) \{[\s\S]*readCachedRoomMessages\(chatRoomId, 40\)[\s\S]*setMessagesState\(\{ kind: "ready", messages: withAgentCommandMessages\(t, cachedMessages\) \}\)[\s\S]*const page = await messagesRequest[\s\S]*syncCachedRoomMessages\(chatRoomId, sortedMessages, 0\)/,
+  "Windows Tauri chat messages must show cached SQLite messages before waiting on the server, then backfill with the latest server page.",
+);
+assertContains(
   projectRoomWorkRoute,
   /readWindowsWorkMembersTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*withWorkMembersDeadline[\s\S]*const membersPromise = projectRoomApi\.getMembers\(roomId\)[\s\S]*Promise\.all\(\[[\s\S]*authApi\.getMe\(\)[\s\S]*projectRoomApi\.get\(roomId\)[\s\S]*wbsApi\.getBoard\(roomId\)[\s\S]*const membersPage = await withWorkMembersDeadline\(membersPromise, membersTimeoutMs\)[\s\S]*applyReadyState\(membersPage\)[\s\S]*membersPromise\.then/,
   "Project room work route must not block Windows board entry on member-list hydration; members should be deadline-bound and backfilled.",
