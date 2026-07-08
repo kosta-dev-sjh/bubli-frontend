@@ -79,6 +79,10 @@ const WIDGET_MENU_WIDTH: f64 = 248.0;
 const WIDGET_MENU_HEIGHT: f64 = 540.0;
 const ONBOARDING_OVERLAY_WINDOW_LABEL: &str = "onboarding-overlay";
 const ONBOARDING_OVERLAY_WINDOW_URL: &str = "desktop-widget/onboarding/";
+#[cfg(target_os = "windows")]
+const ONBOARDING_OVERLAY_WINDOW_WIDTH: f64 = 760.0;
+#[cfg(target_os = "windows")]
+const ONBOARDING_OVERLAY_WINDOW_HEIGHT: f64 = 720.0;
 const WIDGET_MINIMIZED_WIDTH: f64 = 188.0;
 const WIDGET_MINIMIZED_HEIGHT: f64 = 72.0;
 const PRIMARY_MONITOR_ID: &str = "primary";
@@ -1318,17 +1322,29 @@ fn onboarding_overlay_window_geometry(
     let origin = monitor.as_ref().map(|monitor| monitor.position());
     let origin_x = origin.map_or(0.0, |position| position.x as f64 / scale);
     let origin_y = origin.map_or(0.0, |position| position.y as f64 / scale);
-    let size = LogicalSize::new(
-        monitor
-            .as_ref()
-            .map(|monitor| monitor.size().width as f64 / scale)
-            .unwrap_or(WIDGET_FALLBACK_MONITOR_WIDTH),
-        monitor
-            .as_ref()
-            .map(|monitor| monitor.size().height as f64 / scale)
-            .unwrap_or(WIDGET_FALLBACK_MONITOR_HEIGHT),
-    );
-    Ok((LogicalPosition::new(origin_x, origin_y), size))
+    let monitor_width = monitor
+        .as_ref()
+        .map(|monitor| monitor.size().width as f64 / scale)
+        .unwrap_or(WIDGET_FALLBACK_MONITOR_WIDTH);
+    let monitor_height = monitor
+        .as_ref()
+        .map(|monitor| monitor.size().height as f64 / scale)
+        .unwrap_or(WIDGET_FALLBACK_MONITOR_HEIGHT);
+
+    #[cfg(target_os = "windows")]
+    {
+        let width = ONBOARDING_OVERLAY_WINDOW_WIDTH.min(monitor_width).max(360.0);
+        let height = ONBOARDING_OVERLAY_WINDOW_HEIGHT.min(monitor_height).max(520.0);
+        let x = origin_x + ((monitor_width - width) / 2.0).max(0.0);
+        let y = origin_y + ((monitor_height - height) / 2.0).max(0.0);
+        return Ok((LogicalPosition::new(x, y), LogicalSize::new(width, height)));
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let size = LogicalSize::new(monitor_width, monitor_height);
+        Ok((LogicalPosition::new(origin_x, origin_y), size))
+    }
 }
 
 fn widget_window_size(widget: &WidgetWindowState) -> LogicalSize<f64> {
