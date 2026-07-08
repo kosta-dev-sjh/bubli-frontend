@@ -10,7 +10,7 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { agentApi } from "@/features/agent/api/agentApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
-import { useDataRefresh } from "@/lib/data-changed";
+import { notifyDataChanged, useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import { projectRoomRoute } from "@/lib/project-room-routes";
 import {
@@ -91,6 +91,8 @@ export function PersonalResourceWorkspace() {
   const [localSearchMessage, setLocalSearchMessage] = useState<string | null>(null);
   const [localFilePreviews, setLocalFilePreviews] = useState<Record<string, LocalFilePreviewState>>({});
   const [localSearchRefreshKey, setLocalSearchRefreshKey] = useState(0);
+  const [pendingDeleteGeneratedDocumentId, setPendingDeleteGeneratedDocumentId] = useState<string | null>(null);
+  const [deletingGeneratedDocumentId, setDeletingGeneratedDocumentId] = useState<string | null>(null);
 
   const loadResources = useCallback(async () => {
     try {
@@ -568,6 +570,34 @@ export function PersonalResourceWorkspace() {
     }
   }, [t]);
 
+  const handleGeneratedDocumentDelete = useCallback(async (document: GeneratedDocumentResponse) => {
+    setActionError(null);
+    if (pendingDeleteGeneratedDocumentId !== document.id) {
+      setPendingDeleteGeneratedDocumentId(document.id);
+      return;
+    }
+
+    setDeletingGeneratedDocumentId(document.id);
+    try {
+      await agentApi.deleteGeneratedDocument(document.id);
+      setState((current) =>
+        current.kind === "ready"
+          ? {
+              ...current,
+              generatedDocuments: current.generatedDocuments.filter((item) => item.id !== document.id),
+            }
+          : current,
+      );
+      setPendingDeleteGeneratedDocumentId(null);
+      notifyDataChanged("agent");
+      notifyDataChanged("resource");
+    } catch (error) {
+      setActionError(error instanceof Error && error.message !== "Failed to fetch" ? error.message : "생성 문서를 삭제하지 못했습니다.");
+    } finally {
+      setDeletingGeneratedDocumentId(null);
+    }
+  }, [pendingDeleteGeneratedDocumentId]);
+
   const sendPreviewIntent = useCallback((resourceId: string, kind: ResourcePreviewIntent["kind"]) => {
     setSelectedResourceId(resourceId);
     setPreviewIntent((current) => ({ kind, token: (current?.token ?? 0) + 1 }));
@@ -777,7 +807,10 @@ export function PersonalResourceWorkspace() {
                   {filteredGeneratedDocuments.map((document) => (
                     <GeneratedDocumentRow
                       document={document}
+                      deleteBusy={deletingGeneratedDocumentId === document.id}
+                      deletePending={pendingDeleteGeneratedDocumentId === document.id}
                       key={`generated-${document.id}`}
+                      onDelete={() => void handleGeneratedDocumentDelete(document)}
                       onDownload={() => void handleGeneratedDocumentDownload(document)}
                       onSelect={() => setSelectedResourceId(null)}
                       selected={false}

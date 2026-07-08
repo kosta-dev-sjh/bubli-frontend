@@ -575,6 +575,12 @@
   color: var(--color-dust-rose);
 }
 
+.iconDangerActive,
+.iconDangerActive:hover {
+  color: var(--color-dust-rose);
+  background: rgba(246, 221, 235, 0.72);
+}
+
 /* ---------- 로딩 스켈레톤 행 ---------- */
 
 .skeletonRow {
@@ -1593,6 +1599,12 @@
   border-color: rgba(231, 155, 176, 0.4);
   color: #F27195;
   background: rgba(231, 155, 176, 0.1);
+}
+
+[data-theme="dark"] .iconDangerActive,
+[data-theme="dark"] .iconDangerActive:hover {
+  color: #F27195;
+  background: rgba(231, 155, 176, 0.16);
 }
 
 [data-theme="dark"] .previewBlock {

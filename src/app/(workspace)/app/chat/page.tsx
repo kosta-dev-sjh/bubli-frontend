@@ -60,7 +60,15 @@ import {
 } from "@/lib/workspace-preview-data";
 import type { AgentSuggestionResponse } from "@/types/api/agent";
 import type { AuthUser } from "@/types/api/auth";
-import type { AgentCitation, ChatMessageResponse, ChatRoomResponse, RoomAgentCommandMode } from "@/types/api/chat";
+import type {
+  AgentAnswerCompleteness,
+  AgentCitation,
+  AgentCitationRetrievalMode,
+  AgentMissingInfo,
+  ChatMessageResponse,
+  ChatRoomResponse,
+  RoomAgentCommandMode,
+} from "@/types/api/chat";
 import type { FriendRequestResponse, FriendResponse, FriendSearchResponse } from "@/types/api/friend";
 import type { ProjectRoomInvitationResponse } from "@/types/api/projectRoom";
 import type { VoiceParticipantResponse, VoiceRoomResponse } from "@/types/api/voice";
@@ -309,26 +317,69 @@ function stringOrNull(value: unknown) {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
+const SHOW_AGENT_CITATION_DEBUG =
+  process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_AGENT_CITATION_DEBUG === "true";
+
+const agentRetrievalModes: AgentCitationRetrievalMode[] = ["SEMANTIC", "TITLE_MATCH", "RECENT_SUMMARY"];
+
+const missingInfoLabels: Record<AgentMissingInfo, string> = {
+  AMBIGUOUS_RESOURCE_INTENT: "파일 목록인지, 파일 내용 요약인지 확인이 필요합니다.",
+  NO_RELEVANT_DOCUMENT: "관련 문서 근거를 찾지 못했습니다.",
+  NO_RELEVANT_PERSONAL_DOCUMENT: "개인 문서에서 관련 근거를 찾지 못했습니다.",
+  NO_RELEVANT_PROJECT_GROUNDING: "프로젝트 자료에서 근거를 찾지 못했습니다.",
+  PARTIAL_EVIDENCE: "일부 근거만 확인되었습니다.",
+};
+
+const answerCompletenessLabels: Record<Exclude<AgentAnswerCompleteness, "ANSWERED">, string> = {
+  NO_EVIDENCE: "근거 없음",
+  PARTIAL: "일부 근거만 확인됨",
+};
+
+function isAgentChatMessage(message: ChatMessageResponse) {
+  return message.messageType === "AGENT_RESPONSE" || message.sender.type === "AGENT";
+}
+
+function agentRetrievalMode(value: unknown): AgentCitationRetrievalMode {
+  return typeof value === "string" && agentRetrievalModes.includes(value as AgentCitationRetrievalMode)
+    ? (value as AgentCitationRetrievalMode)
+    : "SEMANTIC";
+}
+
+function agentMissingInfoMessages(value: unknown) {
+  const values = Array.isArray(value) ? value : [value];
+  return values.flatMap((entry) => {
+    if (typeof entry !== "string") return [];
+    return missingInfoLabels[entry as AgentMissingInfo] ?? [];
+  });
+}
+
+function agentAnswerCompleteness(value: unknown): AgentAnswerCompleteness | null {
+  return value === "ANSWERED" || value === "PARTIAL" || value === "NO_EVIDENCE" ? value : null;
+}
+
 function agentCitations(message: ChatMessageResponse): AgentCitation[] {
-  const isAgentMessage = message.messageType === "AGENT_RESPONSE" || message.sender.type === "AGENT";
-  if (!isAgentMessage || !Array.isArray(message.body.citations)) return [];
+  if (!isAgentChatMessage(message) || message.body.grounded === false || !Array.isArray(message.body.citations)) return [];
 
   return message.body.citations.flatMap((value) => {
     if (typeof value !== "object" || value === null) return [];
     const record = value as Record<string, unknown>;
     const resourceId = stringOrNull(record.resourceId);
-    const title = stringOrNull(record.title) ?? resourceId;
+    const title = stringOrNull(record.title);
     const quote = stringOrNull(record.quote);
-    if (!resourceId || !title) return [];
+    const pageNumber = numberOrNull(record.pageNumber);
+    const startLine = numberOrNull(record.startLine);
+    const endLine = numberOrNull(record.endLine);
+    if (!title) return [];
 
     return [{
       chunkIndex: numberOrNull(record.chunkIndex),
-      endLine: numberOrNull(record.endLine),
-      pageNumber: numberOrNull(record.pageNumber),
+      endLine,
+      pageNumber,
       quote,
+      retrievalMode: agentRetrievalMode(record.retrievalMode),
       resourceId,
       similarityScore: numberOrNull(record.similarityScore),
-      startLine: numberOrNull(record.startLine),
+      startLine,
       title,
     }];
   });
@@ -338,13 +389,37 @@ function citationLocation(citation: AgentCitation) {
   const parts: string[] = [];
   if (typeof citation.pageNumber === "number") parts.push(`p.${citation.pageNumber}`);
   if (typeof citation.startLine === "number" && typeof citation.endLine === "number") {
-    parts.push(citation.startLine === citation.endLine ? `${citation.startLine}행` : `${citation.startLine}-${citation.endLine}행`);
+    parts.push(citation.startLine === citation.endLine ? `행 ${citation.startLine}` : `행 ${citation.startLine}-${citation.endLine}`);
   } else if (typeof citation.startLine === "number") {
-    parts.push(`${citation.startLine}행`);
-  } else if (typeof citation.chunkIndex === "number") {
-    parts.push(`chunk ${citation.chunkIndex}`);
+    parts.push(`행 ${citation.startLine}`);
   }
   return parts.join(", ");
+}
+
+function citationEvidenceLabel(citation: AgentCitation) {
+  if (citation.retrievalMode === "TITLE_MATCH") return "문서 제목/요약 기반 근거";
+  if (citation.retrievalMode === "RECENT_SUMMARY") return "문서 요약 기반 근거";
+  return null;
+}
+
+function agentGroundingMessages(message: ChatMessageResponse) {
+  if (!isAgentChatMessage(message)) return [];
+
+  const messages = new Set<string>();
+  const completeness = agentAnswerCompleteness(message.body.answerCompleteness);
+  if (completeness && completeness !== "ANSWERED") {
+    messages.add(answerCompletenessLabels[completeness]);
+  }
+
+  for (const missingInfoMessage of agentMissingInfoMessages(message.body.missingInfo)) {
+    messages.add(missingInfoMessage);
+  }
+
+  if (message.body.grounded === false && messages.size === 0) {
+    messages.add("문서 근거를 확인하지 못했습니다.");
+  }
+
+  return [...messages];
 }
 
 function commandText(value: unknown) {
@@ -2167,6 +2242,7 @@ function ChatPageContent() {
                   const isMine = message.messageType === "AGENT_COMMAND" || (!isAgent && Boolean(currentUser?.id && message.sender.id === currentUser.id));
                   const text = displayMessageText(t, message);
                   const citations = agentCitations(message);
+                  const groundingMessages = agentGroundingMessages(message);
 
                   return (
                     <article
@@ -2290,19 +2366,38 @@ function ChatPageContent() {
                       ) : (
                         <p>{text}</p>
                       )}
+                      {groundingMessages.length > 0 ? (
+                        <div className="workspace-route__message-grounding" role="note">
+                          {groundingMessages.map((groundingMessage) => (
+                            <span key={groundingMessage}>{groundingMessage}</span>
+                          ))}
+                        </div>
+                      ) : null}
                       {citations.length > 0 ? (
                         <details className="workspace-route__message-citations">
                           <summary>출처 보기 ({citations.length})</summary>
                           <ol>
                             {citations.map((citation, index) => {
-                              const location = citationLocation(citation);
+                              const retrievalMode = citation.retrievalMode ?? "SEMANTIC";
+                              const location = retrievalMode === "SEMANTIC" ? citationLocation(citation) : "";
+                              const evidenceLabel = citationEvidenceLabel(citation);
+                              const showQuote = retrievalMode === "SEMANTIC" && citation.quote;
+                              const similarityScore = typeof citation.similarityScore === "number" ? citation.similarityScore : null;
+                              const showSimilarity =
+                                SHOW_AGENT_CITATION_DEBUG &&
+                                retrievalMode === "SEMANTIC" &&
+                                similarityScore !== null;
                               return (
-                                <li key={`${citation.resourceId}-${index}`}>
-                                  <cite>
-                                    [{index + 1}] {citation.title}
-                                    {location ? `, ${location}` : ""}
-                                  </cite>
-                                  {citation.quote ? <blockquote>{`"${citation.quote}"`}</blockquote> : null}
+                                <li key={`${citation.resourceId ?? citation.title ?? "citation"}-${index}`}>
+                                  <div className="workspace-route__citation-head">
+                                    <cite>[{index + 1}] {citation.title}</cite>
+                                    <span className="workspace-route__citation-meta">
+                                      {evidenceLabel ? <span>{evidenceLabel}</span> : null}
+                                      {location ? <span>{location}</span> : null}
+                                      {showSimilarity ? <span>{`유사도 ${(similarityScore * 100).toFixed(1)}%`}</span> : null}
+                                    </span>
+                                  </div>
+                                  {showQuote ? <blockquote>{`"${citation.quote}"`}</blockquote> : null}
                                 </li>
                               );
                             })}

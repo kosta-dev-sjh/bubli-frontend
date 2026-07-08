@@ -73,6 +73,8 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
   const [previewIntent, setPreviewIntent] = useState<ResourcePreviewIntent | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [isTauri, setIsTauri] = useState(false);
+  const [pendingDeleteGeneratedDocumentId, setPendingDeleteGeneratedDocumentId] = useState<string | null>(null);
+  const [deletingGeneratedDocumentId, setDeletingGeneratedDocumentId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const loadResources = useCallback(async () => {
@@ -227,6 +229,36 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
       });
     }
   }, [t]);
+
+  const handleGeneratedDocumentDelete = useCallback(async (document: GeneratedDocumentResponse) => {
+    if (pendingDeleteGeneratedDocumentId !== document.id) {
+      setPendingDeleteGeneratedDocumentId(document.id);
+      return;
+    }
+
+    setDeletingGeneratedDocumentId(document.id);
+    try {
+      await agentApi.deleteGeneratedDocument(document.id);
+      setState((current) =>
+        current.kind === "ready"
+          ? {
+              ...current,
+              generatedDocuments: current.generatedDocuments.filter((item) => item.id !== document.id),
+            }
+          : current,
+      );
+      setPendingDeleteGeneratedDocumentId(null);
+      notifyDataChanged("agent");
+      notifyDataChanged("resource");
+    } catch (error) {
+      setUploadState({
+        kind: "error",
+        message: error instanceof Error && error.message !== "Failed to fetch" ? error.message : "생성 문서를 삭제하지 못했습니다.",
+      });
+    } finally {
+      setDeletingGeneratedDocumentId(null);
+    }
+  }, [pendingDeleteGeneratedDocumentId]);
 
   const sendPreviewIntent = useCallback((resourceId: string, kind: ResourcePreviewIntent["kind"]) => {
     setSelectedResourceId(resourceId);
@@ -402,7 +434,10 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
                   {filteredGeneratedDocuments.map((document) => (
                     <GeneratedDocumentRow
                       document={document}
+                      deleteBusy={deletingGeneratedDocumentId === document.id}
+                      deletePending={pendingDeleteGeneratedDocumentId === document.id}
                       key={`generated-${document.id}`}
+                      onDelete={() => void handleGeneratedDocumentDelete(document)}
                       onDownload={() => void handleGeneratedDocumentDownload(document)}
                       onSelect={() => setSelectedResourceId(null)}
                       selected={false}
