@@ -1903,6 +1903,11 @@ assertContains(
 );
 assertContains(
   widgetPage,
+  /readCachedWidgetSummaryRoomId[\s\S]*readWidgetDisplaySummary\(null, \{ allowServerFallback: false \}\)[\s\S]*refreshMenuOrbAgentReplyBadge[\s\S]*isWindowsStartupProfile[\s\S]*readCachedWidgetSummaryRoomId\(\)[\s\S]*withWidgetDisplayDeadline\([\s\S]*widgetApi\.getContext\(\)[\s\S]*displayRequestTimeoutMs[\s\S]*openAgentFromMenuOrb[\s\S]*isWindowsStartupProfile[\s\S]*readCachedWidgetSummaryRoomId\(\)[\s\S]*withWidgetDisplayDeadline\([\s\S]*widgetApi\.getContext\(\)[\s\S]*displayRequestTimeoutMs/,
+  "Desktop widget Windows menu orb must resolve agent room context from local summary first and deadline slow widget context calls before opening the agent bubble.",
+);
+assertContains(
+  widgetPage,
   /refreshWidgetContext[\s\S]*window\.setInterval\(\(\) => \{[\s\S]*startupOptimization\.widgetContextRefreshIntervalMs[\s\S]*startupOptimization\.widgetContextRefreshIntervalMs/,
   "Desktop widget windows must use the startup profile for fallback room-context polling instead of a hard-coded fast interval.",
 );
