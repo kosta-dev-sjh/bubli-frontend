@@ -33,6 +33,7 @@ export const TAURI_EVENTS = {
   // 통화가 어느 창(chat)에서 시작됐는지와 무관하게 바(bar) 창의 발신 팝업/알림 처리가
   // 그 통화방을 알 수 있도록, 활성 보이스 통화방 id를 창 간에 브로드캐스트한다.
   widgetVoiceCallStateChanged: "bubli-widget-voice-call-state-changed",
+  widgetIncomingCallChanged: "bubli-widget-incoming-call-changed",
 } as const;
 
 export type ManagedFolderWatchEventPayload = {
@@ -59,6 +60,14 @@ export type WidgetDataChangedPayload = {
 export type WidgetVoiceCallStateChangedPayload = {
   /** 활성 보이스 통화방 id. 통화가 끝나면 null로 브로드캐스트해 다른 창의 발신 팝업도 같이 닫는다. */
   voiceRoomId: string | null;
+  emitterId: string;
+  occurredAt: number;
+};
+
+export type WidgetIncomingCallChangedPayload = {
+  // 수신 전화 팝업을 채팅(chat) 창에서 그리기 위해 바(bar) 창이 받은 알림을 그대로 넘긴다.
+  // 수락/거절로 채팅 창이 지우면 바 창의 통화음·타임아웃도 같이 멈춰야 하므로 양방향으로 쓴다.
+  call: { callerName: string; chatRoomId: string; notificationId: string } | null;
   emitterId: string;
   occurredAt: number;
 };
@@ -197,6 +206,31 @@ export async function emitWidgetVoiceCallStateChanged(voiceRoomId: string | null
 
 export function listenWidgetVoiceCallStateChanged(handler: (payload: WidgetVoiceCallStateChangedPayload) => void) {
   return listenTauriEvent<WidgetVoiceCallStateChangedPayload>(TAURI_EVENTS.widgetVoiceCallStateChanged, (payload) => {
+    if (payload.emitterId === widgetDataChangedEmitterId) return;
+    handler(payload);
+  });
+}
+
+// 수신 전화 팝업을 채팅 창에서 그릴 수 있도록 바 창이 받은 알림을 브로드캐스트한다. 채팅 창이
+// 수락/거절해서 null로 지울 때도 같은 채널로 보내 바 창의 통화음·타임아웃 안전망도 같이 멈춘다.
+export async function emitWidgetIncomingCallChanged(
+  call: WidgetIncomingCallChangedPayload["call"],
+) {
+  if (!isTauriRuntime()) return;
+
+  const { emit } = (await import("@tauri-apps/api/event")) as {
+    emit: (eventName: string, payload?: unknown) => Promise<void>;
+  };
+
+  await emit(TAURI_EVENTS.widgetIncomingCallChanged, {
+    call,
+    emitterId: widgetDataChangedEmitterId,
+    occurredAt: Date.now(),
+  } satisfies WidgetIncomingCallChangedPayload);
+}
+
+export function listenWidgetIncomingCallChanged(handler: (payload: WidgetIncomingCallChangedPayload) => void) {
+  return listenTauriEvent<WidgetIncomingCallChangedPayload>(TAURI_EVENTS.widgetIncomingCallChanged, (payload) => {
     if (payload.emitterId === widgetDataChangedEmitterId) return;
     handler(payload);
   });

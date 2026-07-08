@@ -634,10 +634,20 @@ export function AppShell({ children }: AppShellProps) {
       const display = formatNotificationContent(t, notification);
       if (Notification.permission === "granted") {
         // OS 알림에도 버블리 마크가 뜨게 아이콘을 지정한다(데스크탑 앱은 앱 아이콘이 자동으로 붙는다).
-        new Notification(display.title || notification.title, {
+        // 보이스 전화 알림은 몇 초 뒤 저절로 사라지지 않게(requireInteraction) 해서, 다른 작업
+        // 중이라 놓치기 쉬운 상황에서도 사용자가 직접 닫거나 클릭할 때까지 화면에 남아 있게 한다.
+        const osNotification = new Notification(display.title || notification.title, {
           body: display.body ?? undefined,
           icon: "/brand/icon-public-180.png",
+          requireInteraction: notification.sourceType === "VOICE_CALL",
         });
+        // 보이스 전화처럼 다른 작업 중에도 바로 봐야 하는 알림은 클릭하면 탭을 앞으로 가져온다.
+        // 브라우저 보안상 스크립트가 임의로 창에 포커스를 뺏을 수는 없어서, 사용자가 OS 알림을
+        // 직접 클릭하는 것으로 대신한다(웹에서 가능한 최대치).
+        osNotification.onclick = () => {
+          window.focus();
+          osNotification.close();
+        };
       } else if (Notification.permission === "default") {
         void Notification.requestPermission();
       }
@@ -687,6 +697,28 @@ export function AppShell({ children }: AppShellProps) {
       stopCallRingtone();
     };
   }, [isCallerRingingBack]);
+
+  // 상대가 거절했다는 실시간 알림(websocket)이 유실되면(연결이 잠깐 끊기는 등) 발신 팝업이
+  // 영영 안 닫힌다 — 거절 자체는 서버에 이미 반영됐는데(알림함엔 남음) 화면만 못 따라간다.
+  // 채팅 페이지가 통화방 상태를 폴링으로 이중 확인하는 것과 같은 이유로, 여기서도 방 상태를
+  // 직접 조회해 안전망을 둔다.
+  useEffect(() => {
+    if (!isCallerRingingBack || !persistVoice) return;
+    const voiceRoomId = persistVoice.room.id;
+    const interval = window.setInterval(() => {
+      void voiceApi
+        .getRoom(voiceRoomId)
+        .then((room) => {
+          if (room.status !== "OPEN") {
+            voiceStore.update({ voice: { kind: "ready", room } });
+            if (getActiveLiveKitVoiceRoomId() === voiceRoomId) void disconnectLiveKitRoom();
+            stopCallRingtone();
+          }
+        })
+        .catch(() => undefined);
+    }, 3_000);
+    return () => window.clearInterval(interval);
+  }, [isCallerRingingBack, persistVoice]);
 
   const cancelOutgoingCall = useCallback(() => {
     if (!persistVoice) return;

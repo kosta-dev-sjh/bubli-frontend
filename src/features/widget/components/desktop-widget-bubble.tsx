@@ -129,8 +129,9 @@ const bubbleMeta: BubbleMeta[] = [
   { Icon: Bell, accent: "lilac", id: "alert", label: "widget.kind.notification", scope: "both" },
 ];
 // 리소스는 별도 버블로 노출하지 않고, 에이전트는 별도 메뉴 오브가 전용 진입점을 담당한다.
-const hiddenDesktopWidgetBubbleTypes = new Set<WidgetBubbleType>(["agent", "resource"]);
-const visibleBubbleMeta = bubbleMeta.filter((item) => !hiddenDesktopWidgetBubbleTypes.has(item.id));
+const hiddenDesktopWidgetBubbleTypes = new Set<WidgetBubbleType>(["resource"]);
+const hiddenDesktopWidgetBarBubbleTypes = new Set<WidgetBubbleType>(["agent", ...hiddenDesktopWidgetBubbleTypes]);
+const visibleBubbleMeta = bubbleMeta.filter((item) => !hiddenDesktopWidgetBarBubbleTypes.has(item.id));
 
 const modeLabels: Record<WidgetWindowMode, MessageKey> = {
   DEFAULT: "widget.mode.default",
@@ -4121,8 +4122,7 @@ function collectBarFoldedItems(minimizedItems: WidgetWindowState[]) {
     if (
       !desktopWidgetBubbleTypes.includes(item.activeBubble as WidgetBubbleType) ||
       item.activeBubble === "alert" ||
-      item.activeBubble === "agent" ||
-      item.activeBubble === "resource"
+      hiddenDesktopWidgetBarBubbleTypes.has(item.activeBubble as WidgetBubbleType)
     ) {
       return false;
     }

@@ -62,9 +62,11 @@ import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
 import { setWidgetWindowDragLocked, tauriCommands, waitForPendingWidgetUsageEventRecords, type AppMonitorInfo, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetInteractiveRect, type WidgetWindowBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import {
   emitWidgetDataChanged,
+  emitWidgetIncomingCallChanged,
   emitWidgetVoiceCallStateChanged,
   listenWidgetBarItemsChanged,
   listenWidgetDataChanged,
+  listenWidgetIncomingCallChanged,
   listenWidgetRoomContextChanged,
   listenWidgetVoiceCallStateChanged,
   listenWidgetWindowStateChanged,
@@ -1749,12 +1751,37 @@ function DesktopWidgetSurface() {
   const [menuUsageSummary, setMenuUsageSummary] = useState<string | null>(null);
   // Bubli 메뉴 "모니터로 이동" 섹션용 모니터 목록 — 바 창에서만 주기적으로 갱신한다.
   const [appMonitors, setAppMonitors] = useState<AppMonitorInfo[]>([]);
-  // 1:1/그룹 보이스 통화 실시간 "전화 옴" 알림 — 바 창(항상 떠 있는 표면)에서만 구독/표시한다.
+  // 1:1/그룹 보이스 통화 실시간 "전화 옴" 알림 — 구독은 바(bar) 창에서만 하지만, 팝업 UI는
+  // 채팅(chat) 창에 소통 위젯과 한 몸으로 그린다(따로 떠 있는 별개 창처럼 보이지 않도록). 그래서
+  // 바 창이 받은 값을 브로드캐스트로 채팅 창에도 반영하고, 채팅 창의 수락/거절도 다시 바 창에
+  // 반영해 통화음·타임아웃 안전망이 같이 멈추도록 양방향으로 동기화한다.
   const [incomingVoiceCall, setIncomingVoiceCall] = useState<{
     callerName: string;
     chatRoomId: string;
     notificationId: string;
   } | null>(null);
+  const incomingVoiceCallRef = useRef(incomingVoiceCall);
+  useEffect(() => {
+    incomingVoiceCallRef.current = incomingVoiceCall;
+  }, [incomingVoiceCall]);
+  useEffect(() => {
+    let cancelled = false;
+    let unlisten: (() => void) | null = null;
+    void listenWidgetIncomingCallChanged((payload) => {
+      if (cancelled) return;
+      setIncomingVoiceCall(payload.call);
+    }).then((nextUnlisten) => {
+      if (cancelled) {
+        nextUnlisten();
+        return;
+      }
+      unlisten = nextUnlisten;
+    });
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, []);
   const [voiceCallResponding, setVoiceCallResponding] = useState(false);
   // 발신 중 팝업에 잠깐 띄우는 상태 문구("상대가 거절했습니다" 등) — 몇 초 뒤 자동으로 사라진다.
   const [widgetOutgoingCallNotice, setWidgetOutgoingCallNotice] = useState<string | null>(null);
@@ -2839,6 +2866,7 @@ function DesktopWidgetSurface() {
       return;
     }
 
+    const previousWindowVisible = windowVisible;
     try {
       const state = await tauriCommands.closeWidgetWindow({
         bubbleType: activeBubble,
@@ -2856,9 +2884,9 @@ function DesktopWidgetSurface() {
       setClickThrough(state.clickThrough);
       setWindowVisible(state.windowVisible);
     } catch {
-      // Keep the current rendered state if the native close command fails.
+      setWindowVisible(previousWindowVisible);
     }
-  }, [activeBubble, isTauri, setAlwaysOnTop, setClickThrough, setMode, setWindowVisible, windowId]);
+  }, [activeBubble, isTauri, setAlwaysOnTop, setClickThrough, setMode, setWindowVisible, windowId, windowVisible]);
 
   const restoreBubbleFromBar = useCallback(
     async (bubbleType: WidgetBubbleType, options?: { selectedRoomId?: string | null }) => {
@@ -3833,11 +3861,33 @@ function DesktopWidgetSurface() {
       );
 
       if (notification.sourceType === "VOICE_CALL" && notification.sourceId) {
-        setIncomingVoiceCall({
+        const call = {
           callerName: notification.title,
           chatRoomId: notification.sourceId,
           notificationId: notification.id,
-        });
+        };
+        setIncomingVoiceCall(call);
+        void emitWidgetIncomingCallChanged(call).catch(() => undefined);
+        // 수신 팝업은 소통 위젯(채팅 창)에 겹쳐 그린다 — 따로 뜬 창처럼 보이지 않도록 전화가
+        // 오면 채팅 창을 바로 열어(이미 열려 있으면 그대로) 그 위에서 수락/거절하게 한다.
+        if (isTauri) {
+          void tauriCommands
+            .openWidgetWindow({
+              bubbleType: "chat",
+              mode: "DEFAULT",
+              selectedRoomId: notification.sourceId,
+              windowId: "chat",
+            })
+            .catch(() => undefined);
+          // 채팅 창이 이 시점에 아직 없었다면 지금 막 새로 빌드되는 중이라 브로드캐스트 구독이
+          // 아직 안 붙어 있을 수 있다(Tauri 이벤트는 구독 이후 것만 받는다, 버퍼링 없음). 창이
+          // 뜰 시간을 준 뒤 한 번 더 보내 놓친 경우를 보정한다.
+          window.setTimeout(() => {
+            if (incomingVoiceCallRef.current?.notificationId === call.notificationId) {
+              void emitWidgetIncomingCallChanged(call).catch(() => undefined);
+            }
+          }, 700);
+        }
       }
 
       // 상대가 내가 건 전화를 거절함 — 마이크가 켜진 채로 대기하는 발신자 화면을 자동으로 끊는다.
@@ -3873,7 +3923,11 @@ function DesktopWidgetSurface() {
 
       // 발신자가 내가 받기 전에 전화를 취소함 — 수신 전화 팝업을 계속 띄워둘 이유가 없다.
       if (notification.sourceType === "VOICE_CALL_CANCELED" && notification.sourceId) {
-        setIncomingVoiceCall((current) => (current?.chatRoomId === notification.sourceId ? null : current));
+        setIncomingVoiceCall((current) => {
+          if (current?.chatRoomId !== notification.sourceId) return current;
+          void emitWidgetIncomingCallChanged(null).catch(() => undefined);
+          return null;
+        });
         void notificationApi.markRead(notification.id).catch(() => undefined);
       }
 
@@ -3906,7 +3960,7 @@ function DesktopWidgetSurface() {
         pushToast("friend-accepted");
       }
     });
-  }, [isBubbleBar, t, widgetSessionReady]);
+  }, [isBubbleBar, isTauri, t, widgetSessionReady]);
 
   // 상대(발신자)에게 거절/타임아웃을 알려야 마이크가 켜진 채로 대기하는 발신자 화면을 자동으로 끊을 수 있다.
   // createVoiceRoom("있으면 join, 없으면 create")으로 방 id를 구하면, 타이밍 등으로 기존 방을
@@ -3919,26 +3973,30 @@ function DesktopWidgetSurface() {
       .catch(() => undefined);
   }, []);
 
-  // 전화처럼 일정 시간 응답이 없으면 자동으로 닫는다.
+  // 전화처럼 일정 시간 응답이 없으면 자동으로 닫는다. 팝업 UI는 채팅 창에도 그리지만, 안전망
+  // 타이머는 바 창 하나에서만 돌린다 — 그러지 않으면 두 창이 각각 타임아웃을 돌리다 동시에
+  // 거절을 시도하는 중복 요청이 생긴다(무해하긴 해도 낭비고, 통화음도 두 번 겹쳐 난다).
   // 타임아웃도 명시적 거절과 동일하게 발신자에게 알려야 한다 — 그냥 로컬 상태만 지우면 수신자
   // 화면에서는 팝업이 사라졌는데 발신자는 계속 "전화를 거는 중이에요"에 갇히는 버그가 생긴다.
   useEffect(() => {
-    if (!incomingVoiceCall) return;
+    if (!isBubbleBar || !incomingVoiceCall) return;
     const call = incomingVoiceCall;
     const timeoutId = window.setTimeout(() => {
       notifyIncomingVoiceCallDeclined(call);
       void notificationApi.markRead(call.notificationId).catch(() => undefined);
       setIncomingVoiceCall(null);
+      void emitWidgetIncomingCallChanged(null).catch(() => undefined);
     }, 30_000);
     return () => window.clearTimeout(timeoutId);
-  }, [incomingVoiceCall, notifyIncomingVoiceCallDeclined]);
+  }, [incomingVoiceCall, isBubbleBar, notifyIncomingVoiceCallDeclined]);
 
   // 수신 전화 UI가 떠 있는 동안 통화음을 반복 재생한다(응답/거절/타임아웃 시 정지).
+  // 팝업은 채팅 창에도 뜨지만 소리는 바 창 하나만 낸다(두 창이 동시에 열려 있어도 안 겹치게).
   useEffect(() => {
-    if (!incomingVoiceCall) return;
+    if (!isBubbleBar || !incomingVoiceCall) return;
     startCallRingtone();
     return () => stopCallRingtone();
-  }, [incomingVoiceCall]);
+  }, [incomingVoiceCall, isBubbleBar]);
 
   // 발신자(전화 건 사람) 링백 — 내가 만든 OPEN 통화방에 나 혼자만 참여 중이면 상대가 받을 때까지 울린다.
   // 수신자 쪽 통화음(incomingVoiceCall)과 대칭. 상대가 참여하거나 45초가 지나면 멈춘다.
@@ -3948,15 +4006,45 @@ function DesktopWidgetSurface() {
     activeVoiceRoom?.createdByUserId === currentUserId &&
     (activeVoiceRoom?.participants.filter((participant) => participant.status === "JOINED").length ?? 0) <= 1;
 
+  // 발신 팝업도 채팅 창에 그리지만, 이 소리 재생은 바 창 하나로 한정한다(위와 동일한 이유).
   useEffect(() => {
-    if (!isWidgetRingingBack) return;
+    if (!isBubbleBar || !isWidgetRingingBack) return;
     startCallRingtone();
     const timeoutId = window.setTimeout(() => stopCallRingtone(), 45_000);
     return () => {
       window.clearTimeout(timeoutId);
       stopCallRingtone();
     };
-  }, [isWidgetRingingBack]);
+  }, [isBubbleBar, isWidgetRingingBack]);
+
+  // 상대가 거절했다는 실시간 알림(websocket)이 유실되면 발신 팝업이 영영 안 닫힌다 — 거절 자체는
+  // 서버에 이미 반영됐는데(알림함엔 남음) 화면만 못 따라가는 경우다. 웹(app-shell.tsx)과 동일한
+  // 이유로 방 상태를 직접 폴링하는 안전망을 둔다. activeVoiceRoomId는 이미 창 간에 동기화되어
+  // 있으므로 바 창 하나만 폴링해도 다른 창에 전파된다.
+  useEffect(() => {
+    if (!isBubbleBar || !isWidgetRingingBack || !activeVoiceRoomId) return;
+    const voiceRoomId = activeVoiceRoomId;
+    const interval = window.setInterval(() => {
+      void widgetDisplayApi
+        .getVoiceRoom(voiceRoomId)
+        .then((room) => {
+          if (room.status !== "OPEN") {
+            setActiveVoiceRoomId(null);
+            setActiveVoiceRoom(null);
+            setSpeakingUserIds(new Set());
+            void emitWidgetVoiceCallStateChanged(null).catch(() => undefined);
+            if (liveKitRoomRef.current) {
+              detachWidgetRemoteAudio(liveKitRoomRef.current);
+              liveKitRoomRef.current.disconnect();
+              liveKitRoomRef.current = null;
+            }
+            stopCallRingtone();
+          }
+        })
+        .catch(() => undefined);
+    }, 3_000);
+    return () => window.clearInterval(interval);
+  }, [activeVoiceRoomId, isBubbleBar, isWidgetRingingBack]);
 
   const dismissIncomingVoiceCall = useCallback(() => {
     if (!incomingVoiceCall) return;
@@ -3964,6 +4052,7 @@ function DesktopWidgetSurface() {
     notifyIncomingVoiceCallDeclined(call);
     void notificationApi.markRead(call.notificationId).catch(() => undefined);
     setIncomingVoiceCall(null);
+    void emitWidgetIncomingCallChanged(null).catch(() => undefined);
   }, [incomingVoiceCall, notifyIncomingVoiceCallDeclined]);
 
   const cancelOutgoingWidgetCall = useCallback(() => {
@@ -4035,6 +4124,7 @@ function DesktopWidgetSurface() {
       setVoiceCallResponding(false);
       void notificationApi.markRead(call.notificationId).catch(() => undefined);
       setIncomingVoiceCall(null);
+      void emitWidgetIncomingCallChanged(null).catch(() => undefined);
     }
   }, [handleWidgetActiveSpeakersChanged, incomingVoiceCall, isTauri, publishWidgetDataChanged, voiceCallResponding]);
 
@@ -4428,8 +4518,8 @@ function DesktopWidgetSurface() {
   }
 
   if (isBubbleBar) {
-    // 바에는 접은 버블/알림/버튼만 두고 메뉴 오브는 별도 창에서 처리한다.
-    // 실시간 전화/메시지 알림 팝업은 바 창(항상 떠 있는 표면)에만 겹쳐 그린다.
+    // 바에는 접은 버블/알림/버튼만 둔다. 전화 수신/발신 팝업은 소통 위젯(채팅 창)에 겹쳐
+    // 그린다 — 따로 뜬 창처럼 보이지 않도록. 이 창은 통화음 재생·30초 안전망만 조용히 담당한다.
     return (
       <>
         <DesktopWidgetBubbleBar
@@ -4450,48 +4540,6 @@ function DesktopWidgetSurface() {
           selectedRoomId={selectedWidgetRoomId}
           usageSummary={menuUsageSummary}
         />
-        {incomingVoiceCall ? (
-          <div className="voice-call-invite voice-call-invite--widget" role="dialog" aria-modal="true" aria-label={t("layout.voiceCall.aria")}>
-            <div className="voice-call-invite__card" data-bubli-interactive="true">
-              <div className="voice-call-invite__avatar" aria-hidden="true">
-                <Phone size={26} strokeWidth={2} />
-              </div>
-              <strong className="voice-call-invite__caller">{incomingVoiceCall.callerName}</strong>
-              <span className="voice-call-invite__hint">{t("layout.voiceCall.hint")}</span>
-              <div className="voice-call-invite__actions">
-                <button
-                  className="voice-call-invite__accept"
-                  disabled={voiceCallResponding}
-                  onClick={() => void acceptIncomingVoiceCall()}
-                  type="button"
-                >
-                  {voiceCallResponding ? t("layout.voiceCall.connecting") : t("layout.voiceCall.accept")}
-                </button>
-                <button className="voice-call-invite__decline" disabled={voiceCallResponding} onClick={dismissIncomingVoiceCall} type="button">
-                  {t("layout.voiceCall.decline")}
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
-        {!incomingVoiceCall && (isWidgetRingingBack || widgetOutgoingCallNotice) ? (
-          <div className="voice-call-invite voice-call-invite--widget" role="status" aria-label={t("layout.voiceCall.outgoingAria")}>
-            <div className="voice-call-invite__card" data-bubli-interactive="true">
-              <div className="voice-call-invite__avatar" aria-hidden="true">
-                <Phone size={26} strokeWidth={2} />
-              </div>
-              <strong className="voice-call-invite__caller">{t("layout.voiceCall.outgoingHint")}</strong>
-              <span className="voice-call-invite__hint">{widgetOutgoingCallNotice ?? t("layout.voiceCall.outgoingHint")}</span>
-              {isWidgetRingingBack ? (
-                <div className="voice-call-invite__actions">
-                  <button className="voice-call-invite__decline" onClick={cancelOutgoingWidgetCall} type="button">
-                    {t("layout.voiceCall.cancel")}
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
         {messageToasts.length > 0 ? (
           <div className="message-toast-stack" aria-live="polite">
             {messageToasts.map((toast) => (
@@ -4517,53 +4565,101 @@ function DesktopWidgetSurface() {
     );
   }
 
+  // 전화 수신/발신 팝업은 소통 위젯(채팅 창)에만 겹쳐 그린다 — 별개 창처럼 안 보이게, 실제로
+  // 통화가 시작·수신되는 화면 위에 바로 뜬다. 다른 버블 창(투두/메모 등)에는 안 뜬다.
+  const showVoiceCallOverlay = windowId === "chat";
+
   return (
-    <DesktopWidgetBubble
-      activeBubble={activeBubble}
-      alwaysOnTop={alwaysOnTop}
-      bubble={displayBubbles[activeBubble]}
-      clickThrough={clickThrough}
-      mode={mode}
-      chatScope={chatScope}
-      onChatScopeChange={setChatScope}
-      selectedPeerChatRoomId={selectedPeerChatRoomId}
-      onSelectPeerChatRoom={setSelectedPeerChatRoomId}
-      onCreateDirectRoom={createWidgetDirectRoom}
-      onCreateGroupRoom={createWidgetGroupRoom}
-      onSearchFriend={searchWidgetFriend}
-      onSendFriendRequest={sendWidgetFriendRequest}
-      onRespondFriendRequest={respondWidgetFriendRequest}
-      onClose={closeWindow}
-      onItemStateChange={handleItemStateChange}
-      onLeaveVoice={leaveWidgetVoice}
-      onMarkAllNotificationsRead={markAllWidgetNotificationsRead}
-      onMarkChatRead={markWidgetChatRead}
-      onModeChange={setWindowMode}
-      onCreateMemo={createWidgetMemo}
-      onCreateSchedule={createWidgetSchedule}
-      onCreateTodo={createWidgetTodo}
-      onEditTodo={editWidgetTodo}
-      onDeleteTodo={deleteWidgetTodo}
-      onDeleteMemo={deleteWidgetMemo}
-      onAnalyzeResource={analyzeWidgetResource}
-      onDownloadResource={downloadWidgetResource}
-      onEditMemo={editWidgetMemo}
-      onOpenHandoff={openWidgetHandoff}
-      onPauseTimer={pauseWidgetTimer}
-      onPrimaryTimerAction={runPrimaryTimerAction}
-      onRestore={restoreCurrentWindow}
-      onReviewAgentSuggestion={reviewWidgetAgentSuggestion}
-      onSendAgentCommand={sendWidgetAgentCommand}
-      onSendChatMessage={sendWidgetChatMessage}
-      onStartVoice={startWidgetVoice}
-      onToggleAlwaysOnTop={toggleAlwaysOnTop}
-      onToggleVoiceMic={toggleWidgetVoiceMic}
-      speakingUserIds={speakingUserIds}
-      presentation="tauri"
-      timerActionNotice={timerActionNotice}
-      windowId={windowId}
-      windowVisible={windowVisible}
-    />
+    <>
+      <DesktopWidgetBubble
+        activeBubble={activeBubble}
+        alwaysOnTop={alwaysOnTop}
+        bubble={displayBubbles[activeBubble]}
+        clickThrough={clickThrough}
+        mode={mode}
+        chatScope={chatScope}
+        onChatScopeChange={setChatScope}
+        selectedPeerChatRoomId={selectedPeerChatRoomId}
+        onSelectPeerChatRoom={setSelectedPeerChatRoomId}
+        onCreateDirectRoom={createWidgetDirectRoom}
+        onCreateGroupRoom={createWidgetGroupRoom}
+        onSearchFriend={searchWidgetFriend}
+        onSendFriendRequest={sendWidgetFriendRequest}
+        onRespondFriendRequest={respondWidgetFriendRequest}
+        onClose={closeWindow}
+        onItemStateChange={handleItemStateChange}
+        onLeaveVoice={leaveWidgetVoice}
+        onMarkAllNotificationsRead={markAllWidgetNotificationsRead}
+        onMarkChatRead={markWidgetChatRead}
+        onModeChange={setWindowMode}
+        onCreateMemo={createWidgetMemo}
+        onCreateSchedule={createWidgetSchedule}
+        onCreateTodo={createWidgetTodo}
+        onEditTodo={editWidgetTodo}
+        onDeleteTodo={deleteWidgetTodo}
+        onDeleteMemo={deleteWidgetMemo}
+        onAnalyzeResource={analyzeWidgetResource}
+        onDownloadResource={downloadWidgetResource}
+        onEditMemo={editWidgetMemo}
+        onOpenHandoff={openWidgetHandoff}
+        onPauseTimer={pauseWidgetTimer}
+        onPrimaryTimerAction={runPrimaryTimerAction}
+        onRestore={restoreCurrentWindow}
+        onReviewAgentSuggestion={reviewWidgetAgentSuggestion}
+        onSendAgentCommand={sendWidgetAgentCommand}
+        onSendChatMessage={sendWidgetChatMessage}
+        onStartVoice={startWidgetVoice}
+        onToggleAlwaysOnTop={toggleAlwaysOnTop}
+        onToggleVoiceMic={toggleWidgetVoiceMic}
+        speakingUserIds={speakingUserIds}
+        presentation="tauri"
+        timerActionNotice={timerActionNotice}
+        windowId={windowId}
+        windowVisible={windowVisible}
+      />
+      {showVoiceCallOverlay && incomingVoiceCall ? (
+        <div className="voice-call-invite voice-call-invite--widget" role="dialog" aria-modal="true" aria-label={t("layout.voiceCall.aria")}>
+          <div className="voice-call-invite__card" data-bubli-interactive="true">
+            <div className="voice-call-invite__avatar" aria-hidden="true">
+              <Phone size={26} strokeWidth={2} />
+            </div>
+            <strong className="voice-call-invite__caller">{incomingVoiceCall.callerName}</strong>
+            <span className="voice-call-invite__hint">{t("layout.voiceCall.hint")}</span>
+            <div className="voice-call-invite__actions">
+              <button
+                className="voice-call-invite__accept"
+                disabled={voiceCallResponding}
+                onClick={() => void acceptIncomingVoiceCall()}
+                type="button"
+              >
+                {voiceCallResponding ? t("layout.voiceCall.connecting") : t("layout.voiceCall.accept")}
+              </button>
+              <button className="voice-call-invite__decline" disabled={voiceCallResponding} onClick={dismissIncomingVoiceCall} type="button">
+                {t("layout.voiceCall.decline")}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {showVoiceCallOverlay && !incomingVoiceCall && (isWidgetRingingBack || widgetOutgoingCallNotice) ? (
+        <div className="voice-call-invite voice-call-invite--widget" role="status" aria-label={t("layout.voiceCall.outgoingAria")}>
+          <div className="voice-call-invite__card" data-bubli-interactive="true">
+            <div className="voice-call-invite__avatar" aria-hidden="true">
+              <Phone size={26} strokeWidth={2} />
+            </div>
+            <strong className="voice-call-invite__caller">{t("layout.voiceCall.outgoingHint")}</strong>
+            <span className="voice-call-invite__hint">{widgetOutgoingCallNotice ?? t("layout.voiceCall.outgoingHint")}</span>
+            {isWidgetRingingBack ? (
+              <div className="voice-call-invite__actions">
+                <button className="voice-call-invite__decline" onClick={cancelOutgoingWidgetCall} type="button">
+                  {t("layout.voiceCall.cancel")}
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }
 

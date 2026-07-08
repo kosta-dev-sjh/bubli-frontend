@@ -2522,13 +2522,16 @@ fn raise_widget_window(app: &AppHandle, widget: &WidgetWindowState) {
         return;
     };
 
-    if widget.always_on_top {
-        let _ = window.set_always_on_top(false);
-        let _ = window.set_always_on_top(true);
-    }
+    // 항상 always_on_top을 껐다 켜서 창 서버가 다른 앱 위로 강제로 끌어올리게 한다 —
+    // widget.always_on_top(사용자가 켠 고정핀 여부)에만 맡기면, 보이스 전화처럼 사용자가
+    // 다른 앱을 보고 있을 때 반드시 튀어나와야 하는 상황에서도 macOS의 백그라운드 앱
+    // 포커스 탈취 방지 때문에 그냥 뒤에서만 열리는 문제가 있었다.
+    let _ = window.set_always_on_top(false);
+    let _ = window.set_always_on_top(true);
     let _ = window.unminimize();
     let _ = window.show();
     let _ = window.set_focus();
+    let _ = window.request_user_attention(Some(tauri::UserAttentionType::Critical));
 }
 
 #[tauri::command]
@@ -4661,6 +4664,12 @@ fn app_ready(
 
         if let Some(widget) = widget {
             apply_widget_window_state(&app, &monitor_state, &widget)?;
+            // 새로 빌드되는 창은 DOM이 준비될 때(여기, app_ready)까지 실제로는 안 보이는 상태였다
+            // (build 직후 raise_widget_window를 불러도 그때는 창이 아직 안 떠 있어 소용없었다).
+            // 그래서 지금 막 처음 보이게 된 이 시점에 최상단 강제 노출을 한 번 더 해줘야, 소통
+            // 위젯이 꺼져 있다가 전화가 와서 새로 열리는 경우에도 다른 앱 위로 튀어나온다.
+            #[cfg(target_os = "macos")]
+            raise_widget_window(&app, &widget);
         } else if !window.is_visible().unwrap_or(false) {
             window.show().map_err(|error| error.to_string())?;
         }

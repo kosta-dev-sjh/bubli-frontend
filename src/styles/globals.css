@@ -22783,6 +22783,31 @@ body[data-bubli-surface="hybrid-app"] .resource-workspace > * {
 .voice-call-invite--widget .voice-call-invite__avatar {
   width: 52px;
   height: 52px;
+  /* 소통 위젯(채팅 버블)의 아이덴티티 컬러(rose)와 맞춘다 — 파란 발신/수신 팝업이 위젯과
+     따로 노는 것처럼 보이지 않도록. */
+  background: linear-gradient(145deg, #E89898 0%, #F55E8B 100%);
+  box-shadow: 0 8px 22px -6px rgba(194, 30, 82, 0.42);
+}
+
+.voice-call-invite--widget .voice-call-invite__avatar::before,
+.voice-call-invite--widget .voice-call-invite__avatar::after {
+  border-color: #F55E8B;
+}
+
+.voice-call-invite--widget .voice-call-invite__avatar::after {
+  border-color: #E89898;
+}
+
+.voice-call-invite--widget .voice-call-invite__card {
+  border-color: rgba(245, 94, 139, 0.4);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 24px 48px -20px rgba(194, 30, 82, 0.38);
+}
+
+.voice-call-invite--widget .voice-call-invite__accept {
+  background: linear-gradient(145deg, #E89898 0%, #F55E8B 100%);
+  box-shadow: 0 10px 22px -8px rgba(194, 30, 82, 0.5);
 }
 
 .voice-call-invite__card {
