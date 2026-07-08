@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, memo, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, type Ref, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { Fragment, memo, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, type Ref, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { AnimatePresence, LayoutGroup, MotionConfig, motion, useReducedMotion } from "motion/react";
 import {
   AtSign,
@@ -265,6 +265,8 @@ export type DesktopWidgetBubbleProps = {
   presentation?: "preview" | "tauri";
   // Tauri 창 식별자(리사이즈 커맨드 타깃). 프리뷰에서는 불필요.
   windowId?: string;
+  // 브라우저 배포/미리보기에서 Tauri 창 viewport(100vw/100vh)를 흉내낼 고정 크기.
+  viewportSize?: { height: number; width: number };
   windowVisible?: boolean;
 };
 
@@ -3882,6 +3884,7 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
   timerActionNotice,
   presentation = "tauri",
   windowId,
+  viewportSize,
   windowVisible = true,
 }: DesktopWidgetBubbleProps) {
   const { t } = useI18n();
@@ -3992,7 +3995,20 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
     };
   }, []);
   const resizable = !isPreview && windowVisible && mode !== "MINIMIZED" && mode !== "GHOST";
-  const rootClassName = [styles.root, modeClassNames[mode], isPreview ? styles.previewRoot : styles.tauriRoot].filter(Boolean).join(" ");
+  const rootClassName = [
+    styles.root,
+    modeClassNames[mode],
+    !windowVisible ? styles.hiddenMode : "",
+    isPreview ? styles.previewRoot : styles.tauriRoot,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const rootStyle = viewportSize
+    ? ({
+        "--widget-shell-vh": `${viewportSize.height}px`,
+        "--widget-shell-vw": `${viewportSize.width}px`,
+      } as CSSProperties)
+    : undefined;
   const shellClassName = [
     styles.shell,
     accentClassNames[active.accent],
@@ -4003,7 +4019,7 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
     .filter(Boolean)
     .join(" ");
   return (
-    <div className={rootClassName} data-bubli-desktop-widget>
+    <div className={rootClassName} data-bubli-desktop-widget style={rootStyle}>
       <section
         className={shellClassName}
         aria-label={t("widget.bubble.suffix", { label: activeLabel })}
@@ -4531,11 +4547,6 @@ function useBarTimerLive(enabled: boolean, timerBubble: WidgetPreviewBubble | un
 
 // Bubli 메뉴 패널 본문: 바와 메뉴 오브가 공유하는 동일한 바로가기 레이아웃.
 // 버블 바로가기 그리드 + 자동 정렬/룸 전환/메인 앱/설정/종료 + 오늘 사용 요약 한 줄.
-export type WidgetMenuRoomOption = {
-  id: string;
-  name: string;
-};
-
 export type WidgetMenuContentProps = {
   hasRoomContext?: boolean;
   // 연결된 모니터 목록(2대 이상일 때만 "모니터로 이동" 섹션을 그린다).
@@ -4547,10 +4558,7 @@ export type WidgetMenuContentProps = {
   onOpenMainApp?: () => void;
   onOpenSettings?: () => void;
   onQuit?: () => void;
-  onSelectRoomContext?: (roomId: string) => void;
   onToggleRoomContext?: () => void;
-  roomOptions?: WidgetMenuRoomOption[];
-  selectedRoomId?: string | null;
   usageSummary?: string | null;
 };
 
@@ -4572,10 +4580,7 @@ export function WidgetMenuPanelContent({
   onOpenMainApp,
   onOpenSettings,
   onQuit,
-  onSelectRoomContext,
   onToggleRoomContext,
-  roomOptions = [],
-  selectedRoomId,
   usageSummary,
 }: WidgetMenuContentProps) {
   const { t } = useI18n();
@@ -4592,7 +4597,7 @@ export function WidgetMenuPanelContent({
         <strong className={styles.menuWordmark}>Bubli</strong>
         {usageSummary ? <small className={styles.menuUsage}>{usageSummary}</small> : null}
       </div>
-      {/* 현재 컨텍스트(개인/프로젝트룸)를 명확히 보여주고 여기서 전환한다 — 룸 선택은 선택사항. */}
+      {/* 현재 컨텍스트(개인/프로젝트룸)를 명확히 보여주고 여기서 전환한다. */}
       <button
         className={styles.menuContext}
         data-room={hasRoomContext ? "true" : "false"}
@@ -4609,28 +4614,6 @@ export function WidgetMenuPanelContent({
           {t(hasRoomContext ? "widget.menu.switchToPersonal" : "widget.menu.switchToRoom")}
         </span>
       </button>
-      {roomOptions.length > 0 ? (
-        <div className={styles.menuRoomList} role="listbox" aria-label={t("widget.menu.contextRoom")}>
-          {roomOptions.map((room) => {
-            const active = room.id === selectedRoomId;
-            return (
-              <button
-                aria-selected={active}
-                className={styles.menuRoomOption}
-                data-active={active ? "true" : undefined}
-                disabled={!onSelectRoomContext}
-                key={room.id}
-                onClick={() => onSelectRoomContext?.(room.id)}
-                role="option"
-                type="button"
-              >
-                <span>{room.name}</span>
-                {active ? <Check size={13} strokeWidth={2.4} aria-hidden="true" /> : null}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
       <div className={styles.menuGrid} aria-label={t("widget.menu.bubbles")}>
         {visibleBubbleMeta.map(({ Icon, accent, id, label, scope }) => {
           // 룸 귀속(room) 버블은 개인 모드(룸 미선택)에서 비활성 — 룸을 골라야 활성화된다.
@@ -4863,10 +4846,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   onOpenSettings,
   onQuit,
   onRestoreBubble,
-  onSelectRoomContext,
   onToggleRoomContext,
-  roomOptions = [],
-  selectedRoomId,
   usageSummary,
 }: {
   bubbleDataByType?: Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>;
@@ -4881,10 +4861,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   onOpenSettings?: () => void;
   onQuit?: () => void;
   onRestoreBubble: (bubbleType: WidgetBubbleType) => void;
-  onSelectRoomContext?: (roomId: string) => void;
   onToggleRoomContext?: () => void;
-  roomOptions?: WidgetMenuRoomOption[];
-  selectedRoomId?: string | null;
   usageSummary?: string | null;
 }) {
   const { locale, t } = useI18n();
@@ -5333,10 +5310,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
                   onOpenMainApp={onOpenMainApp}
                   onOpenSettings={onOpenSettings}
                   onQuit={onQuit}
-                  onSelectRoomContext={onSelectRoomContext}
                   onToggleRoomContext={onToggleRoomContext}
-                  roomOptions={roomOptions}
-                  selectedRoomId={selectedRoomId}
                   usageSummary={usageSummary}
                 />
               </div>
