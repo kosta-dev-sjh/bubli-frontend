@@ -1,18 +1,20 @@
 import { apiRequest } from "@/lib/api/client";
 import type { PageResponse } from "@/types/api/common";
-import type { NotificationResponse } from "@/types/api/notification";
+import type { NotificationResponse, NotificationStatus } from "@/types/api/notification";
 
 type NotificationListParams = {
   page?: number;
   size?: number;
+  status?: NotificationStatus;
 };
 
 export const notificationApi = {
-  list({ page = 0, size = 20 }: NotificationListParams = {}) {
+  list({ page = 0, size = 20, status }: NotificationListParams = {}) {
     const params = new URLSearchParams({
       page: String(page),
       size: String(size),
     });
+    if (status) params.set("status", status);
     return apiRequest<PageResponse<NotificationResponse>>(`/api/notifications?${params.toString()}`);
   },
 

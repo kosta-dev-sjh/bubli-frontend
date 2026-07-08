@@ -394,8 +394,13 @@ export const widgetDisplayApi = {
     return widgetDisplayRequest<WidgetAgentSuggestionResponse[]>("/api/agent/suggestions?status=DRAFT");
   },
 
-  listNotifications(size = 6, page = 0) {
-    return widgetDisplayRequest<PageResponse<WidgetNotificationResponse>>(`/api/notifications?page=${page}&size=${size}`);
+  listNotifications(size = 6, page = 0, status?: WidgetNotificationStatus) {
+    const params = new URLSearchParams({
+      page: String(page),
+      size: String(size),
+    });
+    if (status) params.set("status", status);
+    return widgetDisplayRequest<PageResponse<WidgetNotificationResponse>>(`/api/notifications?${params.toString()}`);
   },
 
   listChatRooms(size = 6) {

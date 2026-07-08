@@ -52,6 +52,7 @@ type SmokeCheck = {
 
 type SmokeReport = {
   checks: SmokeCheck[];
+  currentStep?: string;
   durationMs: number;
   error?: string;
   finishedAt: string;
@@ -1002,12 +1003,33 @@ async function postReport(report: SmokeReport) {
   }).catch(() => undefined);
 }
 
+async function postProgress(step: string, startedAt: number, checks: SmokeCheck[]) {
+  const progressUrl = smokeControlUrl("/progress");
+  if (!progressUrl) return;
+
+  await fetch(progressUrl, {
+    body: JSON.stringify({
+      checkCount: checks.length,
+      elapsedMs: Date.now() - startedAt,
+      phase: smokePhase,
+      step,
+    }),
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  }).catch(() => undefined);
+}
+
 async function runSmoke() {
   const startedAt = Date.now();
   const checks: SmokeCheck[] = [];
   const timings: Record<string, number> = {};
+  let currentStep = "start";
   let runtimeSmokeManagedFolderId: string | null = null;
   const addCheck = (name: string, detail?: unknown) => checks.push({ detail, name });
+  const progress = async (step: string) => {
+    currentStep = step;
+    await postProgress(step, startedAt, checks);
+  };
   const assert: SmokeAssert = (condition, name, detail) => {
     if (!condition) {
       throw new Error(`${name}${detail === undefined ? "" : `: ${JSON.stringify(detail)}`}`);
@@ -1016,9 +1038,11 @@ async function runSmoke() {
   };
 
   try {
+    await progress("runtime-detection");
     if (!isTauriRuntime()) {
       await postReport({
         checks,
+        currentStep,
         durationMs: Date.now() - startedAt,
         finishedAt: new Date().toISOString(),
         platform: "browser",
@@ -1031,6 +1055,7 @@ async function runSmoke() {
     if (!isWindowsRuntime()) {
       await postReport({
         checks,
+        currentStep,
         durationMs: Date.now() - startedAt,
         finishedAt: new Date().toISOString(),
         platform: navigator.userAgent,
@@ -1041,8 +1066,10 @@ async function runSmoke() {
     }
 
     if (smokePhase === "restore-verify") {
+      await progress("restore-verify-layout");
       await verifyWidgetRestartLayout(assert);
     }
+    await progress("auth-session-setup");
     await tauriCommands.closeAllWidgetWindows().catch(() => undefined);
     await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false }).catch(() => undefined);
     const devToken = await seedDevAuthSession();
@@ -1065,6 +1092,7 @@ async function runSmoke() {
     );
 
     if (smokePhase === "restore-verify") {
+      await progress("restore-verify-sqlite");
       const restoredMessages = await tauriCommands.readRoomMessages({
         limit: 5,
         roomId: smokeRestoreSnapshotRoomId,
@@ -1083,6 +1111,7 @@ async function runSmoke() {
       addCheck("widget windows cleaned up", { closedCount });
       await postReport({
         checks,
+        currentStep: "passed",
         durationMs: Date.now() - startedAt,
         finishedAt: new Date().toISOString(),
         platform: navigator.userAgent,
@@ -1092,6 +1121,7 @@ async function runSmoke() {
       return;
     }
 
+    await progress("active-room-context");
     await tauriCommands.storeActiveProjectRoom({
       roomId: smokeRoomId,
       roomLabel: "Codex Runtime Smoke",
@@ -1100,9 +1130,11 @@ async function runSmoke() {
     const restoredRoom = await tauriCommands.readActiveProjectRoom();
     assert(restoredRoom?.roomId === smokeRoomId, "active project room persisted to SQLite", restoredRoom);
     if (smokePhase === "local-auto-sync") {
+      await progress("local-auto-sync");
       await verifyLocalAutoSyncLoops(assert);
       await postReport({
         checks,
+        currentStep: "passed",
         durationMs: Date.now() - startedAt,
         finishedAt: new Date().toISOString(),
         platform: navigator.userAgent,
@@ -1112,6 +1144,7 @@ async function runSmoke() {
       return;
     }
 
+    await progress("backend-widget-context");
     const serverWidgetContext = await measureSmokeTiming(timings, "widgetApi.updateContext", () =>
       widgetApi.updateContext({ selectedRoomId: smokeRoomId }),
     );
@@ -1140,8 +1173,10 @@ async function runSmoke() {
     );
     await verifyRealBackendWidgetSettings(assert);
     await verifyRealBackendWidgetItemState(assert);
+    await progress("communication-backend-probe");
     await verifyRealBackendRoomCommunication(smokeRoomId, assert);
 
+    await progress("widget-window-initial-open");
     await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: true });
     const windows = await measureSmokeTiming(timings, "tauriCommands.openWidgetWindows.initial", () =>
       tauriCommands.openWidgetWindows({
@@ -1289,6 +1324,7 @@ async function runSmoke() {
       shortcut,
     );
 
+    await progress("sqlite-backup-restore-queue");
     const sqlite = await tauriCommands.checkLocalSqliteIntegrity();
     assert(sqlite.ok, "local SQLite quick_check passed", sqlite);
 
@@ -1334,6 +1370,7 @@ async function runSmoke() {
       roomLabel: "Codex Runtime Smoke",
     });
 
+    await progress("activity-capture-sync");
     await tauriCommands.setActivityContextConsent({ enabled: true });
     const foreground = await tauriCommands.readActivityContext();
     assert(foreground.appName.trim().length > 0, "native foreground activity captured", foreground);
@@ -1403,6 +1440,7 @@ async function runSmoke() {
       todayActivities,
     );
 
+    await progress("widget-usage-sync");
     const widgetUsageOccurredAt = new Date().toISOString();
     const initialTodayWidgetUsage = await widgetApi.getTodayUsageRollups();
     const widgetUsageSummaryDate = initialTodayWidgetUsage.date;
@@ -1469,6 +1507,7 @@ async function runSmoke() {
     let manualOutboxFolderId: string | null = null;
 
     if (smokeFolderPath) {
+      await progress("managed-folder-scan-sync");
       await cleanupStaleRuntimeSmokeManagedFolders(smokeFolderPath);
       const folder = await tauriCommands.selectManagedFolder({ path: smokeFolderPath });
       runtimeSmokeManagedFolderId = folder.localFolderId;
@@ -1592,6 +1631,7 @@ async function runSmoke() {
         initialSync,
         stagedFiles,
       });
+      await progress("local-file-analysis");
       const localFileAnalysis = await analyzePersonalLocalFileWithKeySentences({
         consentGranted: true,
         localFileId: analysisCandidate.localFileId,
@@ -1638,6 +1678,7 @@ async function runSmoke() {
         remainingAnalysisBackfill,
       );
 
+      await progress("managed-folder-watch-sync");
       const watch = await tauriCommands.watchManagedFolder({ localFolderId: folder.localFolderId });
       assert(watch.watching, "managed folder watcher started", watch);
       await sleep(500);
@@ -1679,6 +1720,7 @@ async function runSmoke() {
       await tauriCommands.unwatchAllManagedFolders();
     }
 
+    await progress("integrated-local-outbox-sync");
     const manualOutboxNow = new Date();
     const manualOutboxActivity = await tauriCommands.recordActivityContext({
       appName: "Codex Tauri manual outbox smoke",
@@ -1732,6 +1774,7 @@ async function runSmoke() {
       );
     }
 
+    await progress("post-login-launcher-probe");
     await tauriCommands.closeAllWidgetWindows();
     await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false });
     await measureSmokeTiming(timings, "launchTauriAuthenticatedSurfaces", () =>
@@ -1795,6 +1838,7 @@ async function runSmoke() {
         widgetUsageAutoSyncRunning: isWidgetUsageAutoSyncRunning(),
       },
     );
+    await progress("post-login-auth-widget-qa-snapshot");
     const authWidgetQaSnapshot = await readTauriAuthWidgetQaSnapshot();
     assert(
       authWidgetQaSnapshot.localSession.hasSession &&
@@ -1821,12 +1865,19 @@ async function runSmoke() {
       authWidgetQaSnapshot.activeProjectRoom,
     );
     assert(
-      authWidgetQaSnapshot.widgetRuntime.allExpectedWindowsVisible &&
+      authWidgetQaSnapshot.widgetRuntime.barWindow?.windowVisible &&
+        authWidgetQaSnapshot.widgetRuntime.windows.chat?.windowVisible &&
+        authWidgetQaSnapshot.widgetRuntime.missingVisibleBubbles.every((bubbleType) => bubbleType !== "chat") &&
         authWidgetQaSnapshot.widgetRuntime.allWindowRoomContextMatchesActive &&
-        authWidgetQaSnapshot.widgetRuntime.barRestoreItems.allMatchActiveRoom,
-      "post-login QA snapshot confirmed all widget windows and restore items",
+        authWidgetQaSnapshot.widgetRuntime.allWindowRoomContextMatchesServer &&
+        authWidgetQaSnapshot.widgetRuntime.barRestoreItems.allMatchActiveRoom &&
+        smokeWidgetBubbles
+          .filter((bubbleType) => bubbleType !== "chat")
+          .every((bubbleType) => authWidgetQaSnapshot.widgetRuntime.barRestoreItems.windowIds.includes(bubbleType)),
+      "post-login QA snapshot confirmed launcher widget room context and restore items",
       authWidgetQaSnapshot.widgetRuntime,
     );
+    await progress("post-login-stop-cleanup");
     await stopTauriAuthenticatedSurfaces();
     const stoppedActiveProjectRoom = await tauriCommands.readActiveProjectRoom();
     assert(
@@ -1855,6 +1906,7 @@ async function runSmoke() {
         widgetUsageAutoSyncRunning: isWidgetUsageAutoSyncRunning(),
       },
     );
+    await progress("persist-restore-checkpoint");
     await persistWidgetRestartLayoutCheckpoint(assert);
 
     const managedFolderCleanup = await cleanupRuntimeSmokeManagedFolder(runtimeSmokeManagedFolderId);
@@ -1869,6 +1921,7 @@ async function runSmoke() {
 
     await postReport({
       checks,
+      currentStep: "passed",
       durationMs: Date.now() - startedAt,
       finishedAt: new Date().toISOString(),
       platform: navigator.userAgent,
@@ -1884,6 +1937,7 @@ async function runSmoke() {
     await tauriCommands.setAuthenticatedSurfacesEnabled({ enabled: false }).catch(() => undefined);
     await postReport({
       checks,
+      currentStep,
       durationMs: Date.now() - startedAt,
       error: error instanceof Error ? error.message : String(error),
       finishedAt: new Date().toISOString(),

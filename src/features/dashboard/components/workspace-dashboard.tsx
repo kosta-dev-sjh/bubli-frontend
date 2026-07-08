@@ -1064,7 +1064,7 @@ export function WorkspaceDashboard() {
         dashboardApi.getActivityHeatmap({ days: 365 }),
         calendarApi.getEvents({ from: from.toISOString(), size: 100, to: to.toISOString() }),
         agentApi.listPersonalSuggestions({ status: "DRAFT" }),
-        notificationApi.list({ size: 20 }),
+        notificationApi.list({ size: 20, status: "UNREAD" }),
       ]);
       const workPromise = dashboardApi.getWork();
       const initialTimeoutMs = await readWindowsDashboardInitialTimeoutMs();

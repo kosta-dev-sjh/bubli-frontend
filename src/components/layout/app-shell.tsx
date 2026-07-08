@@ -480,7 +480,7 @@ export function AppShell({ children }: AppShellProps) {
         await applyWorkspaceHydration(roomPage, widgetContext);
 
         window.setTimeout(() => {
-          void Promise.allSettled([notificationApi.list(), projectRoomApi.getMyInvitations("PENDING")]).then(
+          void Promise.allSettled([notificationApi.list({ status: "UNREAD" }), projectRoomApi.getMyInvitations("PENDING")]).then(
             ([notificationPageResult, invitationPageResult]) => {
               if (!isCurrentRun()) return;
 
@@ -553,7 +553,7 @@ export function AppShell({ children }: AppShellProps) {
 
     const [roomPage, notificationPage, invitationPage] = await Promise.allSettled([
       projectRoomApi.list(),
-      notificationApi.list(),
+      notificationApi.list({ status: "UNREAD" }),
       projectRoomApi.getMyInvitations("PENDING"),
     ]);
 

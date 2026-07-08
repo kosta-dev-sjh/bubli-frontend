@@ -876,7 +876,7 @@ async function listWidgetVisibleUnreadNotifications(
   let lastPage: PageResponse<WidgetNotificationResponse> | null = null;
 
   do {
-    lastPage = await widgetDisplayApi.listNotifications(WIDGET_NOTIFICATION_PAGE_SIZE, page);
+    lastPage = await widgetDisplayApi.listNotifications(WIDGET_NOTIFICATION_PAGE_SIZE, page, "UNREAD");
     for (const notification of lastPage.items) {
       if (items.length >= limit) break;
       if (!isUnreadNotificationInboxItem(notification) || seenIds.has(notification.id)) continue;

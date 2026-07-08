@@ -324,8 +324,8 @@ assertContains(
 );
 assertContains(
   appShell,
-  /isWindowsTauriRuntime[\s\S]*WINDOWS_SHELL_BACKGROUND_DELAY_MS[\s\S]*windowsShellBackgroundDelayMs[\s\S]*window\.setTimeout\(\(\) => \{[\s\S]*notificationApi\.list\(\)[\s\S]*projectRoomApi\.getMyInvitations\("PENDING"\)[\s\S]*window\.setTimeout\(\(\) => \{[\s\S]*chatApi[\s\S]*\.listRooms\(\)[\s\S]*windowsShellBackgroundDelayMs\(\)/,
-  "Windows AppShell background notification/invitation/chat-cache requests must be delayed so they do not compete with first route rendering.",
+  /isWindowsTauriRuntime[\s\S]*WINDOWS_SHELL_BACKGROUND_DELAY_MS[\s\S]*windowsShellBackgroundDelayMs[\s\S]*window\.setTimeout\(\(\) => \{[\s\S]*notificationApi\.list\(\{ status: "UNREAD" \}\)[\s\S]*projectRoomApi\.getMyInvitations\("PENDING"\)[\s\S]*window\.setTimeout\(\(\) => \{[\s\S]*chatApi[\s\S]*\.listRooms\(\)[\s\S]*windowsShellBackgroundDelayMs\(\)/,
+  "Windows AppShell background notification/invitation/chat-cache requests must be delayed and request only unread notifications so they do not compete with first route rendering.",
 );
 assertContains(
   projectRoomWorkRoute,
@@ -1211,7 +1211,7 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /const authWidgetQaSnapshot = await readTauriAuthWidgetQaSnapshot\(\);[\s\S]*post-login QA snapshot confirmed Tauri auth session without raw tokens[\s\S]*post-login QA snapshot confirmed real backend auth and widget APIs[\s\S]*post-login QA snapshot confirmed project room context across memory Tauri and backend[\s\S]*post-login QA snapshot confirmed all widget windows and restore items[\s\S]*stopTauriAuthenticatedSurfaces\(\)/,
+  /const authWidgetQaSnapshot = await readTauriAuthWidgetQaSnapshot\(\);[\s\S]*post-login QA snapshot confirmed Tauri auth session without raw tokens[\s\S]*post-login QA snapshot confirmed real backend auth and widget APIs[\s\S]*post-login QA snapshot confirmed project room context across memory Tauri and backend[\s\S]*barWindow\?\.windowVisible[\s\S]*windows\.chat\?\.windowVisible[\s\S]*missingVisibleBubbles\.every[\s\S]*barRestoreItems\.allMatchActiveRoom[\s\S]*post-login QA snapshot confirmed launcher widget room context and restore items[\s\S]*stopTauriAuthenticatedSurfaces\(\)/,
   "TauriRuntimeSmokeRunner must verify the redacted QA snapshot after the post-login launcher opens authenticated widgets.",
 );
 assertContains(
@@ -1978,7 +1978,12 @@ assertContains(
 assertContains(
   widgetPage,
   /const initialDisplayPageSize =[\s\S]*startupOptimization\.initialDisplayPageSize[\s\S]*const initialNotificationScanPages =[\s\S]*isTauri && !displayLoadedOnceRef\.current && startupOptimization\.initialNotificationScanPages > 0[\s\S]*widgetDisplayApi\.listSchedules\(selectedRoomId, initialDisplayPageSize\)[\s\S]*widgetDisplayApi\.listResources\(selectedRoomId, initialDisplayPageSize\)[\s\S]*widgetDisplayApi\.listMemos\(selectedRoomId, initialDisplayPageSize\)[\s\S]*listWidgetVisibleUnreadNotifications\(WIDGET_NOTIFICATION_DISPLAY_LIMIT, initialNotificationScanPages\)[\s\S]*startupOptimization\.initialDisplayPageSize[\s\S]*startupOptimization\.initialNotificationScanPages/,
-  "Desktop widget must use the Windows startup profile to bound first-load schedule/resource/memo requests and notification scans without affecting later refreshes.",
+  "Desktop widget must use the Windows startup profile to bound first-load schedule/resource/memo requests and request only unread notification scans without affecting later refreshes.",
+);
+assertContains(
+  widgetPage,
+  /async function listWidgetVisibleUnreadNotifications[\s\S]*widgetDisplayApi\.listNotifications\(WIDGET_NOTIFICATION_PAGE_SIZE, page, "UNREAD"\)/,
+  "Desktop widget notification scans must request only unread notifications from the backend before applying display filters.",
 );
 assertContains(
   widgetPage,

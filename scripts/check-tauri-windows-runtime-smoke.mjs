@@ -222,7 +222,7 @@ function runContractCheck() {
 }
 
 async function runRuntimeSmokePhase(phase, accessToken) {
-  const { closeServer, reportPromise, reportUrl } = await startReportServer();
+  const { closeServer, lastProgress, reportPromise, reportUrl } = await startReportServer();
   const child = spawnTauri(reportUrl, accessToken, phase);
   let timeout = null;
 
@@ -231,7 +231,14 @@ async function runRuntimeSmokePhase(phase, accessToken) {
       reportPromise,
       new Promise((_, reject) => {
         timeout = setTimeout(
-          () => reject(new Error(`Tauri runtime smoke ${phase} phase timed out after ${TIMEOUT_MS}ms`)),
+          () =>
+            reject(
+              new Error(
+                `Tauri runtime smoke ${phase} phase timed out after ${TIMEOUT_MS}ms. Last progress: ${formatProgress(
+                  lastProgress(),
+                )}`,
+              ),
+            ),
           TIMEOUT_MS,
         );
       }),
@@ -307,6 +314,7 @@ function parseRequestedPhases(value) {
 
 function startReportServer() {
   let settled = false;
+  let latestProgress = null;
   let resolveReport;
   let rejectReport;
   const reportPromise = new Promise((resolve, reject) => {
@@ -364,6 +372,28 @@ function startReportServer() {
       return;
     }
 
+    if (request.method === "POST" && request.url === "/progress") {
+      let body = "";
+      request.setEncoding("utf8");
+      request.on("data", (chunk) => {
+        body += chunk;
+      });
+      request.on("end", () => {
+        try {
+          latestProgress = JSON.parse(body);
+          const step = typeof latestProgress?.step === "string" ? latestProgress.step : "unknown";
+          const elapsedMs = Number(latestProgress?.elapsedMs ?? 0);
+          console.log(`[runtime-smoke progress] ${step} (${elapsedMs}ms)`);
+          response.writeHead(204);
+          response.end();
+        } catch {
+          response.writeHead(400);
+          response.end();
+        }
+      });
+      return;
+    }
+
     if (request.method !== "POST" || request.url !== "/report") {
       response.writeHead(404);
       response.end();
@@ -406,11 +436,24 @@ function startReportServer() {
           }
           server.close();
         },
+        lastProgress() {
+          return latestProgress;
+        },
         reportPromise,
         reportUrl: `http://127.0.0.1:${address.port}/report`,
       });
     });
   });
+}
+
+function formatProgress(progress) {
+  if (!progress || typeof progress !== "object") return "none";
+  const step = typeof progress.step === "string" ? progress.step : "unknown";
+  const elapsedMs = Number(progress.elapsedMs ?? 0);
+  const checkCount = Number(progress.checkCount ?? 0);
+  return `${step}, elapsedMs=${Number.isFinite(elapsedMs) ? elapsedMs : "unknown"}, checks=${
+    Number.isFinite(checkCount) ? checkCount : "unknown"
+  }`;
 }
 
 function mutateManagedFolder() {
