@@ -13,6 +13,7 @@ export type TauriStartupOptimizationConfig = {
   openCommandTimeoutMs: number;
   preloadWidgetSettingsDuringStartup: boolean;
   profile: TauriStartupOptimizationProfile;
+  requireMenuWindowDuringStartupReuse: boolean;
   retryAttempts: number;
   retryDelayMs: number;
   settingsTimeoutMs: number;
@@ -35,6 +36,7 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
     openCommandTimeoutMs: 6_000,
     preloadWidgetSettingsDuringStartup: true,
     profile: "aggressive",
+    requireMenuWindowDuringStartupReuse: false,
     retryAttempts: 1,
     retryDelayMs: 450,
     settingsTimeoutMs: 650,
@@ -51,6 +53,7 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
     openCommandTimeoutMs: 10_000,
     preloadWidgetSettingsDuringStartup: true,
     profile: "balanced",
+    requireMenuWindowDuringStartupReuse: false,
     retryAttempts: 2,
     retryDelayMs: 650,
     settingsTimeoutMs: 2_500,
@@ -67,6 +70,7 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
     openCommandTimeoutMs: 8_000,
     preloadWidgetSettingsDuringStartup: true,
     profile: "fast",
+    requireMenuWindowDuringStartupReuse: false,
     retryAttempts: 2,
     retryDelayMs: 550,
     settingsTimeoutMs: 1_200,
@@ -83,6 +87,7 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
     openCommandTimeoutMs: 8_000,
     preloadWidgetSettingsDuringStartup: false,
     profile: "windows",
+    requireMenuWindowDuringStartupReuse: true,
     retryAttempts: 2,
     retryDelayMs: 500,
     settingsTimeoutMs: 1_000,
