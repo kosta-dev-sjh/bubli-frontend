@@ -6,6 +6,7 @@ import {
   AtSign,
   Bell,
   Check,
+  CheckCheck,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -127,8 +128,10 @@ const bubbleMeta: BubbleMeta[] = [
   { Icon: FileText, accent: "sand", id: "resource", label: "widget.kind.resource", scope: "both" },
   { Icon: Bell, accent: "lilac", id: "alert", label: "widget.kind.notification", scope: "both" },
 ];
+// 리소스는 별도 버블로 노출하지 않고, 에이전트는 별도 메뉴 오브가 전용 진입점을 담당한다.
 const hiddenDesktopWidgetBubbleTypes = new Set<WidgetBubbleType>(["resource"]);
-const visibleBubbleMeta = bubbleMeta.filter((item) => !hiddenDesktopWidgetBubbleTypes.has(item.id));
+const hiddenDesktopWidgetBarBubbleTypes = new Set<WidgetBubbleType>(["agent", ...hiddenDesktopWidgetBubbleTypes]);
+const visibleBubbleMeta = bubbleMeta.filter((item) => !hiddenDesktopWidgetBarBubbleTypes.has(item.id));
 
 const modeLabels: Record<WidgetWindowMode, MessageKey> = {
   DEFAULT: "widget.mode.default",
@@ -209,6 +212,9 @@ const presentationClassNames = {
   tauri: styles.tauriShell,
 } as const;
 
+type AgentSuggestionReviewAction = "APPROVE" | "HOLD" | "REJECT";
+type WidgetItemStateAction = "VISIBLE" | "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED";
+
 export type DesktopWidgetBubbleProps = {
   activeBubble: WidgetBubbleType;
   alwaysOnTop: boolean;
@@ -227,8 +233,7 @@ export type DesktopWidgetBubbleProps = {
   onRespondFriendRequest?: (requestId: string, action: "accept" | "reject") => Promise<void>;
   onClose: () => void;
   onOpenHandoff?: (item: WidgetPreviewItem) => Promise<void> | void;
-  onItemStateChange?: (item: WidgetPreviewItem, state: "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED") => void;
-  onReviewAgentSuggestion?: (item: WidgetPreviewItem, action: AgentSuggestionReviewAction) => Promise<void> | void;
+  onItemStateChange?: (item: WidgetPreviewItem, state: WidgetItemStateAction) => void;
   onLeaveVoice?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onMarkChatRead?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onModeChange: (mode: WidgetWindowMode) => void;
@@ -243,12 +248,14 @@ export type DesktopWidgetBubbleProps = {
   onAnalyzeResource?: (item: WidgetPreviewItem) => Promise<void> | void;
   onDownloadResource?: (item: WidgetPreviewItem) => Promise<void> | void;
   onRestore?: () => void;
+  onReviewAgentSuggestion?: (item: WidgetPreviewItem, action: AgentSuggestionReviewAction) => Promise<void> | void;
   // 에이전트 요청 전송. 응답 본문(에이전트 답변 텍스트)을 돌려주면 버블 내 미니 대화에 그대로 붙는다.
   onSendAgentCommand?: (bubble: WidgetPreviewBubble, text: string) => Promise<string | void> | string | void;
   onSendChatMessage?: (bubble: WidgetPreviewBubble, text: string) => Promise<void> | void;
   onStartVoice?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onPauseTimer?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onPrimaryTimerAction?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
+  onMarkAllNotificationsRead?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onToggleAlwaysOnTop: () => void;
   onToggleVoiceMic?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   /** 현재 보이스 통화에서 마이크가 감지된(말하는 중) 참여자 userId 집합 — 웹과 동일한 발화 애니메이션용. */
@@ -261,9 +268,11 @@ export type DesktopWidgetBubbleProps = {
   windowVisible?: boolean;
 };
 
+// URL/네이티브 창 라우팅에서 허용하는 전체 버블 타입이다.
+// 바에 노출할 칩은 collectBarFoldedItems/visibleBubbleMeta에서 별도로 필터링한다.
 export const desktopWidgetBubbleTypes = widgetPreviewBubbles
   .map((bubble) => bubble.id)
-  .filter((id): id is WidgetBubbleType => !hiddenDesktopWidgetBubbleTypes.has(id));
+  .filter((id): id is WidgetBubbleType => Boolean(id));
 
 // 위젯 창은 보이는 콘텐츠보다 큰 투명 창이다. 마우스를 받아야 하는 표면(셸/pill/팝오버/메뉴)에만
 // data-bubli-interactive를 붙이고, desktop-widget page가 이 셀렉터로 rect를 수집해 Rust 폴러에 보고한다.
@@ -453,7 +462,7 @@ function ItemActions({
   showPin = true,
 }: {
   item: WidgetPreviewItem;
-  onItemStateChange?: (item: WidgetPreviewItem, state: "CONFIRMED" | "HIDDEN" | "PINNED" | "SNOOZED") => void;
+  onItemStateChange?: (item: WidgetPreviewItem, state: WidgetItemStateAction) => void;
   /** TODO 행처럼 별도 체크 어포던스가 확인을 담당하면 확인 버튼을 숨긴다. */
   showConfirm?: boolean;
   /** TODO 행은 항목 고정핀이 쓸모없어 숨긴다. */
@@ -461,6 +470,7 @@ function ItemActions({
 }) {
   const { t } = useI18n();
   if (!onItemStateChange) return null;
+  const pinned = Boolean(item.pinned);
 
   return (
     <span className={styles.itemActions}>
@@ -470,7 +480,12 @@ function ItemActions({
         </button>
       ) : null}
       {showPin ? (
-        <button aria-label={t("widget.item.pin")} aria-pressed={item.pinned ?? false} onClick={() => onItemStateChange(item, "PINNED")} type="button">
+        <button
+          aria-label={t(pinned ? "widget.item.unpin" : "widget.item.pin")}
+          aria-pressed={pinned}
+          onClick={() => onItemStateChange(item, pinned ? "VISIBLE" : "PINNED")}
+          type="button"
+        >
           <Pin size={12} strokeWidth={2} />
         </button>
       ) : null}
@@ -861,29 +876,22 @@ function TodoBody({
 function AlertBody({
   bubble,
   onItemStateChange,
+  onMarkAllNotificationsRead,
   onOpenHandoff,
 }: {
   bubble: WidgetPreviewBubble;
   onItemStateChange?: DesktopWidgetBubbleProps["onItemStateChange"];
+  onMarkAllNotificationsRead?: DesktopWidgetBubbleProps["onMarkAllNotificationsRead"];
   onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
 }) {
   const { t } = useI18n();
-  const openAll = () => {
-    if (!onOpenHandoff) return;
-    void onOpenHandoff({
-      handoffUrl: bubble.rows[0]?.handoffUrl ?? "/app",
-      id: "alert-open-all",
-      kind: "message",
-      label: t(bubble.actionLabel as MessageKey),
-      status: "",
-    });
-  };
-
   const openHandoff = (event: MouseEvent<HTMLAnchorElement>, item: WidgetPreviewItem) => {
-    if (!item.handoffUrl || !onOpenHandoff) return;
+    if (!item.handoffUrl) return;
 
-    event.preventDefault();
-    void onOpenHandoff(item);
+    if (onOpenHandoff) {
+      event.preventDefault();
+      void onOpenHandoff(item);
+    }
   };
 
   return (
@@ -900,24 +908,41 @@ function AlertBody({
               >
                 <CheckCircle2 size={13} strokeWidth={2.4} />
               </button>
-              {item.handoffUrl ? (
-                <a href={item.handoffUrl} onClick={(event) => openHandoff(event, item)} rel="noreferrer" target="_blank">
-                  {item.label}
-                </a>
-              ) : (
+              <span className={styles.alertText}>
                 <strong>{item.label}</strong>
-              )}
-              <ItemActions item={item} onItemStateChange={onItemStateChange} />
+                {item.detail ? <small>{item.detail}</small> : null}
+              </span>
+              {item.handoffUrl ? (
+                <a
+                  aria-label={t("widget.alert.openItem", { title: item.label })}
+                  className={styles.alertOpenLink}
+                  href={item.handoffUrl}
+                  onClick={(event) => openHandoff(event, item)}
+                  rel="noreferrer"
+                  target="_blank"
+                  title={t("widget.alert.openItem", { title: item.label })}
+                >
+                  <ExternalLink size={13} strokeWidth={2.2} />
+                </a>
+              ) : null}
+              <ItemActions item={item} onItemStateChange={onItemStateChange} showConfirm={false} />
             </div>
           ))}
         </div>
       ) : (
         <BubbleEmptyState bubble={bubble} />
       )}
-      <button className={styles.wideAction} onClick={openAll} type="button">
-        <Bell size={14} strokeWidth={2} />
-        {t(bubble.actionLabel as MessageKey)}
-      </button>
+      <div className={styles.alertActions}>
+        <button
+          className={[styles.wideAction, styles.wideActionSecondary].join(" ")}
+          disabled={bubble.rows.length === 0 || !onMarkAllNotificationsRead}
+          onClick={() => onMarkAllNotificationsRead?.(bubble)}
+          type="button"
+        >
+          <CheckCheck size={14} strokeWidth={2} />
+          {t("widget.alert.markAllRead")}
+        </button>
+      </div>
     </div>
   );
 }
@@ -932,7 +957,6 @@ type AgentThreadEntry = {
 
 const AGENT_THREAD_LIMIT = 10;
 const EMPTY_WIDGET_ITEMS: WidgetPreviewItem[] = [];
-type AgentSuggestionReviewAction = "APPROVE" | "HOLD" | "REJECT";
 type AgentTab = "ask" | "candidates" | "resources";
 const agentTabs: AgentTab[] = ["ask", "candidates", "resources"];
 
@@ -955,9 +979,16 @@ function AgentBody({
   const [activeTab, setActiveTab] = useState<AgentTab>("ask");
   const [draft, setDraft] = useState("");
   const [statusText, setStatusText] = useState<string | null>(null);
-  const [thread, setThread] = useState<AgentThreadEntry[]>([]);
+  const [threadByScope, setThreadByScope] = useState<Record<string, AgentThreadEntry[]>>({});
   const [pending, setPending] = useState(false);
   const threadRef = useRef<HTMLDivElement | null>(null);
+  const scopeKey = bubble.roomId ? `room:${bubble.roomId}` : "personal";
+  const thread = useMemo(() => threadByScope[scopeKey] ?? [], [scopeKey, threadByScope]);
+  const scopeLabel = bubble.roomId ? bubble.roomLabel || t("widget.agent.roomMode") : t("widget.agent.personalMode");
+  const activeTabIndex = Math.max(0, agentTabs.indexOf(activeTab));
+  const scopedResourceRows = bubble.resourceRows ?? EMPTY_WIDGET_ITEMS;
+  const scopedCandidateRows = bubble.rows;
+  const scopedCandidateLabel = t("widget.agent.waitingCandidates");
   const resourceEmptyBubble = useMemo<WidgetPreviewBubble>(
     () => ({
       ...getWidgetPreviewBubble("resource"),
@@ -967,10 +998,6 @@ function AgentBody({
     }),
     [bubble.roomId, bubble.roomLabel],
   );
-  const activeTabIndex = Math.max(0, agentTabs.indexOf(activeTab));
-  const scopedResourceRows = bubble.resourceRows ?? EMPTY_WIDGET_ITEMS;
-  const scopedCandidateRows = bubble.rows;
-  const scopedCandidateLabel = t(bubble.panelLabel as MessageKey);
   const scopedCandidateBubble = useMemo<WidgetPreviewBubble>(
     () => ({
       ...bubble,
@@ -984,7 +1011,10 @@ function AgentBody({
   );
 
   const appendThreadEntry = (entry: AgentThreadEntry) => {
-    setThread((current) => [...current, entry].slice(-AGENT_THREAD_LIMIT));
+    setThreadByScope((current) => ({
+      ...current,
+      [scopeKey]: [...(current[scopeKey] ?? []), entry].slice(-AGENT_THREAD_LIMIT),
+    }));
   };
 
   // 새 말풍선/생각 중 표시가 붙으면 히스토리를 항상 바닥으로 따라간다.
@@ -998,11 +1028,6 @@ function AgentBody({
     // 습관적으로 "/bubli"를 붙여도 접두어는 떼고 전송한다.
     const text = stripAgentCommandPrefix(draft);
     if (!text || pending) return;
-
-    if (!bubble.roomId) {
-      setStatusText(t("widget.chat.selectRoomFirst"));
-      return;
-    }
 
     if (!onSendAgentCommand) return;
 
@@ -1034,7 +1059,6 @@ function AgentBody({
       />
       {activeTab === "candidates" ? (
         <div className={[styles.agentTabPanel, styles.agentCandidatePanel].join(" ")}>
-          {/* 승인 대기 수는 승인 전 후보 탭에서만 보여준다. */}
           <div className={styles.agentSummary} aria-label={t("widget.agentSignal")}>
             <span className={styles.agentDot} aria-hidden="true" />
             <strong>{scopedCandidateLabel}</strong>
@@ -1058,6 +1082,10 @@ function AgentBody({
         </div>
       ) : (
         <div className={styles.agentAskPanel}>
+          <div className={styles.agentScopePill}>
+            <Sparkles size={13} strokeWidth={2.2} />
+            <span>{scopeLabel}</span>
+          </div>
           {thread.length > 0 || pending ? (
             <div aria-label={t("widget.agent.threadAria")} aria-live="polite" className={styles.agentThread} ref={threadRef}>
               {thread.map((entry) => (
@@ -3267,6 +3295,7 @@ function BubbleBody({
   onEditMemo,
   onLeaveVoice,
   onMarkChatRead,
+  onMarkAllNotificationsRead,
   onOpenHandoff,
   onPauseTimer,
   onPrimaryTimerAction,
@@ -3302,6 +3331,7 @@ function BubbleBody({
   onEditMemo?: DesktopWidgetBubbleProps["onEditMemo"];
   onLeaveVoice?: DesktopWidgetBubbleProps["onLeaveVoice"];
   onMarkChatRead?: DesktopWidgetBubbleProps["onMarkChatRead"];
+  onMarkAllNotificationsRead?: DesktopWidgetBubbleProps["onMarkAllNotificationsRead"];
   onOpenHandoff?: DesktopWidgetBubbleProps["onOpenHandoff"];
   onPauseTimer?: DesktopWidgetBubbleProps["onPauseTimer"];
   onPrimaryTimerAction?: DesktopWidgetBubbleProps["onPrimaryTimerAction"];
@@ -3350,7 +3380,14 @@ function BubbleBody({
     );
   }
   if (bubble.id === "alert") {
-    return <AlertBody bubble={bubble} onItemStateChange={onItemStateChange} onOpenHandoff={onOpenHandoff} />;
+    return (
+      <AlertBody
+        bubble={bubble}
+        onItemStateChange={onItemStateChange}
+        onMarkAllNotificationsRead={onMarkAllNotificationsRead}
+        onOpenHandoff={onOpenHandoff}
+      />
+    );
   }
   if (bubble.id === "timer") {
     return <TimerBody bubble={bubble} initialMode={timerMode} actionNotice={timerActionNotice} onTimerModeChange={onTimerModeChange} onPauseTimer={onPauseTimer} onPrimaryTimerAction={onPrimaryTimerAction} />;
@@ -3790,6 +3827,7 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
   onItemStateChange,
   onLeaveVoice,
   onMarkChatRead,
+  onMarkAllNotificationsRead,
   onModeChange,
   onCreateMemo,
   onCreateSchedule,
@@ -4021,6 +4059,7 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
                 onEditMemo={onEditMemo}
                 onLeaveVoice={onLeaveVoice}
                 onMarkChatRead={onMarkChatRead}
+                onMarkAllNotificationsRead={onMarkAllNotificationsRead}
                 onCreateMemo={onCreateMemo}
                 onCreateSchedule={onCreateSchedule}
                 onCreateTodo={onCreateTodo}
@@ -4071,17 +4110,20 @@ const BAR_PREVIEW_POPOVER_ID = "bubli-bar-preview";
 // 메뉴 패널·hover 프리뷰·goo 팝이 떠 있는 동안에는 페이드를 아예 정지한다.
 const BAR_IDLE_FADE_MS = 8000;
 
-// 접힌 칩은 전부 바에 노출한다 — "+N" 접기·잘림 없음. 칩은 36px 타일 + 인라인 라벨
-// (타이머 mm:ss, 투두/일정/메모 카운트)인데, 최악 조합(7개 전부 + "99+" 라벨 + 타이머 12:34)도
-// 약 580px로 Rust WIDGET_BAR_WIDTH(640 고정)를 넘지 않는다.
+// 접힌 칩은 바에 노출한다 — "+N" 접기·잘림 없음. 칩은 36px 타일 + 인라인 라벨
+// (타이머 mm:ss, 투두/일정/메모 카운트)인데, 최악 조합도 Rust WIDGET_BAR_WIDTH(640 고정)를 넘지 않는다.
 // 알림 버블 칩은 바 맨 왼쪽의 고정 알림 칩과 완전히 중복(같은 종·같은 카운트)이라 제외하고,
-// 알림 버블 복원은 Bubli 메뉴의 바로가기 그리드가 담당한다.
+// 에이전트 버블은 별도 메뉴 오브가 챗봇 진입점을 담당하므로 바 칩에서는 제외한다.
 function collectBarFoldedItems(minimizedItems: WidgetWindowState[]) {
   // 버블 타입별로 칩 하나만 남긴다. 레거시 레이아웃이 같은 버블을 여러 windowId로 들고 있어도
   // 같은 버블 칩이 두 개 뜨거나, 두 칩이 같은 버블 창을 중복 복원하는 일이 없어야 한다.
   const seenBubbles = new Set<string>();
   return minimizedItems.filter((item) => {
-    if (!desktopWidgetBubbleTypes.includes(item.activeBubble as WidgetBubbleType) || item.activeBubble === "alert") {
+    if (
+      !desktopWidgetBubbleTypes.includes(item.activeBubble as WidgetBubbleType) ||
+      item.activeBubble === "alert" ||
+      hiddenDesktopWidgetBarBubbleTypes.has(item.activeBubble as WidgetBubbleType)
+    ) {
       return false;
     }
     if (seenBubbles.has(item.activeBubble)) return false;
@@ -4452,6 +4494,11 @@ function useBarTimerLive(enabled: boolean, timerBubble: WidgetPreviewBubble | un
 
 // Bubli 메뉴 패널 본문: 바와 메뉴 오브가 공유하는 동일한 바로가기 레이아웃.
 // 버블 바로가기 그리드 + 자동 정렬/룸 전환/메인 앱/설정/종료 + 오늘 사용 요약 한 줄.
+export type WidgetMenuRoomOption = {
+  id: string;
+  name: string;
+};
+
 export type WidgetMenuContentProps = {
   hasRoomContext?: boolean;
   // 연결된 모니터 목록(2대 이상일 때만 "모니터로 이동" 섹션을 그린다).
@@ -4463,7 +4510,10 @@ export type WidgetMenuContentProps = {
   onOpenMainApp?: () => void;
   onOpenSettings?: () => void;
   onQuit?: () => void;
+  onSelectRoomContext?: (roomId: string) => void;
   onToggleRoomContext?: () => void;
+  roomOptions?: WidgetMenuRoomOption[];
+  selectedRoomId?: string | null;
   usageSummary?: string | null;
 };
 
@@ -4485,7 +4535,10 @@ export function WidgetMenuPanelContent({
   onOpenMainApp,
   onOpenSettings,
   onQuit,
+  onSelectRoomContext,
   onToggleRoomContext,
+  roomOptions = [],
+  selectedRoomId,
   usageSummary,
 }: WidgetMenuContentProps) {
   const { t } = useI18n();
@@ -4519,6 +4572,28 @@ export function WidgetMenuPanelContent({
           {t(hasRoomContext ? "widget.menu.switchToPersonal" : "widget.menu.switchToRoom")}
         </span>
       </button>
+      {roomOptions.length > 0 ? (
+        <div className={styles.menuRoomList} role="listbox" aria-label={t("widget.menu.contextRoom")}>
+          {roomOptions.map((room) => {
+            const active = room.id === selectedRoomId;
+            return (
+              <button
+                aria-selected={active}
+                className={styles.menuRoomOption}
+                data-active={active ? "true" : undefined}
+                disabled={!onSelectRoomContext}
+                key={room.id}
+                onClick={() => onSelectRoomContext?.(room.id)}
+                role="option"
+                type="button"
+              >
+                <span>{room.name}</span>
+                {active ? <Check size={13} strokeWidth={2.4} aria-hidden="true" /> : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
       <div className={styles.menuGrid} aria-label={t("widget.menu.bubbles")}>
         {visibleBubbleMeta.map(({ Icon, accent, id, label, scope }) => {
           // 룸 귀속(room) 버블은 개인 모드(룸 미선택)에서 비활성 — 룸을 골라야 활성화된다.
@@ -4751,7 +4826,10 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   onOpenSettings,
   onQuit,
   onRestoreBubble,
+  onSelectRoomContext,
   onToggleRoomContext,
+  roomOptions = [],
+  selectedRoomId,
   usageSummary,
 }: {
   bubbleDataByType?: Partial<Record<WidgetBubbleType, WidgetPreviewBubble>>;
@@ -4766,7 +4844,10 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
   onOpenSettings?: () => void;
   onQuit?: () => void;
   onRestoreBubble: (bubbleType: WidgetBubbleType) => void;
+  onSelectRoomContext?: (roomId: string) => void;
   onToggleRoomContext?: () => void;
+  roomOptions?: WidgetMenuRoomOption[];
+  selectedRoomId?: string | null;
   usageSummary?: string | null;
 }) {
   const { locale, t } = useI18n();
@@ -5163,6 +5244,7 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
     };
 	  }, [barTimer, barTodoTab, bubbleDataByType, locale, notificationSignal, previewTarget, t]);
   const PreviewIcon = preview?.Icon;
+  const isNoticePreview = previewTarget === "notice";
 
   // 팝오버 등장: 칩(아래 중앙)을 앵커로 스프링 스케일 인 — reduced-motion은 페이드만.
   // 모든 모션 프리셋은 모듈 상수의 참조만 고른다(렌더마다 새 객체 금지 — memo 칩 props 안정).
@@ -5214,7 +5296,10 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
                   onOpenMainApp={onOpenMainApp}
                   onOpenSettings={onOpenSettings}
                   onQuit={onQuit}
+                  onSelectRoomContext={onSelectRoomContext}
                   onToggleRoomContext={onToggleRoomContext}
+                  roomOptions={roomOptions}
+                  selectedRoomId={selectedRoomId}
                   usageSummary={usageSummary}
                 />
               </div>
@@ -5247,20 +5332,35 @@ export const DesktopWidgetBubbleBar = memo(function DesktopWidgetBubbleBar({
               </div>
               <small>{preview.sub}</small>
               {preview.rows.length > 0 ? (
-                <ul>
-                  {preview.rows.map((item) => (
-                    <li key={item.id}>
-                      <span>{item.label}</span>
-                      {item.detail ? <small>{item.detail}</small> : null}
-                      <b>{item.status}</b>
-                    </li>
-                  ))}
-                  {preview.truncated ? (
-                    <li aria-hidden="true" className={styles.barPopoverMore}>
-                      …
-                    </li>
-                  ) : null}
-                </ul>
+                isNoticePreview ? (
+                  <ul className={styles.barNoticePreviewList}>
+                    {preview.rows.map((item) => (
+                      <li className={styles.barNoticePreviewItem} key={item.id}>
+                        <span title={item.label}>{item.label}</span>
+                      </li>
+                    ))}
+                    {preview.truncated ? (
+                      <li aria-hidden="true" className={styles.barNoticePreviewMore}>
+                        …
+                      </li>
+                    ) : null}
+                  </ul>
+                ) : (
+                  <ul>
+                    {preview.rows.map((item) => (
+                      <li key={item.id}>
+                        <span>{item.label}</span>
+                        {item.detail ? <small>{item.detail}</small> : null}
+                        {item.status ? <b>{item.status}</b> : null}
+                      </li>
+                    ))}
+                    {preview.truncated ? (
+                      <li aria-hidden="true" className={styles.barPopoverMore}>
+                        …
+                      </li>
+                    ) : null}
+                  </ul>
+                )
               ) : null}
             </motion.div>
           ) : null}

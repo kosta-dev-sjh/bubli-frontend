@@ -9,13 +9,17 @@ type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 // 잡 종류에 맞는 문구와 실제 결과 미리보기만 보여준다(백엔드가 정리되기 전까지의 프론트 방어막).
 const JOB_TITLE_KEY: Record<AgentJobType, MessageKey> = {
   ANALYZE_RESOURCE: "notification.job.analyzeResource",
-  GENERATE_WBS: "notification.job.generateWbs",
-  GENERATE_TASKS: "notification.job.generateTasks",
-  GENERATE_REQUIREMENTS: "notification.job.generateRequirements",
-  REVIEW_CONTRACT_DOCUMENTS: "notification.job.reviewContract",
-  GENERATE_QUESTIONS: "notification.job.generateQuestions",
   DAILY_SUMMARY: "notification.job.dailySummary",
   DOCUMENT_DRAFT: "notification.job.documentDraft",
+  GENERATE_QUESTIONS: "notification.job.generateQuestions",
+  GENERATE_REQUIREMENTS: "notification.job.generateRequirements",
+  GENERATE_TASKS: "notification.job.generateTasks",
+  GENERATE_WBS: "notification.job.generateWbs",
+  REVIEW_CONTRACT_DOCUMENTS: "notification.job.reviewContract",
+};
+
+const JOB_FAILED_TITLE_KEY: Partial<Record<AgentJobType, MessageKey>> = {
+  ANALYZE_RESOURCE: "notification.job.analyzeResourceFailed",
 };
 
 const PREVIEW_TEXT_KEYS = [
@@ -65,6 +69,7 @@ const TECHNICAL_KEYS = [
   "createdAt",
   "errorCode",
   "eventType",
+  "filename",
   "finishedAt",
   "id",
   "jobId",
@@ -75,7 +80,9 @@ const TECHNICAL_KEYS = [
   "pageCount",
   "promptVersion",
   "resourceId",
+  "resourceName",
   "resourceSummaryId",
+  "resourceTitle",
   "roomId",
   "schemaVersion",
   "sourceId",
@@ -92,11 +99,55 @@ const RESPONSE_KEYS_PATTERN = [...PREVIEW_TEXT_KEYS, ...PREVIEW_CONTAINER_KEYS, 
 const RAW_JOB_PATTERN = /\bjob(?:type|id)\s*[:=]|agent-job-[a-z0-9-]+|(?:^|[,{\s])message\s*[:=]\s*AI\s*작업/i;
 const JOB_TYPE_PATTERN = /jobtype\s*[:=]\s*["']?([a-z_]+)/i;
 const JOB_SLUG_PATTERN = /agent-job-([a-z0-9-]+)/i;
+const JOB_METADATA_FIELD_PATTERN =
+  /(?:^|[,\s.;{])\s*["']?(?:jobtype|jobid|resourcetitle|resourcename|filename|message)["']?\s*[:=]\s*.*?(?=(?:[,\s.;]+["']?(?:jobtype|jobid|resourcetitle|resourcename|filename|message)["']?\s*[:=])|[}\]]|$)/gi;
+const JOB_METADATA_KEY_PATTERN = /\b(jobtype|jobid|resourcetitle|resourcename|filename|message)\s*[:=]/gi;
+const JOB_FAILED_PATTERN = /(실패|failed|failure|fail|失敗)/i;
 const RESPONSE_ENVELOPE_PATTERN = /(?:^|[{,]\s*)(?:success|code|message|data|payload|result|items)\s*[:=]/i;
-const BOILERPLATE_PATTERN = /(작업이\s*완료|AI\s*작업|task\s*finished|作業が完了|agent-job-|job(?:type|id)\s*[:=]|success\s*[:=]|message\s*[:=]|code\s*[:=])/i;
+const JOB_BOILERPLATE_PATTERN =
+  /(작업(?:\s*실행)?이\s*(완료|실패)|AI\s*작업|ai\s*(?:job|task)\s*(?:completed|finished|failed)|agent\s*job\s*execution\s*(?:completed|failed)|作業が(?:完了|失敗)|ジョブ.*(?:完了|失敗)|agent-job-|job(?:type|id)\s*[:=]|success\s*[:=]|message\s*[:=]|code\s*[:=])/i;
+
+type JobMetadata = Partial<Record<"filename" | "jobid" | "jobtype" | "message" | "resourcename" | "resourcetitle", string>>;
+type NotificationSourceType = NotificationResponse["sourceType"];
+
+const NOTIFICATION_INBOX_EXCLUDED_SOURCE_TYPES = new Set<NotificationSourceType>([
+  "MESSAGE",
+  "VOICE_CALL",
+  "VOICE_CALL_CANCELED",
+  "VOICE_CALL_DECLINED",
+]);
 
 export function hasRawJobMetadata(notification: Pick<NotificationResponse, "title" | "body">): boolean {
   return RAW_JOB_PATTERN.test(`${notification.title ?? ""} ${notification.body ?? ""}`);
+}
+
+function hasUserFacingRawJobMetadata(notification: Pick<NotificationResponse, "title" | "body">): boolean {
+  const combined = `${notification.title ?? ""} ${notification.body ?? ""}`;
+  return Boolean(resolveJobType(combined, parseJobMetadata(combined)));
+}
+
+export function isDisplayableNotification(
+  notification: Pick<NotificationResponse, "body" | "status" | "title">,
+): boolean {
+  return notification.status !== "ARCHIVED" && (!hasRawJobMetadata(notification) || hasUserFacingRawJobMetadata(notification));
+}
+
+export function isDisplayableUnreadNotification(
+  notification: Pick<NotificationResponse, "body" | "status" | "title">,
+): boolean {
+  return notification.status === "UNREAD" && isDisplayableNotification(notification);
+}
+
+export function isNotificationInboxItem(
+  notification: Pick<NotificationResponse, "body" | "sourceType" | "status" | "title">,
+): boolean {
+  return isDisplayableNotification(notification) && !NOTIFICATION_INBOX_EXCLUDED_SOURCE_TYPES.has(notification.sourceType);
+}
+
+export function isUnreadNotificationInboxItem(
+  notification: Pick<NotificationResponse, "body" | "sourceType" | "status" | "title">,
+): boolean {
+  return notification.status === "UNREAD" && isNotificationInboxItem(notification);
 }
 
 function looksLikeResponseEnvelope(value: string): boolean {
@@ -107,7 +158,7 @@ function looksLikeResponseEnvelope(value: string): boolean {
 function isReadablePreviewText(value: string): boolean {
   const text = value.trim();
   if (text.length < 2) return false;
-  if (BOILERPLATE_PATTERN.test(text)) return false;
+  if (JOB_BOILERPLATE_PATTERN.test(text)) return false;
   if (/[{}[\]]/.test(text)) return false;
   if (/"\s*:/.test(text)) return false;
   if (/^[0-9a-fA-F-]{16,}$/.test(text)) return false;
@@ -193,7 +244,33 @@ function extractResponsePreview(value: string): string | null {
   return formatPreviewLines(lines);
 }
 
-function resolveJobType(value: string): AgentJobType | undefined {
+function normalizeMetadataValue(value?: string): string {
+  return (value ?? "")
+    .replace(/^[\s,;:.]+/g, "")
+    .replace(/[\s,;.]+$/g, "")
+    .trim();
+}
+
+function parseJobMetadata(value: string): JobMetadata {
+  const matches = Array.from(value.matchAll(JOB_METADATA_KEY_PATTERN));
+  const metadata: JobMetadata = {};
+
+  matches.forEach((match, index) => {
+    const key = match[1]?.toLowerCase() as keyof JobMetadata | undefined;
+    if (!key || metadata[key]) return;
+
+    const start = (match.index ?? 0) + match[0].length;
+    const end = matches[index + 1]?.index ?? value.length;
+    metadata[key] = normalizeMetadataValue(value.slice(start, end));
+  });
+
+  return metadata;
+}
+
+function resolveJobType(value: string, metadata?: JobMetadata): AgentJobType | undefined {
+  const metadataType = metadata?.jobtype?.toUpperCase();
+  if (metadataType && metadataType in JOB_TITLE_KEY) return metadataType as AgentJobType;
+
   const explicitType = value.match(JOB_TYPE_PATTERN)?.[1]?.toUpperCase();
   if (explicitType && explicitType in JOB_TITLE_KEY) return explicitType as AgentJobType;
 
@@ -203,9 +280,21 @@ function resolveJobType(value: string): AgentJobType | undefined {
   return undefined;
 }
 
-// "…, jobType=X, jobId=Y" 같은 조각을 제거해 사람이 쓴 앞머리 문장만 남긴다.
+function notificationTitleKey(jobType: AgentJobType | undefined, failed: boolean): MessageKey {
+  if (failed) {
+    return (jobType && JOB_FAILED_TITLE_KEY[jobType]) || "notification.job.failedTitle";
+  }
+  return jobType && jobType in JOB_TITLE_KEY ? JOB_TITLE_KEY[jobType] : "notification.job.doneTitle";
+}
+
+function isBoilerplateMessage(value: string): boolean {
+  return value === "" || JOB_BOILERPLATE_PATTERN.test(value) || looksLikeResponseEnvelope(value);
+}
+
+// "…, jobType=X, jobId=Y, resourceTitle=Z, message=..." 같은 조각을 제거해 사람이 쓴 문장만 남긴다.
 function stripRawJobMetadata(value: string): string {
   return value
+    .replace(JOB_METADATA_FIELD_PATTERN, " ")
     .replace(/[.,]?\s*job(?:type|id)\s*[:=]\s*[^,\n}]*/gi, "")
     .replace(/[.,]?\s*message\s*[:=]\s*AI\s*작업\s*agent-job-[^,\n}]*/gi, "")
     .replace(/agent-job-[a-z0-9-]+/gi, "")
@@ -216,33 +305,132 @@ function stripRawJobMetadata(value: string): string {
 
 export type FormattedNotification = { title: string; body: string | null };
 
+type FormatNotificationInput = Pick<NotificationResponse, "title" | "body"> & {
+  jobType?: AgentJobType | null;
+  resourceTitle?: string | null;
+  sourceType?: NotificationResponse["sourceType"];
+};
+
+function extractProjectRoomName(value: string): string | null {
+  return cleanPreviewText(value.match(/(.+?)\s*프로젝트룸에\s*초대/)?.[1] ?? "") ?? null;
+}
+
+function extractChatRoomName(value: string): string | null {
+  return cleanPreviewText(value.match(/(.+?)\s*그룹\s*채팅에\s*초대/)?.[1] ?? "") ?? null;
+}
+
+function targetBody(t: TranslateFn, key: MessageKey, value: string | null | undefined) {
+  const cleaned = cleanPreviewText(value ?? "");
+  return cleaned ? t(key, { name: cleaned }) : null;
+}
+
+function formatNotificationBySourceType(
+  t: TranslateFn,
+  notification: FormatNotificationInput,
+  input: { rawBody: string; rawTitle: string; resourceTitle: string; responsePreview: string | null },
+): FormattedNotification | null {
+  const { rawBody, rawTitle, resourceTitle, responsePreview } = input;
+
+  switch (notification.sourceType) {
+    case "FRIEND_REQUEST":
+      return {
+        title: t("notification.type.friendRequest"),
+        body: targetBody(t, "notification.target.person", rawTitle) || responsePreview || rawBody || null,
+      };
+    case "FRIEND_ACCEPTED":
+      return {
+        title: t("notification.type.friendAccepted"),
+        body: targetBody(t, "notification.target.person", rawTitle) || responsePreview || rawBody || null,
+      };
+    case "ROOM_INVITE":
+      return {
+        title: t("notification.type.roomInvite"),
+        body: targetBody(t, "notification.target.projectRoom", extractProjectRoomName(rawBody)) || responsePreview || rawBody || null,
+      };
+    case "CHAT_INVITE": {
+      const chatRoomName = extractChatRoomName(rawBody);
+      return {
+        title: t(chatRoomName ? "notification.type.chatInvite" : "notification.type.directChat"),
+        body:
+          targetBody(t, chatRoomName ? "notification.target.chatRoom" : "notification.target.person", chatRoomName || rawTitle) ||
+          responsePreview ||
+          rawBody ||
+          null,
+      };
+    }
+    case "COMMENT":
+      return {
+        title: t("notification.type.comment"),
+        body: resourceTitle ? t("notification.job.resourceTarget", { title: resourceTitle }) : responsePreview || rawBody || null,
+      };
+    case "RESOURCE":
+      return {
+        title: t("notification.type.resource"),
+        body: resourceTitle ? t("notification.job.resourceTarget", { title: resourceTitle }) : responsePreview || rawBody || null,
+      };
+    default:
+      return null;
+  }
+}
+
 /**
  * 알림의 제목/본문을 표시용으로 정리한다. 원시 잡 메타데이터가 감지되면 잡 종류에 맞는
  * 친화 문구로 대체하고, 아니면 원문을 그대로 사용한다.
  */
 export function formatNotificationContent(
   t: TranslateFn,
-  notification: Pick<NotificationResponse, "title" | "body">,
+  notification: FormatNotificationInput,
 ): FormattedNotification {
   const rawTitle = (notification.title ?? "").trim();
   const rawBody = (notification.body ?? "").trim();
   const responsePreview = extractResponsePreview(rawBody) || extractResponsePreview(rawTitle);
+  const providedJobType = notification.jobType ?? undefined;
+  const providedResourceTitle = normalizeMetadataValue(notification.resourceTitle ?? "");
 
   if (!hasRawJobMetadata(notification)) {
+    const typed = formatNotificationBySourceType(t, notification, {
+      rawBody,
+      rawTitle,
+      resourceTitle: providedResourceTitle,
+      responsePreview,
+    });
+    if (typed) return typed;
+
+    if (providedJobType) {
+      const failed = JOB_FAILED_PATTERN.test(`${rawTitle} ${rawBody}`);
+      return {
+        title: t(notificationTitleKey(providedJobType, failed)),
+        body:
+          providedResourceTitle && providedJobType === "ANALYZE_RESOURCE"
+            ? t("notification.job.analyzeResourceTarget", { title: providedResourceTitle })
+            : responsePreview || rawBody || null,
+      };
+    }
     return { title: rawTitle, body: responsePreview || rawBody || null };
   }
 
   const combined = `${rawTitle} ${rawBody}`;
-  const jobType = resolveJobType(combined);
-  const titleKey = jobType ? JOB_TITLE_KEY[jobType] : "notification.job.doneTitle";
+  const metadata = parseJobMetadata(combined);
+  const jobType = providedJobType ?? resolveJobType(combined, metadata);
+  const failed = JOB_FAILED_PATTERN.test(combined);
+  const titleKey = notificationTitleKey(jobType, failed);
+  const resourceTitle = providedResourceTitle || metadata.resourcetitle || metadata.resourcename || metadata.filename || "";
+  const message = normalizeMetadataValue(metadata.message);
 
   // 원문에 잡 메타데이터를 뺀 사람이 쓴 문장이 남아 있으면 본문으로 살리고,
   // 흔한 보일러플레이트("AI 작업이 완료...")만 남으면 일반 안내 문구로 대체한다.
   const remainder = stripRawJobMetadata(rawBody) || stripRawJobMetadata(rawTitle);
-  const isBoilerplate = remainder === "" || BOILERPLATE_PATTERN.test(remainder) || looksLikeResponseEnvelope(remainder);
+  const bodyCandidate = responsePreview || message || remainder;
+  const fallbackBodyKey = failed ? "notification.job.failedBody" : "notification.job.doneBody";
 
   return {
     title: t(titleKey),
-    body: responsePreview || (isBoilerplate ? t("notification.job.doneBody") : remainder),
+    body: responsePreview
+      ? responsePreview
+      : resourceTitle
+        ? t(jobType === "ANALYZE_RESOURCE" ? "notification.job.analyzeResourceTarget" : "notification.job.resourceTarget", { title: resourceTitle })
+        : isBoilerplateMessage(bodyCandidate)
+          ? t(fallbackBodyKey)
+          : bodyCandidate,
   };
 }

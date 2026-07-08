@@ -54,6 +54,7 @@ export const TAURI_COMMANDS = {
   openWidgetWindows: "open_widget_windows",
   quitApp: "quit_app",
   readActiveProjectRoom: "read_active_project_room",
+  readLocalAgentMessages: "read_local_agent_messages",
   readTauriAuthSession: "read_tauri_auth_session",
   readActivityContext: "read_activity_context",
   readLocalFilePreview: "read_local_file_preview",
@@ -96,6 +97,8 @@ export const TAURI_COMMANDS = {
   stageLocalFileAnalysisBackfill: "stage_local_file_analysis_backfill",
   stageLocalFileEventsForSync: "stage_local_file_events_for_sync",
   storeActiveProjectRoom: "store_active_project_room",
+  storeLocalAgentMessages: "store_local_agent_messages",
+  storeLocalAgentSuggestions: "store_local_agent_suggestions",
   storeTauriAuthSession: "store_tauri_auth_session",
   storeWidgetPref: "store_widget_pref",
   storeWidgetSummaryCache: "store_widget_summary_cache",
@@ -484,6 +487,54 @@ export type LocalRoomMessageSyncResult = {
   latestSequence: number;
   roomId: string;
   syncedAt: string;
+};
+
+export type LocalAgentMessageRole = "USER" | "AGENT";
+
+export type LocalAgentMessageStoreInput = {
+  messages: Array<{
+    bodyJson?: string | null;
+    createdAt: string;
+    role: LocalAgentMessageRole;
+    source?: string | null;
+    text: string;
+  }>;
+};
+
+export type LocalAgentMessageReadInput = {
+  limit?: number | null;
+};
+
+export type LocalAgentMessageEntry = {
+  bodyJson?: string | null;
+  createdAt: string;
+  id: string;
+  role: LocalAgentMessageRole;
+  source?: string | null;
+  text: string;
+};
+
+export type LocalAgentMessageReadResult = {
+  items: LocalAgentMessageEntry[];
+};
+
+export type LocalAgentMessageStoreResult = {
+  latestCreatedAt?: string | null;
+  storedCount: number;
+};
+
+export type LocalAgentSuggestionStoreInput = {
+  suggestions: Array<{
+    evidenceJson?: string | null;
+    localSuggestionId?: string | null;
+    payloadJson: string;
+    suggestionType: string;
+  }>;
+};
+
+export type LocalAgentSuggestionStoreResult = {
+  ids: string[];
+  storedCount: number;
 };
 
 export type WidgetSummaryCacheStoreInput = {
@@ -1049,6 +1100,10 @@ export type TauriCommandContract = {
     args: undefined;
     result: ActiveProjectRoomReadResult | null;
   };
+  read_local_agent_messages: {
+    args: LocalAgentMessageReadInput;
+    result: LocalAgentMessageReadResult;
+  };
   read_tauri_auth_session: {
     args: undefined;
     result: TauriAuthSessionReadResult | null;
@@ -1224,6 +1279,14 @@ export type TauriCommandContract = {
   store_active_project_room: {
     args: ActiveProjectRoomStoreInput;
     result: ActiveProjectRoomReadResult;
+  };
+  store_local_agent_messages: {
+    args: LocalAgentMessageStoreInput;
+    result: LocalAgentMessageStoreResult;
+  };
+  store_local_agent_suggestions: {
+    args: LocalAgentSuggestionStoreInput;
+    result: LocalAgentSuggestionStoreResult;
   };
   store_tauri_auth_session: {
     args: TauriAuthSessionStoreInput;
@@ -1412,6 +1475,9 @@ export const tauriCommands = {
   readActiveProjectRoom() {
     return invokeTauri<ActiveProjectRoomReadResult | null>(TAURI_COMMANDS.readActiveProjectRoom);
   },
+  readLocalAgentMessages(input: LocalAgentMessageReadInput) {
+    return invokeTauri<LocalAgentMessageReadResult>(TAURI_COMMANDS.readLocalAgentMessages, { input });
+  },
   readTauriAuthSession() {
     return invokeTauri<TauriAuthSessionReadResult | null>(TAURI_COMMANDS.readTauriAuthSession);
   },
@@ -1564,6 +1630,12 @@ export const tauriCommands = {
   },
   storeActiveProjectRoom(input: ActiveProjectRoomStoreInput) {
     return invokeTauri<ActiveProjectRoomReadResult>(TAURI_COMMANDS.storeActiveProjectRoom, { input });
+  },
+  storeLocalAgentMessages(input: LocalAgentMessageStoreInput) {
+    return invokeTauri<LocalAgentMessageStoreResult>(TAURI_COMMANDS.storeLocalAgentMessages, { input });
+  },
+  storeLocalAgentSuggestions(input: LocalAgentSuggestionStoreInput) {
+    return invokeTauri<LocalAgentSuggestionStoreResult>(TAURI_COMMANDS.storeLocalAgentSuggestions, { input });
   },
   storeTauriAuthSession(input: TauriAuthSessionStoreInput) {
     return invokeTauri<TauriAuthSessionReadResult>(TAURI_COMMANDS.storeTauriAuthSession, { input });

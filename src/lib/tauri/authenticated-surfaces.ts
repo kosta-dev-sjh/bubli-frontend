@@ -95,7 +95,8 @@ export function readTauriAuthenticatedSurfacesLaunchTimeline(): TauriAuthenticat
 }
 
 const loginStartupBarWindow: WidgetWindowOpenInput = { bubbleType: "bar", mode: "DEFAULT", windowId: "bar" };
-const loginStartupWindows: WidgetWindowOpenInput[] = [loginStartupBarWindow];
+const loginStartupAgentOrbWindow: WidgetWindowOpenInput = { bubbleType: "menu", mode: "DEFAULT", windowId: "menu" };
+const loginStartupWindows: WidgetWindowOpenInput[] = [loginStartupBarWindow, loginStartupAgentOrbWindow];
 const desktopWidgetBoardWindows: WidgetWindowOpenInput[] = [
   { bubbleType: "todo", mode: "DEFAULT", windowId: "todo" },
   { bubbleType: "agent", mode: "DEFAULT", windowId: "agent" },
@@ -256,10 +257,10 @@ export async function resolveLoginStartupWindows(): Promise<WidgetWindowOpenInpu
   ).catch(() => null);
   const preference = readDesktopWidgetStartupPreference();
   if (preference.mode === "board") {
-    return [loginStartupBarWindow, ...desktopWidgetBoardWindows];
+    return [loginStartupBarWindow, loginStartupAgentOrbWindow, ...desktopWidgetBoardWindows];
   }
   if (preference.mode === "cascade") {
-    return [loginStartupBarWindow, ...desktopWidgetCascadeWindows];
+    return [loginStartupBarWindow, loginStartupAgentOrbWindow, ...desktopWidgetCascadeWindows];
   }
   return loginStartupWindows;
 }

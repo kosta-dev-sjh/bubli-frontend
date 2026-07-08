@@ -342,6 +342,7 @@ name = "bubli"
 version = "0.1.2"
 dependencies = [
  "chrono",
+ "encoding_rs",
  "flate2",
  "notify",
  "pdf-extract",

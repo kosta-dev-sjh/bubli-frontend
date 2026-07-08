@@ -66,6 +66,7 @@ const TIMER_PERSONAL_STATE_KIND = "timer_personal_state";
 const TIMER_WORK_SNAPSHOT_KIND = "timer_work_snapshot";
 const TODO_TAB_KIND = "todo_tab";
 const POMODORO_KIND = "pomodoro_state";
+const AGENT_REPLY_READ_KIND = "agent_reply_read_state";
 const PREF_MIRROR_PREFIX = "bubli:widget-pref";
 const PREF_CHANGED_EVENT = "bubli-widget-pref-changed";
 const PREF_BROADCAST_CHANNEL = "bubli-widget-pref";
@@ -503,6 +504,87 @@ function clampMinutes(value: unknown, fallback: number, min: number, max: number
 // 인메모리 캐시. Tauri storeWidgetPref는 재오픈·다른 창 공유용이고, 이 캐시는 Tauri가 아닌
 // 환경(웹 위젯)에서도 고스트가 "실행 중 뽀모도로 숫자"를 읽게 해준다(고스트에서 00:00만 뜨던 문제 해결).
 const pomodoroStateCache = new Map<string, PomodoroState>();
+
+type AgentReplyReadState = {
+  lastReadSequenceByChatRoomId: Record<string, number>;
+};
+
+const agentReplyReadStateCache = new Map<string, AgentReplyReadState>();
+
+function isAgentReplyReadState(value: unknown): value is AgentReplyReadState {
+  if (!value || typeof value !== "object") return false;
+  const map = (value as Partial<AgentReplyReadState>).lastReadSequenceByChatRoomId;
+  return Boolean(map && typeof map === "object" && !Array.isArray(map));
+}
+
+function normalizeAgentReplyReadState(value: unknown): AgentReplyReadState {
+  if (!isAgentReplyReadState(value)) return { lastReadSequenceByChatRoomId: {} };
+  return {
+    lastReadSequenceByChatRoomId: Object.fromEntries(
+      Object.entries(value.lastReadSequenceByChatRoomId).filter((entry): entry is [string, number] => {
+        const [chatRoomId, sequence] = entry;
+        return Boolean(chatRoomId.trim()) && typeof sequence === "number" && Number.isFinite(sequence);
+      }),
+    ),
+  };
+}
+
+async function readAgentReplyReadState(selectedRoomId?: string | null): Promise<AgentReplyReadState> {
+  const cacheKey = await resolvePrefCacheKey(selectedRoomId);
+  if (isTauriRuntime()) {
+    try {
+      const cached = await tauriCommands.readWidgetPref({ cacheKey, kind: AGENT_REPLY_READ_KIND });
+      if (cached) {
+        const parsed: unknown = JSON.parse(cached.valueJson);
+        const state = normalizeAgentReplyReadState(parsed);
+        agentReplyReadStateCache.set(cacheKey, state);
+        return state;
+      }
+    } catch {
+      // 저장 읽기 실패는 인메모리 폴백으로 넘어간다.
+    }
+  }
+  return agentReplyReadStateCache.get(cacheKey) ?? { lastReadSequenceByChatRoomId: {} };
+}
+
+export async function readWidgetAgentReplyLastReadSequence(chatRoomId: string, selectedRoomId?: string | null): Promise<number> {
+  return (await readWidgetAgentReplyReadMarker(chatRoomId, selectedRoomId)) ?? 0;
+}
+
+export async function readWidgetAgentReplyReadMarker(chatRoomId: string, selectedRoomId?: string | null): Promise<number | null> {
+  const state = await readAgentReplyReadState(selectedRoomId);
+  const sequence = state.lastReadSequenceByChatRoomId[chatRoomId];
+  return typeof sequence === "number" && Number.isFinite(sequence) ? sequence : null;
+}
+
+export async function writeWidgetAgentReplyLastReadSequence(
+  chatRoomId: string,
+  sequence: number,
+  selectedRoomId?: string | null,
+): Promise<void> {
+  if (!chatRoomId.trim() || !Number.isFinite(sequence)) return;
+  const cacheKey = await resolvePrefCacheKey(selectedRoomId);
+  const current = await readAgentReplyReadState(selectedRoomId);
+  const previous = current.lastReadSequenceByChatRoomId[chatRoomId] ?? 0;
+  const next: AgentReplyReadState = {
+    lastReadSequenceByChatRoomId: {
+      ...current.lastReadSequenceByChatRoomId,
+      [chatRoomId]: Math.max(previous, sequence),
+    },
+  };
+  agentReplyReadStateCache.set(cacheKey, next);
+  if (!isTauriRuntime()) return;
+  try {
+    await tauriCommands.storeWidgetPref({
+      cacheKey,
+      kind: AGENT_REPLY_READ_KIND,
+      valueJson: JSON.stringify(next),
+    });
+    notifyWidgetPrefChangedForBar();
+  } catch {
+    // best-effort
+  }
+}
 
 function normalizePomodoroState(parsed: Partial<PomodoroState>): PomodoroState {
   // 예전 저장본(분 필드 없음)은 기본 25/5로 채워 하위호환한다.

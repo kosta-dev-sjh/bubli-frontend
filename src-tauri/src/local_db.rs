@@ -191,6 +191,76 @@ pub struct LocalRoomMessageReadResult {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct LocalAgentMessageStoreInput {
+    #[serde(default)]
+    messages: Vec<LocalAgentMessageStoreItem>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalAgentMessageStoreItem {
+    body_json: Option<String>,
+    created_at: String,
+    role: String,
+    source: Option<String>,
+    text: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalAgentMessageReadInput {
+    limit: Option<i64>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalAgentMessageEntry {
+    body_json: Option<String>,
+    created_at: String,
+    id: String,
+    role: String,
+    source: Option<String>,
+    text: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalAgentMessageReadResult {
+    items: Vec<LocalAgentMessageEntry>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalAgentMessageStoreResult {
+    latest_created_at: Option<String>,
+    stored_count: i64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalAgentSuggestionStoreInput {
+    #[serde(default)]
+    suggestions: Vec<LocalAgentSuggestionStoreItem>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalAgentSuggestionStoreItem {
+    evidence_json: Option<String>,
+    local_suggestion_id: Option<String>,
+    payload_json: String,
+    suggestion_type: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalAgentSuggestionStoreResult {
+    ids: Vec<String>,
+    stored_count: i64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WidgetSummaryCacheStoreInput {
     cache_key: Option<String>,
     summary_json: String,
@@ -785,6 +855,33 @@ pub fn read_room_messages(
 }
 
 #[tauri::command]
+pub fn store_local_agent_messages(
+    state: tauri::State<'_, Db>,
+    input: LocalAgentMessageStoreInput,
+) -> Result<LocalAgentMessageStoreResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    store_local_agent_messages_for_conn(&conn, input)
+}
+
+#[tauri::command]
+pub fn read_local_agent_messages(
+    state: tauri::State<'_, Db>,
+    input: LocalAgentMessageReadInput,
+) -> Result<LocalAgentMessageReadResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    read_local_agent_messages_for_conn(&conn, input)
+}
+
+#[tauri::command]
+pub fn store_local_agent_suggestions(
+    state: tauri::State<'_, Db>,
+    input: LocalAgentSuggestionStoreInput,
+) -> Result<LocalAgentSuggestionStoreResult, String> {
+    let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    store_local_agent_suggestions_for_conn(&conn, input)
+}
+
+#[tauri::command]
 pub fn store_widget_summary_cache(
     state: tauri::State<'_, Db>,
     input: WidgetSummaryCacheStoreInput,
@@ -944,6 +1041,150 @@ fn read_room_messages_for_conn(
         room_id,
         state,
         synced_at,
+    })
+}
+
+fn normalize_local_agent_role(role: &str) -> Result<String, String> {
+    let normalized = role.trim().to_uppercase();
+    match normalized.as_str() {
+        "USER" | "AGENT" => Ok(normalized),
+        _ => Err("local agent message role must be USER or AGENT".to_string()),
+    }
+}
+
+fn store_local_agent_messages_for_conn(
+    conn: &Connection,
+    input: LocalAgentMessageStoreInput,
+) -> Result<LocalAgentMessageStoreResult, String> {
+    let stored_at = now_ms();
+    let mut stored_count = 0;
+    let mut latest_created_at: Option<String> = None;
+
+    for message in input.messages {
+        let role = normalize_local_agent_role(&message.role)?;
+        let text = message.text.trim().to_string();
+        if text.is_empty() {
+            return Err("local agent message text is required".to_string());
+        }
+        let created_at = message.created_at.trim().to_string();
+        if created_at.is_empty() {
+            return Err("local agent message createdAt is required".to_string());
+        }
+        if let Some(body_json) = message.body_json.as_deref() {
+            serde_json::from_str::<Value>(body_json)
+                .map_err(|error| format!("bodyJson must be valid JSON: {error}"))?;
+        }
+
+        let id = format!("local-agent-message-{}", Uuid::new_v4());
+        conn.execute(
+            "INSERT INTO local_agent_messages \
+             (id, role, text, body_json, source, created_at, stored_at) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                id,
+                role,
+                text,
+                message.body_json,
+                message.source,
+                created_at,
+                stored_at
+            ],
+        )
+        .map_err(|error| error.to_string())?;
+
+        latest_created_at = Some(created_at);
+        stored_count += 1;
+    }
+
+    Ok(LocalAgentMessageStoreResult {
+        latest_created_at,
+        stored_count,
+    })
+}
+
+fn read_local_agent_messages_for_conn(
+    conn: &Connection,
+    input: LocalAgentMessageReadInput,
+) -> Result<LocalAgentMessageReadResult, String> {
+    let limit = input.limit.unwrap_or(20).clamp(1, 100);
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, role, text, body_json, source, created_at \
+             FROM local_agent_messages \
+             ORDER BY stored_at DESC \
+             LIMIT ?1",
+        )
+        .map_err(|error| error.to_string())?;
+    let mut items = stmt
+        .query_map(params![limit], |row| {
+            Ok(LocalAgentMessageEntry {
+                id: row.get(0)?,
+                role: row.get(1)?,
+                text: row.get(2)?,
+                body_json: row.get(3)?,
+                source: row.get(4)?,
+                created_at: row.get(5)?,
+            })
+        })
+        .map_err(|error| error.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?;
+    items.reverse();
+
+    Ok(LocalAgentMessageReadResult { items })
+}
+
+fn store_local_agent_suggestions_for_conn(
+    conn: &Connection,
+    input: LocalAgentSuggestionStoreInput,
+) -> Result<LocalAgentSuggestionStoreResult, String> {
+    let now = now_ms();
+    let mut ids = Vec::new();
+
+    for suggestion in input.suggestions {
+        let suggestion_type = suggestion.suggestion_type.trim().to_string();
+        if suggestion_type.is_empty() {
+            return Err("local agent suggestionType is required".to_string());
+        }
+        serde_json::from_str::<Value>(&suggestion.payload_json)
+            .map_err(|error| format!("payloadJson must be valid JSON: {error}"))?;
+        if let Some(evidence_json) = suggestion.evidence_json.as_deref() {
+            serde_json::from_str::<Value>(evidence_json)
+                .map_err(|error| format!("evidenceJson must be valid JSON: {error}"))?;
+        }
+
+        let id = suggestion
+            .local_suggestion_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| format!("local-agent-suggestion-{}", Uuid::new_v4()));
+
+        conn.execute(
+            "INSERT INTO local_agent_suggestions \
+             (id, suggestion_type, payload_json, evidence_json, status, created_at, updated_at) \
+             VALUES (?1, ?2, ?3, ?4, 'DRAFT', ?5, ?5) \
+             ON CONFLICT(id) DO UPDATE SET \
+               suggestion_type = excluded.suggestion_type, \
+               payload_json = excluded.payload_json, \
+               evidence_json = excluded.evidence_json, \
+               updated_at = excluded.updated_at",
+            params![
+                id,
+                suggestion_type,
+                suggestion.payload_json,
+                suggestion.evidence_json,
+                now
+            ],
+        )
+        .map_err(|error| error.to_string())?;
+        ids.push(id);
+    }
+
+    Ok(LocalAgentSuggestionStoreResult {
+        stored_count: ids.len() as i64,
+        ids,
     })
 }
 
@@ -1651,6 +1892,30 @@ CREATE TABLE IF NOT EXISTS local_room_cache_state (
     state           TEXT NOT NULL DEFAULT 'STALE',
     synced_at       INTEGER NOT NULL
 );
+
+-- Personal agent widget chat. Server does not persist personal agent messages.
+CREATE TABLE IF NOT EXISTS local_agent_messages (
+    id         TEXT PRIMARY KEY,
+    role       TEXT NOT NULL CHECK(role IN ('USER', 'AGENT')),
+    text       TEXT NOT NULL,
+    body_json  TEXT,
+    source     TEXT,
+    created_at TEXT NOT NULL,
+    stored_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_local_agent_messages_stored ON local_agent_messages(stored_at);
+
+-- Personal agent suggestions stay local until the user approves and creates real data.
+CREATE TABLE IF NOT EXISTS local_agent_suggestions (
+    id              TEXT PRIMARY KEY,
+    suggestion_type TEXT NOT NULL,
+    payload_json    TEXT NOT NULL,
+    evidence_json   TEXT,
+    status          TEXT NOT NULL DEFAULT 'DRAFT',
+    created_at      INTEGER NOT NULL,
+    updated_at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_local_agent_suggestions_status ON local_agent_suggestions(status, updated_at);
 
 -- Widget display cache. Server widget summary remains the source of truth;
 -- this row lets the Tauri shell show the last known bubble layout/context when

@@ -3,7 +3,8 @@ import { ApiClientError } from "@/lib/api/errors";
 import type { AgentJobResponse } from "@/types/api/agent";
 import type { PageResponse } from "@/types/api/common";
 import type { FriendApiResponse, FriendRequestApiResponse, FriendSearchApiResponse } from "@/types/api/friend";
-import type { ResourceDownloadUrlResponse } from "@/types/api/resource";
+import type { NotificationResponse } from "@/types/api/notification";
+import type { ResourceDownloadUrlResponse, ResourceResponse } from "@/types/api/resource";
 import type { TimeLogResponse } from "@/types/api/timer";
 import { withWidgetDevAuthHeaders } from "./widgetAuthHeaders";
 
@@ -29,6 +30,7 @@ export type WidgetAgentSuggestionType =
   | "DAILY_SUMMARY"
   | "MEMO";
 export type WidgetNotificationStatus = "UNREAD" | "READ" | "ARCHIVED";
+export type WidgetNotificationSourceType = Exclude<NotificationResponse["sourceType"], undefined>;
 
 export type WidgetTaskResponse = {
   assigneeUserId: string | null;
@@ -105,7 +107,7 @@ export type WidgetNotificationResponse = {
   id: string;
   readAt: string | null;
   sourceId: string | null;
-  sourceType: "MESSAGE" | "COMMENT" | "RESOURCE" | "AGENT";
+  sourceType: WidgetNotificationSourceType;
   status: WidgetNotificationStatus;
   title: string;
 };
@@ -320,6 +322,14 @@ export const widgetDisplayApi = {
     });
   },
 
+  getAgentJob(jobId: string) {
+    return widgetDisplayRequest<AgentJobResponse>(`/api/agent-jobs/${jobId}`);
+  },
+
+  getResource(resourceId: string) {
+    return widgetDisplayRequest<ResourceResponse>(`/api/resources/${resourceId}`);
+  },
+
   getResourceDownloadUrl(resourceId: string) {
     return widgetDisplayRequest<ResourceDownloadUrlResponse>(`/api/resources/${resourceId}/download-url`);
   },
@@ -384,8 +394,8 @@ export const widgetDisplayApi = {
     return widgetDisplayRequest<WidgetAgentSuggestionResponse[]>("/api/agent/suggestions?status=DRAFT");
   },
 
-  listNotifications(size = 6) {
-    return widgetDisplayRequest<PageResponse<WidgetNotificationResponse>>(`/api/notifications?page=0&size=${size}`);
+  listNotifications(size = 6, page = 0) {
+    return widgetDisplayRequest<PageResponse<WidgetNotificationResponse>>(`/api/notifications?page=${page}&size=${size}`);
   },
 
   listChatRooms(size = 6) {
