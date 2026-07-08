@@ -870,6 +870,10 @@ const ko = {
     "'확인되지 않은 개발자' 경고라면 시스템 설정 → 개인정보 보호 및 보안 → 맨 아래 '확인 없이 열기'로 진행할 수 있어요.",
   "settings.desktop.macGuide4":
     "'손상되었기 때문에 열 수 없습니다' 또는 '휴지통으로 이동'만 보이면, 공식 링크에서 받은 파일이 확실할 때만 터미널에서 아래 명령어를 실행하세요.",
+  "settings.desktop.windowsGuideToggle": "Windows에서 보안 경고가 뜨나요?",
+  "settings.desktop.windowsGuide1": "SmartScreen의 'Windows에서 PC를 보호했습니다'가 뜨면 신뢰할 수 있는 bubli.n-e.kr에서 받은 파일인지 먼저 확인하세요.",
+  "settings.desktop.windowsGuide2": "파일을 신뢰할 수 있을 때만 '추가 정보' → '실행'을 눌러 설치를 계속하세요.",
+  "settings.desktop.windowsGuide3": "브라우저나 Microsoft Defender가 다운로드를 차단하면 파일 출처를 다시 확인하고, 출처가 다르면 실행하지 마세요.",
   "settings.row.desktopOnlyNote": "데스크톱 앱에서 켜고 끌 수 있어요.",
   "settings.gcal.disconnectCta": "연결 해제",
   "settings.msg.gcalDisconnected": "구글 캘린더 연결을 해제했습니다",
@@ -1719,6 +1723,10 @@ const en: Record<Key, string> = {
     "If macOS says the developer is unidentified, go to System Settings \u2192 Privacy & Security \u2192 Open Anyway at the bottom.",
   "settings.desktop.macGuide4":
     "If macOS says the app is damaged or only shows Move to Trash, run the command below in Terminal only if you are sure the file came from the official link.",
+  "settings.desktop.windowsGuideToggle": "Seeing a Windows security warning?",
+  "settings.desktop.windowsGuide1": "If SmartScreen says Windows protected your PC, first confirm the file came from the trusted bubli.n-e.kr download.",
+  "settings.desktop.windowsGuide2": "Only when you trust the file, choose More info \u2192 Run anyway to continue installing.",
+  "settings.desktop.windowsGuide3": "If the browser or Microsoft Defender blocks the download, check the file source again and do not run it if it came from somewhere else.",
   "settings.row.desktopOnlyNote": "Turn this on or off in the desktop app",
   "settings.gcal.disconnectCta": "Disconnect",
   "settings.msg.gcalDisconnected": "Disconnected Google Calendar",
@@ -2566,6 +2574,10 @@ const ja: Record<Key, string> = {
     "「開発元が未確認」という警告の場合は、システム設定 → プライバシーとセキュリティ → 最下部の「このまま開く」から進めます。",
   "settings.desktop.macGuide4":
     "「破損しているため開けません」または「ゴミ箱に入れる」だけが表示される場合は、公式リンクから取得したファイルだと確信できるときだけ、ターミナルで次のコマンドを実行してください。",
+  "settings.desktop.windowsGuideToggle": "Windowsでセキュリティ警告が出ますか？",
+  "settings.desktop.windowsGuide1": "SmartScreenで「WindowsによってPCが保護されました」と表示されたら、まず信頼できる bubli.n-e.kr から取得したファイルか確認してください。",
+  "settings.desktop.windowsGuide2": "ファイルを信頼できる場合に限り、「詳細情報」→「実行」を選んでインストールを続けます。",
+  "settings.desktop.windowsGuide3": "ブラウザや Microsoft Defender がダウンロードをブロックした場合は出所を再確認し、別の場所から取得したファイルなら実行しないでください。",
   "settings.row.desktopOnlyNote": "デスクトップアプリでオン/オフできます",
   "settings.gcal.disconnectCta": "連携を解除",
   "settings.msg.gcalDisconnected": "Google カレンダーの連携を解除しました",

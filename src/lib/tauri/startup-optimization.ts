@@ -23,6 +23,7 @@ export type TauriStartupOptimizationConfig = {
 
 const STARTUP_OPTIMIZATION_CACHE_KEY = "tauri-runtime";
 const STARTUP_OPTIMIZATION_KIND = "startup_optimization_profile";
+const STARTUP_OPTIMIZATION_PLATFORM = "windows";
 let startupOptimizationConfigPromise: Promise<TauriStartupOptimizationConfig> | null = null;
 
 const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimizationConfig> = {
@@ -116,6 +117,12 @@ function isWindowsRuntime() {
   return isTauriRuntime() && typeof navigator !== "undefined" && /\bWindows\b/i.test(navigator.userAgent);
 }
 
+function resolveCachedProfile(parsed: { platform?: unknown; profile?: unknown }): TauriStartupOptimizationProfile {
+  const cachedProfile = normalizeProfile(parsed.profile);
+  if (isWindowsRuntime() && parsed.platform !== STARTUP_OPTIMIZATION_PLATFORM) return "windows";
+  return cachedProfile ?? resolveDefaultProfile();
+}
+
 export function defaultTauriStartupOptimizationConfig(): TauriStartupOptimizationConfig {
   return profileConfigs[resolveDefaultProfile()];
 }
@@ -130,8 +137,8 @@ export async function readTauriStartupOptimizationConfig(): Promise<TauriStartup
       kind: STARTUP_OPTIMIZATION_KIND,
     });
     if (!cached) return defaultTauriStartupOptimizationConfig();
-    const parsed = JSON.parse(cached.valueJson) as { profile?: unknown };
-    return profileConfigs[normalizeProfileOrDefault(parsed.profile)];
+    const parsed = JSON.parse(cached.valueJson) as { platform?: unknown; profile?: unknown };
+    return profileConfigs[resolveCachedProfile(parsed)];
   })().catch(() => defaultTauriStartupOptimizationConfig());
 
   try {
@@ -148,6 +155,9 @@ export async function writeTauriStartupOptimizationProfile(profile: TauriStartup
   await tauriCommands.storeWidgetPref({
     cacheKey: STARTUP_OPTIMIZATION_CACHE_KEY,
     kind: STARTUP_OPTIMIZATION_KIND,
-    valueJson: JSON.stringify({ profile: normalizeProfileOrDefault(profile) }),
+    valueJson: JSON.stringify({
+      platform: isWindowsRuntime() ? STARTUP_OPTIMIZATION_PLATFORM : "default",
+      profile: normalizeProfileOrDefault(profile),
+    }),
   });
 }

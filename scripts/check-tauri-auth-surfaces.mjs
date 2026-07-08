@@ -247,6 +247,11 @@ assertContains(
   "Windows startup optimization must use batched widget opening, bounded initial display loads, bounded initial notification scans, slower fallback polling, no startup settings prefetch, menu reuse verification, first-paint deferral, and summary prewarm.",
 );
 assertContains(
+  startupOptimization,
+  /const STARTUP_OPTIMIZATION_PLATFORM = "windows"[\s\S]*function resolveCachedProfile\(parsed: \{ platform\?: unknown; profile\?: unknown \}\)[\s\S]*isWindowsRuntime\(\) && parsed\.platform !== STARTUP_OPTIMIZATION_PLATFORM[\s\S]*return "windows"[\s\S]*return cachedProfile \?\? resolveDefaultProfile\(\)[\s\S]*platform: isWindowsRuntime\(\) \? STARTUP_OPTIMIZATION_PLATFORM : "default"/,
+  "Windows startup optimization must migrate legacy cached profiles to the Windows profile while preserving newly written platform-tagged preferences.",
+);
+assertContains(
   publishTauriWindowsDownload,
   /const sourceRelative = windowsInstallerSourceRelative\(\)[\s\S]*const source = resolve\(root, sourceRelative\)[\s\S]*public\/downloads\/windows\/Bubli-Windows-latest\.exe[\s\S]*manifest\.json[\s\S]*source: sourceRelative[\s\S]*src-tauri\/target\/release\/bundle\/nsis\/\$\{productName\}_\$\{version\}_x64-setup\.exe/,
   "Windows download publish must copy the signed/iconed NSIS installer to the public direct-download exe path.",
@@ -592,6 +597,11 @@ assertContains(
   windowsRuntimeSmoke,
   /runNodeScript\(\["scripts\/check-tauri-runtime-preflight\.mjs"\][\s\S]*NEXT_PUBLIC_API_BASE_URL: API_BASE_URL/,
   "Windows Tauri runtime smoke must run the preflight before seeding or launching Tauri.",
+);
+assertContains(
+  devWidgetRealBackend,
+  /Tauri widget real API smoke task[\s\S]*timestamp with time zone '2000-01-01 00:00:00\+00'[\s\S]*Confirm backend summary rendering[\s\S]*timestamp with time zone '2000-01-01 00:05:00\+00'/,
+  "Windows real-backend smoke seed tasks must stay inside the backend room summary limit even when demo tasks already exist.",
 );
 assertContains(
   windowsRuntimeSmoke,
