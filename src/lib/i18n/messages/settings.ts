@@ -859,7 +859,7 @@ const ko = {
   "settings.desktop.desc": "이 기기에서 실행 중인 데스크톱 앱 전용 설정입니다.",
   "settings.desktop.folders": "관리 폴더",
   "settings.desktop.webBody":
-    "데스크톱 앱은 버블, 로컬 폴더 동기화, 백업을 관리해요. 아래 보안 안내는 macOS 앱을 처음 열 때만 해당될 수 있어요.",
+    "데스크톱 앱은 버블, 로컬 폴더 동기화, 백업을 관리해요. 아래 보안 안내는 사용하는 OS에서 처음 설치하거나 실행할 때만 해당될 수 있어요.",
   "settings.desktop.downloadMac": "macOS용 다운로드 (.dmg)",
   "settings.desktop.downloadWindows": "Windows용 다운로드 (.exe)",
   "settings.desktop.detected": "지금 쓰는 기기에 맞는 버전을 먼저 보여드려요. 다른 OS라면 옆 링크로 받으세요.",
@@ -1712,7 +1712,7 @@ const en: Record<Key, string> = {
   "settings.desktop.desc": "Settings for the desktop app running on this device.",
   "settings.desktop.folders": "Managed folders",
   "settings.desktop.webBody":
-    "The desktop app manages bubbles, local folder sync, and backups. The security note below may apply only when opening the macOS app for the first time.",
+    "The desktop app manages bubbles, local folder sync, and backups. The security notes below may apply only when installing or opening the app for the first time on your OS.",
   "settings.desktop.downloadMac": "Download for macOS (.dmg)",
   "settings.desktop.downloadWindows": "Download for Windows (.exe)",
   "settings.desktop.detected": "We show the build for your current device first. On another OS, use the link beside it.",
@@ -2563,7 +2563,7 @@ const ja: Record<Key, string> = {
   "settings.desktop.desc": "この端末で実行中のデスクトップアプリ専用の設定です。",
   "settings.desktop.folders": "管理フォルダ",
   "settings.desktop.webBody":
-    "デスクトップアプリでは、バブル、ローカルフォルダ同期、バックアップを管理します。下のセキュリティ案内は、macOS アプリを初めて開く場合にのみ該当することがあります。",
+    "デスクトップアプリでは、バブル、ローカルフォルダ同期、バックアップを管理します。下のセキュリティ案内は、利用中の OS で初めてインストールまたは起動する場合にのみ該当することがあります。",
   "settings.desktop.downloadMac": "macOS版をダウンロード (.dmg)",
   "settings.desktop.downloadWindows": "Windows版をダウンロード (.exe)",
   "settings.desktop.detected": "今の端末に合う版を先に表示します。別のOSなら横のリンクから取得してください。",

@@ -2391,13 +2391,18 @@ function DesktopWidgetSurface() {
       const loadFullDisplay = isBubbleBar && barFullDisplayReady;
       const shouldLoadBubbleData = (...bubbleTypes: WidgetBubbleType[]) =>
         loadFullDisplay || (!isWidgetChrome && bubbleTypes.includes(activeBubble));
+      const deferBarAgentCollections =
+        isTauri &&
+        loadFullDisplay &&
+        startupOptimization.deferBarAgentCollectionsOnInitialDisplay &&
+        !displayLoadedOnceRef.current;
       const voiceRoomId = activeVoiceRoomId;
       const loadDashboard = shouldLoadBubbleData("timer", "todo", "schedule", "alert");
       const loadTasks = shouldLoadBubbleData("todo");
       const loadSchedules = shouldLoadBubbleData("schedule");
       const loadResources = shouldLoadBubbleData("resource");
-      const loadSuggestions = shouldLoadBubbleData("agent");
-      const loadGeneratedDocuments = shouldLoadBubbleData("agent");
+      const loadSuggestions = shouldLoadBubbleData("agent") && !deferBarAgentCollections;
+      const loadGeneratedDocuments = shouldLoadBubbleData("agent") && !deferBarAgentCollections;
       const loadMemos = shouldLoadBubbleData("memo");
       const loadNotifications = shouldLoadBubbleData("alert", "chat");
       const loadChat = shouldLoadBubbleData("chat");
@@ -2696,7 +2701,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [activeBubble, activeVoiceRoomId, agentRevision, barFullDisplayReady, chatScope, communicationRevision, currentUserBubliId, currentUserId, displayRefreshRevision, isBubbleBar, isMenuOrb, isTauri, isWidgetChrome, itemStateOverrides, memoRevision, notificationRevision, resourceRevision, scheduleRevision, selectedPeerChatRoomId, selectedWidgetRoomId, startupOptimization.initialDisplayPageSize, startupOptimization.initialNotificationScanPages, t, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContextInitialized, widgetSessionReady]);
+  }, [activeBubble, activeVoiceRoomId, agentRevision, barFullDisplayReady, chatScope, communicationRevision, currentUserBubliId, currentUserId, displayRefreshRevision, isBubbleBar, isMenuOrb, isTauri, isWidgetChrome, itemStateOverrides, memoRevision, notificationRevision, resourceRevision, scheduleRevision, selectedPeerChatRoomId, selectedWidgetRoomId, startupOptimization.deferBarAgentCollectionsOnInitialDisplay, startupOptimization.initialDisplayPageSize, startupOptimization.initialNotificationScanPages, t, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContextInitialized, widgetSessionReady]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;

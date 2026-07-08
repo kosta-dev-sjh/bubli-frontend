@@ -1,8 +1,8 @@
 "use client";
 
 // 웹에서 데스크톱 앱을 받을 때: 방문 OS를 감지해 맞는 빌드를 먼저 보여주고,
-// 감지 실패 시 Windows/macOS 둘 다 제공한다. macOS 빌드는 테스트 배포용이라
-// Gatekeeper 경고와 quarantine 해제 안내를 함께 노출한다.
+// 감지 실패 시 Windows/macOS 둘 다 제공한다. macOS Gatekeeper와 Windows
+// SmartScreen은 복구 경로가 달라 플랫폼별 안내를 분리해 노출한다.
 import { useEffect, useState } from "react";
 
 import { useI18n } from "@/lib/i18n";
