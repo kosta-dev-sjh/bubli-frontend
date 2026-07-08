@@ -167,7 +167,10 @@ fn read_usage_metrics(
         conn.query_row(
                 "SELECT \
                    COUNT(*) AS source_event_count, \
-                   COALESCE(SUM(CASE WHEN lower(event_type) LIKE 'open%' THEN 1 ELSE 0 END), 0) AS open_count, \
+                   COALESCE(SUM(CASE \
+                     WHEN lower(event_type) LIKE 'open%' AND lower(event_type) != 'open:auto-login' THEN 1 \
+                     ELSE 0 \
+                   END), 0) AS open_count, \
                    COALESCE(SUM(CASE \
                      WHEN lower(event_type) LIKE 'open%' THEN 0 \
                      WHEN lower(event_type) LIKE 'summary:%' THEN 0 \
@@ -184,7 +187,10 @@ fn read_usage_metrics(
         conn.query_row(
                 "SELECT \
                    COUNT(*) AS source_event_count, \
-                   COALESCE(SUM(CASE WHEN lower(event_type) LIKE 'open%' THEN 1 ELSE 0 END), 0) AS open_count, \
+                   COALESCE(SUM(CASE \
+                     WHEN lower(event_type) LIKE 'open%' AND lower(event_type) != 'open:auto-login' THEN 1 \
+                     ELSE 0 \
+                   END), 0) AS open_count, \
                    COALESCE(SUM(CASE \
                      WHEN lower(event_type) LIKE 'open%' THEN 0 \
                      WHEN lower(event_type) LIKE 'summary:%' THEN 0 \
@@ -594,7 +600,7 @@ mod tests {
             read_usage_metrics(&conn, "2026-07-07", "todo").expect("read usage metrics");
 
         assert_eq!(source_event_count, 6);
-        assert_eq!(open_count, 2);
+        assert_eq!(open_count, 1);
         assert_eq!(interaction_count, 1);
         assert_eq!(visible_seconds, 6);
     }

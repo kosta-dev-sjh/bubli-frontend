@@ -50,6 +50,7 @@ const files = {
   tauriInstallerSidebarBmp: "src-tauri/icons/installer-sidebar.bmp",
   tauriDevtoolsGuard: "src/lib/tauri/tauri-devtools-guard.tsx",
   tauriLib: "src-tauri/src/lib.rs",
+  tauriWidgetUsage: "src-tauri/src/widget_usage.rs",
   prepareTauriDist: "scripts/prepare-tauri-dist.mjs",
   buildTauriWindowsDownload: "scripts/build-tauri-windows-download.mjs",
   publishTauriWindowsDownload: "scripts/publish-tauri-windows-download.mjs",
@@ -185,6 +186,7 @@ const tauriInstallerHeaderBmp = readBuffer(files.tauriInstallerHeaderBmp);
 const tauriInstallerSidebarBmp = readBuffer(files.tauriInstallerSidebarBmp);
 const tauriDevtoolsGuard = read(files.tauriDevtoolsGuard);
 const tauriLib = read(files.tauriLib);
+const tauriWidgetUsage = read(files.tauriWidgetUsage);
 const prepareTauriDist = read(files.prepareTauriDist);
 const buildTauriWindowsDownload = read(files.buildTauriWindowsDownload);
 const publishTauriWindowsDownload = read(files.publishTauriWindowsDownload);
@@ -243,8 +245,8 @@ assertContains(
 );
 assertContains(
   startupOptimization,
-  /windows:\s*\{[\s\S]*bubbleOpenStaggerMs:\s*0,[\s\S]*deferBarFullDisplayUntilAfterFirstPaint:\s*true,[\s\S]*initialDisplayPageSize:\s*30,[\s\S]*initialNotificationScanPages:\s*2,[\s\S]*menuOrbBadgeRefreshIntervalMs:\s*20_000,[\s\S]*preloadWidgetSettingsDuringStartup:\s*false,[\s\S]*requireMenuWindowDuringStartupReuse:\s*true,[\s\S]*summaryPrewarmTimeoutMs:\s*1_800,[\s\S]*widgetContextRefreshIntervalMs:\s*30_000/,
-  "Windows startup optimization must use batched widget opening, bounded initial display loads, bounded initial notification scans, slower fallback polling, no startup settings prefetch, menu reuse verification, first-paint deferral, and summary prewarm.",
+  /windows:\s*\{[\s\S]*bubbleOpenStaggerMs:\s*0,[\s\S]*deferBarAgentCollectionsOnInitialDisplay:\s*true,[\s\S]*deferBarFullDisplayUntilAfterFirstPaint:\s*true,[\s\S]*initialDisplayPageSize:\s*30,[\s\S]*initialNotificationScanPages:\s*2,[\s\S]*menuOrbBadgeRefreshIntervalMs:\s*20_000,[\s\S]*preloadWidgetSettingsDuringStartup:\s*false,[\s\S]*requireMenuWindowDuringStartupReuse:\s*true,[\s\S]*summaryPrewarmTimeoutMs:\s*1_800,[\s\S]*widgetContextRefreshIntervalMs:\s*30_000/,
+  "Windows startup optimization must use batched widget opening, defer duplicate bar agent collection loads, bounded initial display loads, bounded initial notification scans, slower fallback polling, no startup settings prefetch, menu reuse verification, first-paint deferral, and summary prewarm.",
 );
 assertContains(
   startupOptimization,
@@ -655,6 +657,11 @@ assertContains(
   "Windows release executables must use the GUI subsystem so users never see a console window.",
 );
 assertContains(
+  tauriMain,
+  /#\[cfg\(windows\)\][\s\S]*fn windows_single_instance_guard\(\) -> Option<WindowsSingleInstanceGuard>[\s\S]*CreateMutexW[\s\S]*Local\\{2}BubliDesktopSingleInstance[\s\S]*ERROR_ALREADY_EXISTS[\s\S]*return None/,
+  "Windows Tauri entrypoint must hold a named mutex and exit duplicate launches before a second widget window set can be created.",
+);
+assertContains(
   tauriConf,
   /"beforeBuildCommand":\s*"npm run build && node scripts\/prepare-tauri-dist\.mjs"[\s\S]*"frontendDist":\s*"\.\.\/\.tauri-dist"/,
   "Tauri release builds must package the prepared .tauri-dist directory instead of raw .next server output.",
@@ -992,6 +999,11 @@ assertContains(
   runtimeSmokeRunner,
   /for \(const bubbleType of smokeWidgetBubbles\) \{[\s\S]*recordWidgetUsageEvent\(\{[\s\S]*all bubble widget usage rollups created[\s\S]*syncLocalWidgetUsageSummaryToServer\(\{[\s\S]*rollupKeys: smokeRollupKeys[\s\S]*widget usage summary reached backend sync API[\s\S]*all bubble widget usage summaries marked SQLite rollups as SYNCED[\s\S]*synced all bubble widget usage rollups no longer remain pending[\s\S]*widgetApi\.getTodayUsageRollups\(\)[\s\S]*synced all bubble widget usage appears in real backend today readback/,
   "TauriRuntimeSmokeRunner must verify all bubble widget usage rollups reach the backend, leave local SQLite pending state, and appear in server today readback.",
+);
+assertContains(
+  tauriWidgetUsage,
+  /lower\(event_type\) LIKE 'open%' AND lower\(event_type\) != 'open:auto-login'[\s\S]*lower\(event_type\) LIKE 'open%' THEN 0[\s\S]*\('event-2', 'todo', 'open:auto-login'[\s\S]*assert_eq!\(open_count, 1\)/,
+  "Widget usage openCount must exclude automatic login restores so repeated app launches do not look like manual widget opens.",
 );
 assertContains(
   runtimeSmokeRunner,
@@ -1813,6 +1825,11 @@ assertContains(
   widgetPage,
   /const initialDisplayPageSize =[\s\S]*startupOptimization\.initialDisplayPageSize[\s\S]*const initialNotificationScanPages =[\s\S]*isTauri && !displayLoadedOnceRef\.current && startupOptimization\.initialNotificationScanPages > 0[\s\S]*widgetDisplayApi\.listSchedules\(selectedRoomId, initialDisplayPageSize\)[\s\S]*widgetDisplayApi\.listResources\(selectedRoomId, initialDisplayPageSize\)[\s\S]*widgetDisplayApi\.listMemos\(selectedRoomId, initialDisplayPageSize\)[\s\S]*listWidgetVisibleUnreadNotifications\(WIDGET_NOTIFICATION_DISPLAY_LIMIT, initialNotificationScanPages\)[\s\S]*startupOptimization\.initialDisplayPageSize[\s\S]*startupOptimization\.initialNotificationScanPages/,
   "Desktop widget must use the Windows startup profile to bound first-load schedule/resource/memo requests and notification scans without affecting later refreshes.",
+);
+assertContains(
+  widgetPage,
+  /const deferBarAgentCollections =[\s\S]*startupOptimization\.deferBarAgentCollectionsOnInitialDisplay[\s\S]*!displayLoadedOnceRef\.current[\s\S]*const loadSuggestions = shouldLoadBubbleData\("agent"\) && !deferBarAgentCollections[\s\S]*const loadGeneratedDocuments = shouldLoadBubbleData\("agent"\) && !deferBarAgentCollections[\s\S]*startupOptimization\.deferBarAgentCollectionsOnInitialDisplay/,
+  "Desktop widget must let the Windows startup profile skip duplicate bar agent collection requests on the initial full bar display.",
 );
 assertContains(
   widgetPage,

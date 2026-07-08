@@ -7,6 +7,7 @@ export type TauriStartupOptimizationConfig = {
   bubbleOpenStaggerMs: number;
   deferredBarFullDisplayDelayMs: number;
   deferBarFullDisplayUntilAfterFirstPaint: boolean;
+  deferBarAgentCollectionsOnInitialDisplay: boolean;
   initialDisplayPageSize: number;
   initialNotificationScanPages: number;
   menuOrbBadgeRefreshIntervalMs: number;
@@ -30,6 +31,7 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
   aggressive: {
     bubbleOpenStaggerMs: 180,
     deferredBarFullDisplayDelayMs: 1_200,
+    deferBarAgentCollectionsOnInitialDisplay: false,
     deferBarFullDisplayUntilAfterFirstPaint: true,
     initialDisplayPageSize: 0,
     initialNotificationScanPages: 0,
@@ -47,6 +49,7 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
   balanced: {
     bubbleOpenStaggerMs: 0,
     deferredBarFullDisplayDelayMs: 0,
+    deferBarAgentCollectionsOnInitialDisplay: false,
     deferBarFullDisplayUntilAfterFirstPaint: false,
     initialDisplayPageSize: 0,
     initialNotificationScanPages: 0,
@@ -64,6 +67,7 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
   fast: {
     bubbleOpenStaggerMs: 90,
     deferredBarFullDisplayDelayMs: 750,
+    deferBarAgentCollectionsOnInitialDisplay: false,
     deferBarFullDisplayUntilAfterFirstPaint: true,
     initialDisplayPageSize: 0,
     initialNotificationScanPages: 0,
@@ -81,6 +85,7 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
   windows: {
     bubbleOpenStaggerMs: 0,
     deferredBarFullDisplayDelayMs: 350,
+    deferBarAgentCollectionsOnInitialDisplay: true,
     deferBarFullDisplayUntilAfterFirstPaint: true,
     initialDisplayPageSize: 30,
     initialNotificationScanPages: 2,
