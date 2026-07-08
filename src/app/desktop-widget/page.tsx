@@ -4436,6 +4436,15 @@ function DesktopWidgetSurface() {
             setVoiceParticipantMicMuted((current) => ({ ...current, [identity]: false }));
           });
           liveKitRoom.on(RoomEvent.ActiveSpeakersChanged, handleWidgetActiveSpeakersChanged);
+          // 참여자 입장/퇴장 목록은 여전히 REST(voiceRoom.participants)가 원본이지만, 그 재조회가
+          // revision 갱신을 기다려야 해 느렸다 — LiveKit이 실제로 참여자가 붙고 빠지는 순간을
+          // 알려주므로, 그 즉시 재조회를 트리거해 목록이 바로 갱신되게 한다.
+          liveKitRoom.on(RoomEvent.ParticipantConnected, () => {
+            setCommunicationRevision((current) => current + 1);
+          });
+          liveKitRoom.on(RoomEvent.ParticipantDisconnected, () => {
+            setCommunicationRevision((current) => current + 1);
+          });
           // 상대가 통화를 끊으면(백엔드가 LiveKit 방을 닫음) 여기로 온다 — 내가 먼저 끊을 때는
           // leaveWidgetVoice/cancelOutgoingWidgetCall이 disconnect() 직후 ref를 바로 비우므로,
           // 그 경우엔 ref가 이미 이 room이 아니게 되어 아래 안내가 중복으로 뜨지 않는다.
@@ -4585,6 +4594,12 @@ function DesktopWidgetSurface() {
           setVoiceParticipantMicMuted((current) => ({ ...current, [identity]: false }));
         });
         liveKitRoom.on(RoomEvent.ActiveSpeakersChanged, handleWidgetActiveSpeakersChanged);
+        liveKitRoom.on(RoomEvent.ParticipantConnected, () => {
+          setCommunicationRevision((current) => current + 1);
+        });
+        liveKitRoom.on(RoomEvent.ParticipantDisconnected, () => {
+          setCommunicationRevision((current) => current + 1);
+        });
         liveKitRoom.on(RoomEvent.Disconnected, () => {
           if (liveKitRoomRef.current !== liveKitRoom) return;
           liveKitRoomRef.current = null;
