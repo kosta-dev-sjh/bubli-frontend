@@ -1,6 +1,6 @@
 const NEXT_BASE_URL = normalizeBaseUrl(process.env.NEXT_BASE_URL ?? "http://localhost:3000");
 const STORYBOOK_BASE_URL = normalizeBaseUrl(process.env.STORYBOOK_BASE_URL ?? "http://localhost:6006");
-const TARGET = process.env.SMOKE_TARGET ?? "all";
+const TARGET = readTarget();
 
 const ROUTES = [
   "/",
@@ -146,6 +146,12 @@ async function checkStorybook() {
 
 function normalizeBaseUrl(value) {
   return value.replace(/\/$/, "");
+}
+
+function readTarget() {
+  const targetArg = process.argv.find((arg) => arg.startsWith("--target="));
+  if (targetArg) return targetArg.slice("--target=".length);
+  return process.env.SMOKE_TARGET ?? "all";
 }
 
 function isOkStatus(status) {

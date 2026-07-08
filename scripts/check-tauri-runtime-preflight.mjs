@@ -29,6 +29,7 @@ async function main() {
   checkNpm();
   checkCommand("cargo", ["--version"], "Rust Cargo");
   checkTauriCli();
+  checkExistingBubliProcess();
   checkDockerRuntime();
   checkDevAccessTokenShape();
   await checkBackendHealth();
@@ -203,6 +204,77 @@ function checkTauriCli() {
   }
 
   pass("Tauri CLI", { version: trimOutput(result.stdout || result.stderr) });
+}
+
+function checkExistingBubliProcess() {
+  if (process.env.BUBLI_TAURI_RUNTIME_SMOKE_ALLOW_EXISTING_BUBLI === "1") {
+    warn("Bubli process single-instance guard", "Existing bubli.exe process check was bypassed by environment.");
+    return;
+  }
+
+  const result = spawnSync(
+    "powershell.exe",
+    [
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-Command",
+      "Get-Process bubli -ErrorAction SilentlyContinue | Select-Object Id,Path | ConvertTo-Json -Compress",
+    ],
+    {
+      encoding: "utf8",
+      env: withWindowsToolPath(process.env),
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+
+  if (result.error) {
+    warn("Bubli process single-instance guard", result.error.message);
+    return;
+  }
+
+  if (result.status !== 0) {
+    const output = trimOutput(result.stderr || result.stdout);
+    if (!output) {
+      pass("Bubli process single-instance guard", { processStatus: "no existing bubli.exe process" });
+      return;
+    }
+
+    warn("Bubli process single-instance guard", output);
+    return;
+  }
+
+  const output = trimOutput(result.stdout);
+  if (!output || output === "null") {
+    pass("Bubli process single-instance guard", { processStatus: "no existing bubli.exe process" });
+    return;
+  }
+
+  let processes;
+  try {
+    processes = JSON.parse(output);
+  } catch {
+    fail("Bubli process single-instance guard", `Could not parse existing bubli.exe process list: ${output}`);
+    return;
+  }
+
+  if (!processes) {
+    pass("Bubli process single-instance guard", { processStatus: "no existing bubli.exe process" });
+    return;
+  }
+
+  const processList = Array.isArray(processes) ? processes : [processes];
+  if (processList.length === 0) {
+    pass("Bubli process single-instance guard", { processStatus: "no existing bubli.exe process" });
+    return;
+  }
+
+  fail(
+    "Bubli process single-instance guard",
+    `Close existing Bubli before Windows runtime smoke. Existing bubli.exe blocks target\\debug\\bubli.exe via the Windows single-instance mutex: ${JSON.stringify(
+      processList,
+    )}`,
+  );
 }
 
 function checkDockerRuntime() {
