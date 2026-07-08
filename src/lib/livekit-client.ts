@@ -11,6 +11,14 @@ import type { VoiceTokenResponse } from "@/types/api/voice";
 let activeRoom: Room | null = null;
 let activeVoiceRoomId: string | null = null;
 
+export type LiveKitVoiceConnectionEvent = {
+  kind: "connected" | "disconnected" | "reconnecting" | "reconnected";
+  voiceRoomId: string;
+};
+
+type ConnectionListener = (event: LiveKitVoiceConnectionEvent) => void;
+const connectionListeners = new Set<ConnectionListener>();
+
 export function getActiveLiveKitRoom(): Room | null {
   return activeRoom;
 }
@@ -47,6 +55,10 @@ function notifySpeakingListeners() {
   speakingListeners.forEach((listener) => listener(currentSpeakingUserIds));
 }
 
+function notifyConnectionListeners(event: LiveKitVoiceConnectionEvent) {
+  connectionListeners.forEach((listener) => listener(event));
+}
+
 function handleActiveSpeakersChanged(speakers: Participant[]) {
   currentSpeakingUserIds = new Set(speakers.map((participant) => participant.identity));
   notifySpeakingListeners();
@@ -57,6 +69,13 @@ export function onActiveSpeakersChanged(listener: SpeakingListener): () => void 
   listener(currentSpeakingUserIds);
   return () => {
     speakingListeners.delete(listener);
+  };
+}
+
+export function onLiveKitVoiceConnectionChanged(listener: ConnectionListener): () => void {
+  connectionListeners.add(listener);
+  return () => {
+    connectionListeners.delete(listener);
   };
 }
 
@@ -73,6 +92,21 @@ export async function connectLiveKitRoom(voiceRoomId: string, token: VoiceTokenR
     track.detach().forEach((element) => element.remove());
   });
   room.on(RoomEvent.ActiveSpeakersChanged, handleActiveSpeakersChanged);
+  room.on(RoomEvent.Reconnecting, () => {
+    notifyConnectionListeners({ kind: "reconnecting", voiceRoomId });
+  });
+  room.on(RoomEvent.Reconnected, () => {
+    notifyConnectionListeners({ kind: "reconnected", voiceRoomId });
+  });
+  room.on(RoomEvent.Disconnected, () => {
+    if (activeRoom !== room) return;
+    activeRoom = null;
+    activeVoiceRoomId = null;
+    detachAllRemoteAudio(room);
+    currentSpeakingUserIds = new Set();
+    notifySpeakingListeners();
+    notifyConnectionListeners({ kind: "disconnected", voiceRoomId });
+  });
 
   activeRoom = room;
   activeVoiceRoomId = voiceRoomId;
@@ -80,6 +114,7 @@ export async function connectLiveKitRoom(voiceRoomId: string, token: VoiceTokenR
   try {
     await room.connect(token.serverUrl, token.token);
     await room.localParticipant.setMicrophoneEnabled(true);
+    notifyConnectionListeners({ kind: "connected", voiceRoomId });
   } catch (error) {
     if (activeRoom === room) {
       activeRoom = null;

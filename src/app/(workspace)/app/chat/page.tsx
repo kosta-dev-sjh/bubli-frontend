@@ -41,6 +41,7 @@ import {
   disconnectLiveKitRoom,
   getActiveLiveKitVoiceRoomId,
   onActiveSpeakersChanged,
+  onLiveKitVoiceConnectionChanged,
   setLiveKitMicEnabled,
 } from "@/lib/livekit-client";
 import { voiceStore } from "@/lib/voice-store";
@@ -188,6 +189,8 @@ type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 const WINDOWS_CHAT_AUX_DELAY_MS = 350;
 const WINDOWS_CHAT_INVITATION_DELAY_MS = 650;
 const WINDOWS_CHAT_AUX_POLL_INTERVAL_MS = 30_000;
+const VOICE_RECOVERY_TIMEOUT_MS = 30_000;
+const VOICE_RECOVERY_RETRY_DELAY_MS = 4_000;
 
 async function readWindowsChatAuxTimeoutMs() {
   if (!isWindowsTauriRuntime()) return 0;
@@ -632,6 +635,9 @@ function ChatPageContent() {
   const [voiceExpanded, setVoiceExpanded] = useState(() => voiceStore.getSnapshot().expanded);
   const [voiceMicMuted, setVoiceMicMuted] = useState(() => voiceStore.getSnapshot().micMuted);
   const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
+  const voiceStateRef = useRef<VoiceState>(voiceState);
+  const voiceRecoveryRoomIdRef = useRef<string | null>(null);
+  const voiceRecoveryTimerRef = useRef<number | null>(null);
   const [roomInviteState, setRoomInviteState] = useState<RoomInviteState>({ kind: "idle" });
   const [chatRoomInviteState, setChatRoomInviteState] = useState<ChatRoomInviteState>({ kind: "idle" });
   const [roomInvitationsState, setRoomInvitationsState] = useState<RoomInvitationsState>({ kind: "idle" });
@@ -1330,12 +1336,101 @@ function ChatPageContent() {
   }, []);
 
   useEffect(() => {
+    const clearRecoveryTimer = () => {
+      if (voiceRecoveryTimerRef.current === null) return;
+      window.clearTimeout(voiceRecoveryTimerRef.current);
+      voiceRecoveryTimerRef.current = null;
+    };
+
+    const showTemporaryNotice = (message: string) => {
+      setVoiceNotice(message);
+      window.setTimeout(() => {
+        setVoiceNotice((current) => (current === message ? null : current));
+      }, 3_000);
+    };
+
+    const scheduleReconnect = (voiceRoomId: string, startedAt: number) => {
+      clearRecoveryTimer();
+      voiceRecoveryTimerRef.current = window.setTimeout(() => {
+        void (async () => {
+          if (voiceRecoveryRoomIdRef.current !== voiceRoomId) return;
+          try {
+            const token = await voiceApi.getToken(voiceRoomId);
+            if (voiceRecoveryRoomIdRef.current !== voiceRoomId) return;
+            await connectLiveKitRoom(voiceRoomId, token);
+            if (voiceRecoveryRoomIdRef.current !== voiceRoomId) return;
+            const room = await voiceApi.getRoom(voiceRoomId);
+            setVoiceState({ kind: "ready", room });
+            voiceRecoveryRoomIdRef.current = null;
+            clearRecoveryTimer();
+            showTemporaryNotice(t("chat.notice.voiceReconnected"));
+          } catch {
+            if (Date.now() - startedAt < VOICE_RECOVERY_TIMEOUT_MS) {
+              scheduleReconnect(voiceRoomId, startedAt);
+              return;
+            }
+
+            try {
+              const room = await voiceApi.leave(voiceRoomId);
+              setVoiceState({ kind: "ready", room });
+            } catch {
+              setVoiceState((current) =>
+                current.kind === "ready" && current.room.id === voiceRoomId ? { kind: "idle" } : current,
+              );
+            }
+            voiceRecoveryRoomIdRef.current = null;
+            clearRecoveryTimer();
+            setVoiceExpanded(false);
+            showTemporaryNotice(t("chat.notice.voiceDisconnected"));
+          }
+        })();
+      }, VOICE_RECOVERY_RETRY_DELAY_MS);
+    };
+
+    const unsubscribe = onLiveKitVoiceConnectionChanged((event) => {
+      if (event.kind === "reconnecting") {
+        setVoiceNotice(t("chat.notice.voiceReconnecting"));
+        return;
+      }
+      if (event.kind === "connected" || event.kind === "reconnected") {
+        if (voiceRecoveryRoomIdRef.current === event.voiceRoomId) {
+          voiceRecoveryRoomIdRef.current = null;
+          clearRecoveryTimer();
+          showTemporaryNotice(t("chat.notice.voiceReconnected"));
+        }
+        return;
+      }
+
+      const current = voiceStateRef.current;
+      const currentUserId = currentUserRef.current?.id;
+      const isCurrentUserJoined =
+        current.kind === "ready" &&
+        current.room.id === event.voiceRoomId &&
+        current.room.status === "OPEN" &&
+        current.room.participants.some((participant) => participant.userId === currentUserId && participant.status === "JOINED");
+      if (!isCurrentUserJoined || voiceRecoveryRoomIdRef.current === event.voiceRoomId) return;
+
+      voiceRecoveryRoomIdRef.current = event.voiceRoomId;
+      setVoiceNotice(t("chat.notice.voiceReconnecting"));
+      scheduleReconnect(event.voiceRoomId, Date.now());
+    });
+    return () => {
+      unsubscribe();
+      clearRecoveryTimer();
+    };
+  }, [t]);
+
+  useEffect(() => {
     activeChatRoomIdRef.current = activeChatRoomId;
   }, [activeChatRoomId]);
 
   useEffect(() => {
     currentUserRef.current = currentUser;
   }, [currentUser]);
+
+  useEffect(() => {
+    voiceStateRef.current = voiceState;
+  }, [voiceState]);
 
   useEffect(() => {
     return voiceStore.subscribe(() => {
@@ -1770,6 +1865,11 @@ function ChatPageContent() {
 
     setVoiceState({ kind: "starting" });
     setVoiceAction(null);
+    voiceRecoveryRoomIdRef.current = null;
+    if (voiceRecoveryTimerRef.current !== null) {
+      window.clearTimeout(voiceRecoveryTimerRef.current);
+      voiceRecoveryTimerRef.current = null;
+    }
     setVoiceMicMuted(false);
     // 1:1/그룹 통화만 "발신 중" 팝업 대상 — 프로젝트룸 보이스는 특정 상대에게 거는 개념이 아니다.
     voiceStore.update({ calleeLabel: selectedRoom.chatType === "ROOM" ? null : selectedRoom.name, micMuted: false });
@@ -1803,6 +1903,11 @@ function ChatPageContent() {
     }
 
     setVoiceAction("join");
+    voiceRecoveryRoomIdRef.current = null;
+    if (voiceRecoveryTimerRef.current !== null) {
+      window.clearTimeout(voiceRecoveryTimerRef.current);
+      voiceRecoveryTimerRef.current = null;
+    }
     try {
       const token = await voiceApi.getToken(activeVoiceRoom.id);
       await connectLiveKitRoom(activeVoiceRoom.id, token);
@@ -1860,6 +1965,11 @@ function ChatPageContent() {
     if (!activeVoiceRoom || voiceAction) return;
 
     setVoiceAction("leave");
+    voiceRecoveryRoomIdRef.current = null;
+    if (voiceRecoveryTimerRef.current !== null) {
+      window.clearTimeout(voiceRecoveryTimerRef.current);
+      voiceRecoveryTimerRef.current = null;
+    }
     try {
       await disconnectLiveKitRoom();
       const room = await voiceApi.leave(activeVoiceRoom.id);
@@ -1877,6 +1987,11 @@ function ChatPageContent() {
     if (!activeVoiceRoom || voiceAction) return;
 
     setVoiceAction("end");
+    voiceRecoveryRoomIdRef.current = null;
+    if (voiceRecoveryTimerRef.current !== null) {
+      window.clearTimeout(voiceRecoveryTimerRef.current);
+      voiceRecoveryTimerRef.current = null;
+    }
     try {
       await disconnectLiveKitRoom();
       const room = await voiceApi.end(activeVoiceRoom.id);

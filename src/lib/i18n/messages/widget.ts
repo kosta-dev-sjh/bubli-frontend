@@ -273,6 +273,9 @@ const ko = {
   "widget.chat.voiceStartFailed": "통화 연결에 실패했어요",
   "widget.chat.voiceLeaveFailed": "통화 종료에 실패했어요",
   "widget.chat.micToggleFailed": "마이크 전환에 실패했어요",
+  "widget.chat.voiceReconnecting": "보이스 다시 연결 중",
+  "widget.chat.voiceReconnected": "보이스 다시 연결됨",
+  "widget.chat.voiceDisconnected": "보이스 연결 끊김",
   "widget.chat.sendMessage": "메시지 전송",
   "widget.chat.back": "뒤로",
 
@@ -1302,6 +1305,9 @@ const en: Record<Key, string> = {
   "widget.chat.voiceStartFailed": "Couldn't start the call",
   "widget.chat.voiceLeaveFailed": "Couldn't end the call",
   "widget.chat.micToggleFailed": "Couldn't switch the mic",
+  "widget.chat.voiceReconnecting": "Reconnecting voice",
+  "widget.chat.voiceReconnected": "Voice reconnected",
+  "widget.chat.voiceDisconnected": "Voice disconnected",
   "widget.chat.sendMessage": "Send message",
   "widget.chat.back": "Back",
 
@@ -2311,6 +2317,9 @@ const ja: Record<Key, string> = {
   "widget.chat.voiceStartFailed": "通話の開始に失敗しました",
   "widget.chat.voiceLeaveFailed": "通話の終了に失敗しました",
   "widget.chat.micToggleFailed": "マイクの切り替えに失敗しました",
+  "widget.chat.voiceReconnecting": "ボイス再接続中",
+  "widget.chat.voiceReconnected": "ボイス再接続済み",
+  "widget.chat.voiceDisconnected": "ボイス接続切断",
   "widget.chat.sendMessage": "メッセージ送信",
   "widget.chat.back": "戻る",
 
