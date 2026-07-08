@@ -194,6 +194,19 @@ function attachWidgetRemoteAudioTrack(track: RemoteTrack) {
   element.dataset.livekitAudioTrack = track.sid ?? "";
   element.autoplay = true;
   document.body.appendChild(element);
+  // 데스크톱 위젯은 Tauri(WKWebView)라 웹(Chrome)보다 자동재생 정책이 훨씬 엄격하다 —
+  // 이 트랙은 수락/발신 버튼 클릭 이후 ICE/DTLS 협상이 끝난 뒤(몇 초 지난 비동기 콜백)
+  // 붙기 때문에, 클릭 시점의 사용자 제스처가 이미 소진되어 무음 재생으로 막히고 에러도
+  // 안 나서 "방은 되는데 소리만 안 들리는" 증상으로 나타난다. 일단 muted로 재생을 붙이고
+  // (muted 자동재생은 항상 허용됨) 재생이 실제로 시작되면 바로 unmute한다 — 이미 재생
+  // 중인 미디어의 볼륨/음소거 전환은 자동재생 정책 대상이 아니라 막히지 않는다.
+  element.muted = true;
+  void element
+    .play()
+    .then(() => {
+      element.muted = false;
+    })
+    .catch(() => undefined);
 }
 
 function detachWidgetRemoteAudio(room: Room) {
@@ -1021,6 +1034,8 @@ function buildDisplayBubbles(input: {
   timer?: TimerDisplay;
   voiceConnectionLabel?: string | null;
   voiceRoom?: WidgetVoiceRoomResponse | null;
+  // LiveKit TrackMuted/TrackUnmuted로 실시간 추적한 참여자별(userId) 마이크 음소거 상태.
+  voiceParticipantMicMuted?: Record<string, boolean>;
 }, t: TranslateFn): Partial<Record<WidgetBubbleType, WidgetPreviewBubble>> {
   const label = roomLabel(t, input.room, input.roomId);
   const isRoomScoped = Boolean(input.roomId);
@@ -1312,7 +1327,14 @@ function buildDisplayBubbles(input: {
       roomLabel: label,
       voiceLabel: input.voiceConnectionLabel ?? (input.voiceRoom?.status === "OPEN" ? t("widget.chat.voiceOpen") : t("widget.chat.voiceWaiting")),
       voiceParticipants: voiceParticipants.map((item) => item.userName).filter(Boolean).join(" · ") || t("widget.chat.noParticipants"),
-      voiceParticipantList: voiceParticipants.map((item) => ({ userId: item.userId, userName: item.userName })),
+      voiceParticipantList: voiceParticipants.map((item) => ({
+        userId: item.userId,
+        userName: item.userName,
+        // 위젯 쪽 WidgetVoiceParticipantResponse에는 micStatus가 없어서(REST가 아예 안 내려줌),
+        // LiveKit TrackMuted/TrackUnmuted로 직접 추적한 값만 쓴다 — 아직 못 받았으면(막 합류한
+        // 직후) 통화 시작 시 항상 마이크를 켜고 붙으므로 꺼짐이 아니라고 본다.
+        micMuted: input.voiceParticipantMicMuted?.[item.userId] ?? false,
+      })),
       voiceRoomId: input.voiceRoom?.id,
       // 스레드 화면에서 실제 대화 내용을 웹처럼 스크롤로 쭉 보여주기 위한 전체 메시지 목록.
       // rows는 바/고스트 미리보기용으로 최근 3개만 담기지만, 스레드는 그것과 별개로 전체를 쓴다.
@@ -1794,6 +1816,11 @@ function DesktopWidgetSurface() {
   const [activeTimerHeartbeatId, setActiveTimerHeartbeatId] = useState<string | null>(null);
   const [voiceConnectionLabel, setVoiceConnectionLabel] = useState<string | null>(null);
   const [voiceMicMuted, setVoiceMicMuted] = useState(false);
+  // LiveKit의 TrackMuted/TrackUnmuted는 REST 폴링보다 훨씬 빨리(같은 WebRTC 시그널링 연결로)
+  // 오기 때문에, 상대방 마이크 상태를 여기서 직접 추적한다 — participant.identity(=userId) 기준.
+  const [voiceParticipantMicMuted, setVoiceParticipantMicMuted] = useState<Record<string, boolean>>({});
+  // 통화가 끝났을 때(내가 끊었든 상대가 LiveKit Disconnected로 먼저 끊었든) 잠깐 보여줄 안내.
+  const [voiceEndedNotice, setVoiceEndedNotice] = useState<string | null>(null);
   const [notificationSignal, setNotificationSignal] = useState<WidgetNotificationSignal>(() => widgetDisplayLoadSignal("loading"));
   const [menuUsageSummary, setMenuUsageSummary] = useState<string | null>(null);
   // Bubli 메뉴 "모니터로 이동" 섹션용 모니터 목록 — 바 창에서만 주기적으로 갱신한다.
@@ -2785,6 +2812,7 @@ function DesktopWidgetSurface() {
           timer: activeTimer,
           voiceConnectionLabel,
           voiceRoom: voiceValue,
+          voiceParticipantMicMuted,
         }, t);
       const deferInitialWindowsItemStateSync = isWindowsStartupProfile && !hadLoadedDisplay;
       const nextDisplayItemIds = collectWidgetItemIds(nextDisplayBubbles);
@@ -2830,7 +2858,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [activeBubble, activeVoiceRoomId, agentRevision, barFullDisplayReady, chatScope, communicationRevision, currentUserBubliId, currentUserId, displayRefreshRevision, isBubbleBar, isMenuOrb, isTauri, isWidgetChrome, itemStateOverrides, memoRevision, notificationRevision, resourceRevision, scheduleRevision, selectedPeerChatRoomId, selectedWidgetRoomId, startupOptimization.deferBarAgentCollectionsOnInitialDisplay, startupOptimization.displayRequestTimeoutMs, startupOptimization.initialDisplayPageSize, startupOptimization.initialNotificationScanPages, startupOptimization.profile, t, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContextInitialized, widgetSessionReady]);
+  }, [activeBubble, activeVoiceRoomId, agentRevision, barFullDisplayReady, chatScope, communicationRevision, currentUserBubliId, currentUserId, displayRefreshRevision, isBubbleBar, isMenuOrb, isTauri, isWidgetChrome, itemStateOverrides, memoRevision, notificationRevision, resourceRevision, scheduleRevision, selectedPeerChatRoomId, selectedWidgetRoomId, startupOptimization.deferBarAgentCollectionsOnInitialDisplay, startupOptimization.displayRequestTimeoutMs, startupOptimization.initialDisplayPageSize, startupOptimization.initialNotificationScanPages, startupOptimization.profile, t, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, voiceParticipantMicMuted, widgetContextInitialized, widgetSessionReady]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;
@@ -4196,10 +4224,17 @@ function DesktopWidgetSurface() {
   // 평소 위젯 사용 중에는 다른 사람의 전체화면 작업 위로 계속 떠 있지 않게 한다.
   useEffect(() => {
     if (!isBubbleBar || !incomingVoiceCall || !isTauri) return;
-    void tauriCommands
-      .setWidgetFloatsOverFullscreen({ bubbleType: "chat", enabled: true, windowId: "chat" })
-      .catch(() => undefined);
+    const applyFloatsOverFullscreen = () =>
+      void tauriCommands
+        .setWidgetFloatsOverFullscreen({ bubbleType: "chat", enabled: true, windowId: "chat" })
+        .catch(() => undefined);
+    applyFloatsOverFullscreen();
+    // 채팅 창이 이 시점에 아직 없었다면(schedule_widget_window_build_with_options가 별도
+    // 스레드에서 새로 짓는 중이라) 이 명령이 대상 창을 못 찾아 조용히 무시된다 — 위의
+    // openWidgetIncomingCall 재전송과 같은 이유로, 창이 뜰 시간을 준 뒤 한 번 더 보낸다.
+    const retryTimer = window.setTimeout(applyFloatsOverFullscreen, 700);
     return () => {
+      window.clearTimeout(retryTimer);
       void tauriCommands
         .setWidgetFloatsOverFullscreen({ bubbleType: "chat", enabled: false, windowId: "chat" })
         .catch(() => undefined);
@@ -4294,6 +4329,7 @@ function DesktopWidgetSurface() {
     setActiveVoiceRoomId(null);
     setActiveVoiceRoom(null);
     setSpeakingUserIds(new Set());
+    setVoiceParticipantMicMuted({});
     void emitWidgetVoiceCallStateChanged(null).catch(() => undefined);
   }, [activeVoiceRoomId]);
 
@@ -4327,11 +4363,41 @@ function DesktopWidgetSurface() {
         .then(async (token) => {
           if (!token.serverUrl || !token.token) return;
           const liveKitRoom = new Room();
-          liveKitRoom.on(RoomEvent.TrackSubscribed, (track) => attachWidgetRemoteAudioTrack(track));
+          liveKitRoom.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
+            attachWidgetRemoteAudioTrack(track);
+            if (track.kind === Track.Kind.Audio && participant.identity) {
+              const identity = participant.identity;
+              setVoiceParticipantMicMuted((current) => ({ ...current, [identity]: track.isMuted }));
+            }
+          });
           liveKitRoom.on(RoomEvent.TrackUnsubscribed, (track) => {
             track.detach().forEach((element) => element.remove());
           });
+          liveKitRoom.on(RoomEvent.TrackMuted, (publication, participant) => {
+            if (publication.kind !== Track.Kind.Audio || !participant.identity) return;
+            const identity = participant.identity;
+            setVoiceParticipantMicMuted((current) => ({ ...current, [identity]: true }));
+          });
+          liveKitRoom.on(RoomEvent.TrackUnmuted, (publication, participant) => {
+            if (publication.kind !== Track.Kind.Audio || !participant.identity) return;
+            const identity = participant.identity;
+            setVoiceParticipantMicMuted((current) => ({ ...current, [identity]: false }));
+          });
           liveKitRoom.on(RoomEvent.ActiveSpeakersChanged, handleWidgetActiveSpeakersChanged);
+          // 상대가 통화를 끊으면(백엔드가 LiveKit 방을 닫음) 여기로 온다 — 내가 먼저 끊을 때는
+          // leaveWidgetVoice/cancelOutgoingWidgetCall이 disconnect() 직후 ref를 바로 비우므로,
+          // 그 경우엔 ref가 이미 이 room이 아니게 되어 아래 안내가 중복으로 뜨지 않는다.
+          liveKitRoom.on(RoomEvent.Disconnected, () => {
+            if (liveKitRoomRef.current !== liveKitRoom) return;
+            liveKitRoomRef.current = null;
+            setActiveVoiceRoomId(null);
+            setActiveVoiceRoom(null);
+            setSpeakingUserIds(new Set());
+            setVoiceParticipantMicMuted({});
+            void emitWidgetVoiceCallStateChanged(null).catch(() => undefined);
+            setVoiceEndedNotice(t("widget.chat.voiceEnded"));
+            window.setTimeout(() => setVoiceEndedNotice(null), 4_000);
+          });
           if (liveKitRoomRef.current) {
             detachWidgetRemoteAudio(liveKitRoomRef.current);
             liveKitRoomRef.current.disconnect();
@@ -4353,7 +4419,7 @@ function DesktopWidgetSurface() {
       setIncomingVoiceCall(null);
       void emitWidgetIncomingCallChanged(null).catch(() => undefined);
     }
-  }, [handleWidgetActiveSpeakersChanged, incomingVoiceCall, isTauri, publishWidgetDataChanged, voiceCallResponding]);
+  }, [handleWidgetActiveSpeakersChanged, incomingVoiceCall, isTauri, publishWidgetDataChanged, t, voiceCallResponding]);
 
   const dismissMessageToast = useCallback((toastId: string) => {
     setMessageToasts((current) => current.filter((toast) => toast.id !== toastId));
@@ -4409,9 +4475,15 @@ function DesktopWidgetSurface() {
       // 거절/취소해서 방이 이미 ENDED됐는데도 activeVoiceRoomId가 안 지워진 채 남아 있을 때
       // 죽은 방을 계속 GET만 하고 새 방을 절대 안 만들어(=상대에게 알림도 안 감) 벨소리만 울리고
       // 실제로는 전화가 안 가는 버그가 됐다.
-      const voiceRoom = await widgetCommunicationApi.createVoiceRoom(
-        bubble.roomId ? { roomId: bubble.roomId } : { chatRoomId: bubble.chatRoomId },
-      );
+      let voiceRoom;
+      try {
+        voiceRoom = await widgetCommunicationApi.createVoiceRoom(
+          bubble.roomId ? { roomId: bubble.roomId } : { chatRoomId: bubble.chatRoomId },
+        );
+      } catch (error) {
+        console.error("[widget voice] createVoiceRoom failed", error);
+        throw error;
+      }
 
       setActiveVoiceRoomId(voiceRoom.id);
       // 통화는 채팅(chat) 창에서 시작되지만 발신 팝업은 바(bar) 창에서 그린다 — 서로 다른 창이라
@@ -4432,6 +4504,7 @@ function DesktopWidgetSurface() {
         token = await widgetCommunicationApi.getVoiceToken(voiceRoom.id);
         setVoiceConnectionLabel("Voice token issued");
       } catch (error) {
+        console.error("[widget voice] getVoiceToken failed", error);
         setVoiceConnectionLabel("Voice room open; token failed");
         setCommunicationRevision((current) => current + 1);
         throw error;
@@ -4439,11 +4512,38 @@ function DesktopWidgetSurface() {
 
       if (token.serverUrl && token.token) {
         const liveKitRoom = new Room();
-        liveKitRoom.on(RoomEvent.TrackSubscribed, (track) => attachWidgetRemoteAudioTrack(track));
+        liveKitRoom.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
+          attachWidgetRemoteAudioTrack(track);
+          if (track.kind === Track.Kind.Audio && participant.identity) {
+            const identity = participant.identity;
+            setVoiceParticipantMicMuted((current) => ({ ...current, [identity]: track.isMuted }));
+          }
+        });
         liveKitRoom.on(RoomEvent.TrackUnsubscribed, (track) => {
           track.detach().forEach((element) => element.remove());
         });
+        liveKitRoom.on(RoomEvent.TrackMuted, (publication, participant) => {
+          if (publication.kind !== Track.Kind.Audio || !participant.identity) return;
+          const identity = participant.identity;
+          setVoiceParticipantMicMuted((current) => ({ ...current, [identity]: true }));
+        });
+        liveKitRoom.on(RoomEvent.TrackUnmuted, (publication, participant) => {
+          if (publication.kind !== Track.Kind.Audio || !participant.identity) return;
+          const identity = participant.identity;
+          setVoiceParticipantMicMuted((current) => ({ ...current, [identity]: false }));
+        });
         liveKitRoom.on(RoomEvent.ActiveSpeakersChanged, handleWidgetActiveSpeakersChanged);
+        liveKitRoom.on(RoomEvent.Disconnected, () => {
+          if (liveKitRoomRef.current !== liveKitRoom) return;
+          liveKitRoomRef.current = null;
+          setActiveVoiceRoomId(null);
+          setActiveVoiceRoom(null);
+          setSpeakingUserIds(new Set());
+          setVoiceParticipantMicMuted({});
+          void emitWidgetVoiceCallStateChanged(null).catch(() => undefined);
+          setVoiceEndedNotice(t("widget.chat.voiceEnded"));
+          window.setTimeout(() => setVoiceEndedNotice(null), 4_000);
+        });
         if (liveKitRoomRef.current) {
           detachWidgetRemoteAudio(liveKitRoomRef.current);
           liveKitRoomRef.current.disconnect();
@@ -4455,7 +4555,8 @@ function DesktopWidgetSurface() {
           await liveKitRoom.localParticipant.setMicrophoneEnabled(true);
           setVoiceMicMuted(false);
           setVoiceConnectionLabel("LiveKit connected");
-        } catch {
+        } catch (error) {
+          console.error("[widget voice] LiveKit connect failed", error);
           setVoiceConnectionLabel("Token issued; check microphone permission");
         }
       }
@@ -4475,7 +4576,7 @@ function DesktopWidgetSurface() {
       setCommunicationRevision((current) => current + 1);
       publishWidgetDataChanged("chat");
     },
-    [handleWidgetActiveSpeakersChanged, isTauri, publishWidgetDataChanged],
+    [handleWidgetActiveSpeakersChanged, isTauri, publishWidgetDataChanged, t],
   );
 
   const toggleWidgetVoiceMic = useCallback(
@@ -4528,9 +4629,12 @@ function DesktopWidgetSurface() {
       setActiveVoiceRoomId(null);
       setActiveVoiceRoom(null);
       setSpeakingUserIds(new Set());
+      setVoiceParticipantMicMuted({});
       void emitWidgetVoiceCallStateChanged(null).catch(() => undefined);
       setVoiceMicMuted(false);
       setVoiceConnectionLabel("Voice left");
+      setVoiceEndedNotice(t("widget.chat.voiceEnded"));
+      window.setTimeout(() => setVoiceEndedNotice(null), 4_000);
 
       if (isTauri) {
         void tauriCommands
@@ -4547,7 +4651,7 @@ function DesktopWidgetSurface() {
       setCommunicationRevision((current) => current + 1);
       publishWidgetDataChanged("chat");
     },
-    [activeVoiceRoomId, isTauri, publishWidgetDataChanged],
+    [activeVoiceRoomId, isTauri, publishWidgetDataChanged, t],
   );
 
   // 바/메뉴 화면에서 공통 서버 사용 롤업(usage-summaries/today)을 한 줄 요약으로 보여준다.
@@ -4846,6 +4950,8 @@ function DesktopWidgetSurface() {
         onStartVoice={startWidgetVoice}
         onToggleAlwaysOnTop={toggleAlwaysOnTop}
         onToggleVoiceMic={toggleWidgetVoiceMic}
+        voiceMicMuted={voiceMicMuted}
+        voiceEndedNotice={voiceEndedNotice}
         speakingUserIds={speakingUserIds}
         presentation="tauri"
         timerActionNotice={timerActionNotice}

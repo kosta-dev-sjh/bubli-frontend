@@ -22,6 +22,7 @@ import {
   LayoutGrid,
   MessageSquare,
   Mic,
+  MicOff,
   Minus,
   Monitor,
   Pause,
@@ -258,6 +259,10 @@ export type DesktopWidgetBubbleProps = {
   onMarkAllNotificationsRead?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
   onToggleAlwaysOnTop: () => void;
   onToggleVoiceMic?: (bubble: WidgetPreviewBubble) => Promise<void> | void;
+  /** 내 마이크가 지금 꺼져 있는지 — 눌러도 아무 변화가 없어 보이던 마이크 버튼에 실제 상태를 반영한다. */
+  voiceMicMuted?: boolean;
+  /** 통화가 끝났을 때(내가 끊었든 상대가 끊었든) 잠깐 보여줄 안내 문구. */
+  voiceEndedNotice?: string | null;
   /** 현재 보이스 통화에서 마이크가 감지된(말하는 중) 참여자 userId 집합 — 웹과 동일한 발화 애니메이션용. */
   speakingUserIds?: ReadonlySet<string>;
   // 타이머 시작/일시정지/재개 실패 안내(권한 없음·이미 실행 중 등). 타이머 바디 위에 잠깐 표시한다.
@@ -1170,6 +1175,8 @@ function ChatBody({
   onSendChatMessage,
   onStartVoice,
   onToggleVoiceMic,
+  voiceMicMuted,
+  voiceEndedNotice,
   speakingUserIds,
 }: {
   bubble: WidgetPreviewBubble;
@@ -1189,6 +1196,8 @@ function ChatBody({
   onSendChatMessage?: DesktopWidgetBubbleProps["onSendChatMessage"];
   onStartVoice?: DesktopWidgetBubbleProps["onStartVoice"];
   onToggleVoiceMic?: DesktopWidgetBubbleProps["onToggleVoiceMic"];
+  voiceMicMuted?: DesktopWidgetBubbleProps["voiceMicMuted"];
+  voiceEndedNotice?: DesktopWidgetBubbleProps["voiceEndedNotice"];
   speakingUserIds?: DesktopWidgetBubbleProps["speakingUserIds"];
 }) {
   const { t } = useI18n();
@@ -1296,9 +1305,18 @@ function ChatBody({
     setVoiceStatusText(null);
     try {
       await handler(bubble);
-      setVoiceStatusText(action === "start" ? "Voice ready" : action === "leave" ? "Voice left" : "Mic updated");
+      // 시작/마이크 전환은 각자 자기 상태를 바로 보여줄 다른 표시(보이스 스트립, 마이크 아이콘)가
+      // 있어 여기서 따로 문구를 띄우지 않는다 — 나가기만 별도 확인 문구가 필요하다(스트립 자체가
+      // 사라지므로).
+      if (action === "leave") setVoiceStatusText(t("widget.chat.voiceEnded"));
     } catch {
-      setVoiceStatusText(action === "start" ? "Voice failed" : action === "leave" ? "Leave failed" : "Mic failed");
+      setVoiceStatusText(
+        action === "start"
+          ? t("widget.chat.voiceStartFailed")
+          : action === "leave"
+            ? t("widget.chat.voiceLeaveFailed")
+            : t("widget.chat.micToggleFailed"),
+      );
     } finally {
       setVoiceSubmitting(false);
     }
@@ -1436,7 +1454,15 @@ function ChatBody({
             >
               <Phone size={13} strokeWidth={2} />
             </button>
-            {voiceStatusText ? <small className={styles.chatHeadVoiceStatus}>{voiceStatusText}</small> : null}
+            {/* 통화가 끝났을 때(내가 끊었든 상대가 끊었든)의 안내가 이 칸 아니면 갈 곳이 없다 —
+                voiceOpen이 false가 되는 순간 보이스 스트립 자체가 사라지기 때문. 상대가 끊었다는
+                신호(voiceEndedNotice, page.tsx에서 LiveKit Disconnected로 감지)를 우선하고,
+                없으면 내 조작 결과(voiceStatusText: 시작 실패/나가기 실패 등)를 보여준다. */}
+            {voiceEndedNotice ? (
+              <small className={styles.chatHeadVoiceStatus}>{voiceEndedNotice}</small>
+            ) : voiceStatusText ? (
+              <small className={styles.chatHeadVoiceStatus}>{voiceStatusText}</small>
+            ) : null}
           </span>
         ) : null}
       </div>
@@ -1449,12 +1475,13 @@ function ChatBody({
               <span className={styles.voiceParticipants}>
                 {bubble.voiceParticipantList.map((participant) => (
                   <i
-                    aria-label={participant.userName}
+                    aria-label={`${participant.userName} — ${participant.micMuted ? t("widget.chat.micOff") : t("widget.chat.micOn")}`}
                     className={styles.voiceParticipant}
+                    data-muted={String(Boolean(participant.micMuted))}
                     data-speaking={String(speakingUserIds?.has(participant.userId) ?? false)}
                     key={participant.userId}
                   >
-                    {participant.userName.slice(0, 1)}
+                    {participant.micMuted ? <MicOff size={10} strokeWidth={2.6} /> : participant.userName.slice(0, 1)}
                   </i>
                 ))}
               </span>
@@ -1462,8 +1489,15 @@ function ChatBody({
               <small>{t("widget.chat.noParticipants")}</small>
             )}
           </div>
-          <button aria-label={t("widget.chat.micStatus")} disabled={voiceSubmitting} onClick={() => void runVoiceAction("mic")} type="button">
-            <Mic size={13} strokeWidth={2} />
+          <button
+            aria-label={voiceMicMuted ? t("widget.chat.micOff") : t("widget.chat.micOn")}
+            aria-pressed={Boolean(voiceMicMuted)}
+            data-muted={String(Boolean(voiceMicMuted))}
+            disabled={voiceSubmitting}
+            onClick={() => void runVoiceAction("mic")}
+            type="button"
+          >
+            {voiceMicMuted ? <MicOff size={13} strokeWidth={2} /> : <Mic size={13} strokeWidth={2} />}
           </button>
           <button aria-label={t("widget.chat.leaveVoice")} disabled={voiceSubmitting} onClick={() => void runVoiceAction("leave")} type="button">
             <PhoneOff size={13} strokeWidth={2} />
@@ -1774,6 +1808,7 @@ function FriendsScreen({
         <span>{t("widget.chat.social.title")}</span>
       </div>
 
+      <div className={styles.friendsScroll}>
       <div className={styles.socialCard}>
         <span className={styles.socialKicker}>
           <AtSign aria-hidden size={12} strokeWidth={2} />
@@ -1896,6 +1931,7 @@ function FriendsScreen({
           ))}
         </div>
       ) : null}
+      </div>
     </div>
   );
 }
@@ -3340,6 +3376,8 @@ function BubbleBody({
   onSendChatMessage,
   onStartVoice,
   onToggleVoiceMic,
+  voiceMicMuted,
+  voiceEndedNotice,
   speakingUserIds,
   onTimerModeChange,
 }: {
@@ -3376,6 +3414,8 @@ function BubbleBody({
   onSendChatMessage?: DesktopWidgetBubbleProps["onSendChatMessage"];
   onStartVoice?: DesktopWidgetBubbleProps["onStartVoice"];
   onToggleVoiceMic?: DesktopWidgetBubbleProps["onToggleVoiceMic"];
+  voiceMicMuted?: DesktopWidgetBubbleProps["voiceMicMuted"];
+  voiceEndedNotice?: DesktopWidgetBubbleProps["voiceEndedNotice"];
   speakingUserIds?: DesktopWidgetBubbleProps["speakingUserIds"];
   onTimerModeChange?: (mode: WidgetTimerMode) => void;
 }) {
@@ -3411,6 +3451,8 @@ function BubbleBody({
         onSendChatMessage={onSendChatMessage}
         onStartVoice={onStartVoice}
         onToggleVoiceMic={onToggleVoiceMic}
+        voiceMicMuted={voiceMicMuted}
+        voiceEndedNotice={voiceEndedNotice}
         speakingUserIds={speakingUserIds}
       />
     );
@@ -3880,6 +3922,8 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
   onStartVoice,
   onToggleAlwaysOnTop,
   onToggleVoiceMic,
+  voiceMicMuted,
+  voiceEndedNotice,
   speakingUserIds,
   timerActionNotice,
   presentation = "tauri",
@@ -4127,6 +4171,8 @@ export const DesktopWidgetBubble = memo(function DesktopWidgetBubble({
                 onStartVoice={onStartVoice}
                 onTimerModeChange={setTimerModeForGhost}
                 onToggleVoiceMic={onToggleVoiceMic}
+                voiceMicMuted={voiceMicMuted}
+                voiceEndedNotice={voiceEndedNotice}
                 speakingUserIds={speakingUserIds}
               />
             )}
