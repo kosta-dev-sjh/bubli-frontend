@@ -243,8 +243,8 @@ assertContains(
 );
 assertContains(
   startupOptimization,
-  /windows:\s*\{[\s\S]*bubbleOpenStaggerMs:\s*0,[\s\S]*deferBarFullDisplayUntilAfterFirstPaint:\s*true,[\s\S]*initialDisplayPageSize:\s*30,[\s\S]*summaryPrewarmTimeoutMs:\s*1_800/,
-  "Windows startup optimization must use batched widget opening, bounded initial display loads, first-paint deferral, and summary prewarm.",
+  /windows:\s*\{[\s\S]*bubbleOpenStaggerMs:\s*0,[\s\S]*deferBarFullDisplayUntilAfterFirstPaint:\s*true,[\s\S]*initialDisplayPageSize:\s*30,[\s\S]*initialNotificationScanPages:\s*2,[\s\S]*summaryPrewarmTimeoutMs:\s*1_800/,
+  "Windows startup optimization must use batched widget opening, bounded initial display loads, bounded initial notification scans, first-paint deferral, and summary prewarm.",
 );
 assertContains(
   publishTauriWindowsDownload,
@@ -1796,8 +1796,8 @@ assertContains(
 );
 assertContains(
   widgetPage,
-  /const initialDisplayPageSize =[\s\S]*isTauri && !displayLoadedOnceRef\.current && startupOptimization\.initialDisplayPageSize > 0[\s\S]*widgetDisplayApi\.listSchedules\(selectedRoomId, initialDisplayPageSize\)[\s\S]*widgetDisplayApi\.listResources\(selectedRoomId, initialDisplayPageSize\)[\s\S]*widgetDisplayApi\.listMemos\(selectedRoomId, initialDisplayPageSize\)[\s\S]*startupOptimization\.initialDisplayPageSize/,
-  "Desktop widget must use the Windows startup profile to bound first-load schedule/resource/memo requests without affecting later refreshes.",
+  /const initialDisplayPageSize =[\s\S]*startupOptimization\.initialDisplayPageSize[\s\S]*const initialNotificationScanPages =[\s\S]*isTauri && !displayLoadedOnceRef\.current && startupOptimization\.initialNotificationScanPages > 0[\s\S]*widgetDisplayApi\.listSchedules\(selectedRoomId, initialDisplayPageSize\)[\s\S]*widgetDisplayApi\.listResources\(selectedRoomId, initialDisplayPageSize\)[\s\S]*widgetDisplayApi\.listMemos\(selectedRoomId, initialDisplayPageSize\)[\s\S]*listWidgetVisibleUnreadNotifications\(WIDGET_NOTIFICATION_DISPLAY_LIMIT, initialNotificationScanPages\)[\s\S]*startupOptimization\.initialDisplayPageSize[\s\S]*startupOptimization\.initialNotificationScanPages/,
+  "Desktop widget must use the Windows startup profile to bound first-load schedule/resource/memo requests and notification scans without affecting later refreshes.",
 );
 
 assertContains(
