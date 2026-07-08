@@ -39,6 +39,8 @@ import {
 } from "@/lib/local/managed-folder-client";
 import { tauriCommands, type LocalFileByResourceIdResult } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { isWindowsTauriRuntime } from "@/lib/tauri/platform";
+import { readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { GeneratedDocumentResponse } from "@/types/api/agent";
@@ -76,6 +78,27 @@ type ResourceWorkGenerationState =
 
 const RESOURCE_ANALYSIS_JOB_POLL_ATTEMPTS = 24;
 const RESOURCE_ANALYSIS_JOB_POLL_INTERVAL_MS = 2500;
+
+async function readWindowsResourceDetailTimeoutMs() {
+  if (!isWindowsTauriRuntime()) return 0;
+
+  const startupConfig = await readTauriStartupOptimizationConfig().catch(() => null);
+  if (startupConfig?.profile !== "windows") return 0;
+  return startupConfig.settingsTimeoutMs;
+}
+
+function withWindowsResourceDetailDeadline<T>(request: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+  if (timeoutMs <= 0 || typeof window === "undefined") return request;
+
+  let timeoutId: number | null = null;
+  const timeout = new Promise<T>((resolve) => {
+    timeoutId = window.setTimeout(() => resolve(fallback), timeoutMs);
+  });
+
+  return Promise.race([request, timeout]).finally(() => {
+    if (timeoutId !== null) window.clearTimeout(timeoutId);
+  });
+}
 
 const documentDraftOptions: { labelKey: MessageKey; value: DocumentDraftType }[] = [
   { labelKey: "resources.common.draftTypeProjectBrief", value: "PROJECT_BRIEF" },
@@ -946,14 +969,23 @@ export function ResourcePreview({
             })
           : Promise.resolve(null);
 
-      Promise.allSettled([
+      const detailRequest = Promise.allSettled([
         resourcesApi.get(resource.id),
         resourcesApi.getSummary(resource.id),
         resourcesApi.getVersions(resource.id),
         resourcesApi.getComments(resource.id),
         resourcesApi.getRelated(resource.id),
         localFileVersionRequest,
-      ]).then(([resourceResult, summaryResult, versionsResult, commentsResult, relatedResult, localFileVersionResult]) => {
+      ]);
+
+      const applyDetailResults = ([
+        resourceResult,
+        summaryResult,
+        versionsResult,
+        commentsResult,
+        relatedResult,
+        localFileVersionResult,
+      ]: Awaited<typeof detailRequest>) => {
         if (cancelled) {
           return;
         }
@@ -991,7 +1023,21 @@ export function ResourcePreview({
         ].find((result) => result?.status === "rejected");
         setDetailError(failed?.status === "rejected" ? getErrorMessage(failed.reason) : null);
         setDetailLoading(false);
-      });
+      };
+
+      void readWindowsResourceDetailTimeoutMs()
+        .then((timeoutMs) => withWindowsResourceDetailDeadline<Awaited<typeof detailRequest> | null>(detailRequest, timeoutMs, null))
+        .then((results) => {
+          if (results) {
+            applyDetailResults(results);
+            return;
+          }
+
+          if (!cancelled) {
+            setDetailLoading(false);
+          }
+          void detailRequest.then(applyDetailResults).catch(() => undefined);
+        });
     }, 0);
 
     return () => {
