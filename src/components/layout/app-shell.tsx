@@ -686,6 +686,30 @@ export function AppShell({ children }: AppShellProps) {
     return () => stopCallRingtone();
   }, [incomingVoiceCall]);
 
+  // 브라우저는 스크립트로 다른 탭/창에 있는 사용자를 강제로 이 탭에 포커스시킬 수 없다(OS
+  // 알림 클릭 유도가 사실상 최대치). 그 다음으로 눈에 띄는 신호로, 이 탭이 안 보이는 동안엔
+  // 탭 제목을 깜빡여 최소한 브라우저 탭 목록에서라도 바로 알아챌 수 있게 한다.
+  useEffect(() => {
+    if (!incomingVoiceCall) return;
+    const callerName = incomingVoiceCall.callerName;
+    const originalTitle = document.title;
+    let flashOn = false;
+    const applyTitle = () => {
+      const userIsElsewhere = document.visibilityState === "hidden" || !document.hasFocus();
+      if (!userIsElsewhere) {
+        document.title = originalTitle;
+        return;
+      }
+      flashOn = !flashOn;
+      document.title = flashOn ? t("layout.voiceCall.incomingTitleFlash", { caller: callerName }) : originalTitle;
+    };
+    const intervalId = window.setInterval(applyTitle, 1_000);
+    return () => {
+      window.clearInterval(intervalId);
+      document.title = originalTitle;
+    };
+  }, [incomingVoiceCall, t]);
+
   // 발신자(내가 건 전화) 링백 — 상대가 받거나 거절/타임아웃될 때까지 통화음을 반복 재생한다.
   // 채팅 화면을 벗어나도(다른 탭에 있어도) 앱 전역에서 계속 들려야 하므로 여기서도 재생한다.
   useEffect(() => {

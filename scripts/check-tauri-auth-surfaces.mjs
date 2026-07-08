@@ -1424,6 +1424,11 @@ assertContains(
 );
 assertContains(
   surfaces,
+  /function windowsStartupBound[\s\S]*startupConfig\.profile !== "windows"[\s\S]*startupConfig\.settingsTimeoutMs[\s\S]*withTimeout\(promise, startupConfig\.settingsTimeoutMs[\s\S]*async function resolveLaunchSelectedRoomId\(\)[\s\S]*const startupConfig = await readTauriStartupOptimizationConfig\(\)[\s\S]*windowsStartupBound\([\s\S]*widgetApi\.getContext\(\)[\s\S]*windowsStartupBound\([\s\S]*projectRoomApi\.list\(\)[\s\S]*windowsStartupBound\([\s\S]*widgetApi\.updateContext/,
+  "Windows login startup must bound slow room-context and project-room fallback API calls without changing non-Windows profiles.",
+);
+assertContains(
+  surfaces,
   /preference\.mode === "board"[\s\S]*desktopWidgetBoardWindows/,
   "Board startup preference must open the curated blog-board widget set.",
 );

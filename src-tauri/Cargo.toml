@@ -40,3 +40,9 @@ windows-sys = { version = "0.52", features = [
   "Win32_System_Threading",
   "Win32_UI_WindowsAndMessaging",
 ] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# 수신 전화 팝업을 macOS 전체화면 앱의 별도 Space 위로도 띄우기 위한 NSWindow 직접 제어용.
+# Tauri/wry가 내부적으로 이미 물고 있는 트랜지티브 의존성과 버전을 맞춘다.
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", features = ["NSResponder", "NSWindow"] }
