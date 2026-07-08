@@ -54,7 +54,7 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
     summaryPrewarmTimeoutMs: 1_400,
   },
   windows: {
-    bubbleOpenStaggerMs: 45,
+    bubbleOpenStaggerMs: 0,
     deferredBarFullDisplayDelayMs: 350,
     deferBarFullDisplayUntilAfterFirstPaint: true,
     openCommandTimeoutMs: 8_000,
