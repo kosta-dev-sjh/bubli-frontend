@@ -1141,6 +1141,15 @@ function AgentBody({
 
 type ChatScreen = "list" | "thread" | "newRoom" | "friends";
 
+function formatMessageTime(value?: string | null) {
+  if (!value) return "";
+  try {
+    return new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", hour12: false, minute: "2-digit" }).format(new Date(value));
+  } catch {
+    return "";
+  }
+}
+
 function ChatBody({
   bubble,
   chatScope,
@@ -1187,6 +1196,8 @@ function ChatBody({
   const [submitting, setSubmitting] = useState(false);
   const [voiceSubmitting, setVoiceSubmitting] = useState(false);
   const composerInputRef = useRef<HTMLInputElement | null>(null);
+  const messageThreadRef = useRef<HTMLDivElement | null>(null);
+  const markReadForChatRoomIdRef = useRef<string | null>(null);
   // 화면 전환(목록 ↔ 스레드 ↔ 새 대화 ↔ 친구 관리) — 위젯 창은 좁아 웹처럼 나란히 못 두고
   // 모바일 앱처럼 스택형으로 오간다. 프로젝트룸 모드는 항상 스레드 하나뿐이라 목록이 없다.
   const [chatScreen, setChatScreen] = useState<ChatScreen>(() =>
@@ -1205,10 +1216,12 @@ function ChatBody({
   const visibleRows = bubble.rows.filter((item) => !hiddenIds.includes(item.id));
   const handoffItem = visibleRows.find((item) => item.handoffUrl);
   const agentRows = visibleRows.filter((item) => item.kind === "agent");
-  const friendRows = visibleRows.filter((item) => item.kind === "friend");
   const voiceRows = visibleRows.filter((item) => item.kind === "voice");
-  const signalRows = visibleRows.filter((item) => !item.handoffUrl && item.kind !== "agent" && item.kind !== "friend" && item.kind !== "voice");
-  const [first, second, ...rest] = signalRows;
+  // message는 rows 미리보기용 최근 3개짜리가 아니라 bubble.messageThread(전체 스크롤)로 그리므로
+  // 여기서는 제외한다 — 안 빼면 같은 메시지가 스레드와 이 목록에 중복으로 뜬다.
+  const signalRows = visibleRows.filter(
+    (item) => !item.handoffUrl && item.kind !== "agent" && item.kind !== "friend" && item.kind !== "voice" && item.kind !== "message",
+  );
 
   const hideAfterHandoff = (id: string) => {
     setHiddenIds((current) => (current.includes(id) ? current : [...current, id]));
@@ -1243,7 +1256,7 @@ function ChatBody({
     }
   };
 
-  const markRead = async () => {
+  const markRead = useCallback(async () => {
     if (!onMarkChatRead) return;
 
     setStatusText(null);
@@ -1253,7 +1266,23 @@ function ChatBody({
     } catch {
       setStatusText(t("widget.chat.markReadFailed"));
     }
-  };
+  }, [bubble, onMarkChatRead, t]);
+
+  // 대화 스레드를 열면(또는 새 메시지가 오면) 맨 아래로 자동 스크롤한다 — 웹 채팅창과 동일한 동작.
+  useEffect(() => {
+    const node = messageThreadRef.current;
+    if (!node) return;
+    node.scrollTop = node.scrollHeight;
+  }, [bubble.chatRoomId, bubble.messageThread]);
+
+  // 스레드를 여는 것 자체가 "봤다"는 뜻이라, 예전처럼 별도 "읽음 처리" 버튼을 안 두고
+  // 채팅방이 바뀔 때 한 번 자동으로 읽음 처리한다(같은 방에서 중복 호출은 안 하도록 ref로 방지).
+  useEffect(() => {
+    if (!bubble.chatRoomId) return;
+    if (markReadForChatRoomIdRef.current === bubble.chatRoomId) return;
+    markReadForChatRoomIdRef.current = bubble.chatRoomId;
+    void markRead();
+  }, [bubble.chatRoomId, markRead]);
 
   const runVoiceAction = async (action: "leave" | "mic" | "start") => {
     const handler = action === "start" ? onStartVoice : action === "leave" ? onLeaveVoice : onToggleVoiceMic;
@@ -1401,13 +1430,6 @@ function ChatBody({
           </button>
         ) : null}
       </div>
-      {friendRows.length > 0 || (bubble.participantLabels?.length ?? 0) > 0 ? (
-        <div className={styles.chatPeople}>
-          <Users size={14} strokeWidth={2} />
-          <span>{friendRows[0]?.label ?? bubble.participantLabels?.join(" · ")}</span>
-          <b>{friendRows[0]?.status ?? t("widget.chat.people")}</b>
-        </div>
-      ) : null}
       {voiceOpen ? (
         <div className={styles.voiceStrip}>
           <div>
@@ -1445,31 +1467,35 @@ function ChatBody({
           <b>{handoffItem.handoffLabel ?? handoffItem.status}</b>
         </a>
       ) : null}
-      {first ? <p className={styles.message}>{first.label}</p> : null}
-      {second ? <p className={[styles.message, styles.messageMine].join(" ")}>{second.label}</p> : null}
-      {agentRows.map((item) => (
-        <div className={styles.agentInlineRow} key={item.id}>
-          <Sparkles size={14} strokeWidth={2} />
-          <strong>{item.label}</strong>
-          <b>{item.status}</b>
-          <ItemActions item={item} onItemStateChange={onItemStateChange} />
-        </div>
-      ))}
-      {rest.map((item) => (
-        <div className={styles.alertRow} key={item.id}>
-          <span />
-          <strong>{item.label}</strong>
-          <ItemActions item={item} onItemStateChange={onItemStateChange} />
-        </div>
-      ))}
-      {visibleRows.length === 0 ? <BubbleEmptyState bubble={bubble} /> : null}
-      <div className={styles.reactionDock} aria-label={t("widget.chat.markReadAction")}>
-        <CheckCircle2 size={14} strokeWidth={2} />
-        <button disabled={!bubble.chatRoomId} onClick={() => void markRead()} type="button">
-          {t("widget.chat.markReadAction")}
-        </button>
-        {statusText ? <span>{statusText}</span> : null}
+      <div className={styles.messageThread} ref={messageThreadRef}>
+        {bubble.messageThread && bubble.messageThread.length > 0 ? (
+          bubble.messageThread.map((message) => (
+            <div className={[styles.message, message.mine ? styles.messageMine : ""].join(" ")} key={message.id}>
+              {!message.mine ? <span className={styles.messageThreadSender}>{message.senderName}</span> : null}
+              <span className={styles.messageThreadText}>{message.text}</span>
+              <span className={styles.messageThreadTime}>{formatMessageTime(message.createdAt)}</span>
+            </div>
+          ))
+        ) : (
+          <span className={styles.messageThreadEmpty}>{t("widget.chat.noMessages")}</span>
+        )}
+        {agentRows.map((item) => (
+          <div className={styles.agentInlineRow} key={item.id}>
+            <Sparkles size={14} strokeWidth={2} />
+            <strong>{item.label}</strong>
+            <b>{item.status}</b>
+            <ItemActions item={item} onItemStateChange={onItemStateChange} />
+          </div>
+        ))}
+        {signalRows.map((item) => (
+          <div className={styles.alertRow} key={item.id}>
+            <span />
+            <strong>{item.label}</strong>
+            <ItemActions item={item} onItemStateChange={onItemStateChange} />
+          </div>
+        ))}
       </div>
+      {statusText ? <span className={styles.statusText}>{statusText}</span> : null}
       <div className={styles.composerWrap}>
         {agentAutocomplete.open ? (
           <AgentCommandAutocomplete

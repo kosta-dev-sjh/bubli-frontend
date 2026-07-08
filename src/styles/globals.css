@@ -22929,6 +22929,18 @@ body[data-bubli-surface="hybrid-app"] .resource-workspace > * {
   pointer-events: none;
 }
 
+/* 위젯 바 창은 보이는 바 pill보다 훨씬 큰 투명 사각형이라, 웹 기준 우측 하단 좌표를 그대로
+   쓰면 실제 바 pill과 동떨어진 곳에 뜨거나 창 경계에 잘려 보였다. 보이스 팝업과 같은 방식으로
+   화면 상단 중앙에 작게 띄운다. */
+.message-toast-stack--widget {
+  right: auto;
+  bottom: auto;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(272px, calc(100vw - 20px));
+}
+
 .message-toast {
   pointer-events: all;
   display: flex;

@@ -1268,6 +1268,17 @@ function buildDisplayBubbles(input: {
       voiceParticipants: voiceParticipants.map((item) => item.userName).filter(Boolean).join(" · ") || t("widget.chat.noParticipants"),
       voiceParticipantList: voiceParticipants.map((item) => ({ userId: item.userId, userName: item.userName })),
       voiceRoomId: input.voiceRoom?.id,
+      // 스레드 화면에서 실제 대화 내용을 웹처럼 스크롤로 쭉 보여주기 위한 전체 메시지 목록.
+      // rows는 바/고스트 미리보기용으로 최근 3개만 담기지만, 스레드는 그것과 별개로 전체를 쓴다.
+      messageThread: [...input.messages]
+        .sort((a, b) => a.roomSequence - b.roomSequence)
+        .map((item) => ({
+          createdAt: item.createdAt,
+          id: item.id,
+          mine: Boolean(input.currentUserId) && item.sender.id === input.currentUserId,
+          senderName: item.sender.name,
+          text: messageText(item),
+        })),
       rows: [
         ...input.friends.slice(0, 1).map((item) => ({
           id: item.userId,
@@ -2464,11 +2475,13 @@ function DesktopWidgetSurface() {
         activeRoom = await widgetDisplayApi.createProjectRoomChatRoom(selectedRoomId).catch(() => null);
       }
       if (cancelled) return;
-      const messages = loadChat && activeRoom ? await widgetDisplayApi.listChatMessages(activeRoom.id, 6).catch(() => null) : null;
+      // 스레드 화면에서 최근 메시지 한두 개가 아니라 웹처럼 스크롤 가능한 대화 전체를 보여줘야
+      // 해서 6개가 아니라 넉넉히 가져온다.
+      const messages = loadChat && activeRoom ? await widgetDisplayApi.listChatMessages(activeRoom.id, 40).catch(() => null) : null;
       const cachedMessages =
         loadChat && isTauri && activeRoom && !messages
           ? await tauriCommands
-              .readRoomMessages({ limit: 6, roomId: activeRoom.id })
+              .readRoomMessages({ limit: 40, roomId: activeRoom.id })
               .then((result) => parseCachedWidgetChatMessages(result.items))
               .catch(() => [])
           : [];
@@ -4018,33 +4031,46 @@ function DesktopWidgetSurface() {
   }, [isBubbleBar, isWidgetRingingBack]);
 
   // 상대가 거절했다는 실시간 알림(websocket)이 유실되면 발신 팝업이 영영 안 닫힌다 — 거절 자체는
-  // 서버에 이미 반영됐는데(알림함엔 남음) 화면만 못 따라가는 경우다. 웹(app-shell.tsx)과 동일한
-  // 이유로 방 상태를 직접 폴링하는 안전망을 둔다. activeVoiceRoomId는 이미 창 간에 동기화되어
+  // 서버에 이미 반영됐는데(알림함엔 남음) 화면만 못 따라가는 경우다. declineVoiceRoom은 방
+  // 상태를 안 바꾸고 알림만 만든다(끊는 건 이 알림을 받은 발신자 쪽 클라이언트 책임) — 그래서
+  // 방 상태를 폴링해선 거절을 절대 못 잡는다(방은 계속 OPEN으로 남는다). 대신 알림 목록에서
+  // 이 통화방으로 온 거절 알림 자체를 직접 찾는다. activeVoiceRoomId는 이미 창 간에 동기화되어
   // 있으므로 바 창 하나만 폴링해도 다른 창에 전파된다.
   useEffect(() => {
-    if (!isBubbleBar || !isWidgetRingingBack || !activeVoiceRoomId) return;
+    if (!isBubbleBar || !isWidgetRingingBack || !activeVoiceRoomId || !activeVoiceRoom?.chatRoomId) return;
     const voiceRoomId = activeVoiceRoomId;
+    const chatRoomId = activeVoiceRoom.chatRoomId;
+    const callStartedAt = activeVoiceRoom.createdAt ? new Date(activeVoiceRoom.createdAt).getTime() : 0;
     const interval = window.setInterval(() => {
       void widgetDisplayApi
-        .getVoiceRoom(voiceRoomId)
-        .then((room) => {
-          if (room.status !== "OPEN") {
-            setActiveVoiceRoomId(null);
-            setActiveVoiceRoom(null);
-            setSpeakingUserIds(new Set());
-            void emitWidgetVoiceCallStateChanged(null).catch(() => undefined);
-            if (liveKitRoomRef.current) {
-              detachWidgetRemoteAudio(liveKitRoomRef.current);
-              liveKitRoomRef.current.disconnect();
-              liveKitRoomRef.current = null;
-            }
-            stopCallRingtone();
+        .listNotifications(10)
+        .then((page) => {
+          const declined = page.items.find(
+            (item) =>
+              item.sourceType === "VOICE_CALL_DECLINED" &&
+              item.sourceId === chatRoomId &&
+              new Date(item.createdAt).getTime() >= callStartedAt,
+          );
+          if (!declined) return;
+          void widgetCommunicationApi.endVoiceRoom(voiceRoomId).catch(() => undefined);
+          setActiveVoiceRoomId(null);
+          setActiveVoiceRoom(null);
+          setSpeakingUserIds(new Set());
+          void emitWidgetVoiceCallStateChanged(null).catch(() => undefined);
+          if (liveKitRoomRef.current) {
+            detachWidgetRemoteAudio(liveKitRoomRef.current);
+            liveKitRoomRef.current.disconnect();
+            liveKitRoomRef.current = null;
           }
+          stopCallRingtone();
+          setWidgetOutgoingCallNotice(t("layout.voiceCall.declinedNotice"));
+          window.setTimeout(() => setWidgetOutgoingCallNotice(null), 3_000);
+          void notificationApi.markRead(declined.id).catch(() => undefined);
         })
         .catch(() => undefined);
     }, 3_000);
     return () => window.clearInterval(interval);
-  }, [activeVoiceRoomId, isBubbleBar, isWidgetRingingBack]);
+  }, [activeVoiceRoom, activeVoiceRoomId, isBubbleBar, isWidgetRingingBack, t]);
 
   const dismissIncomingVoiceCall = useCallback(() => {
     if (!incomingVoiceCall) return;
@@ -4541,9 +4567,9 @@ function DesktopWidgetSurface() {
           usageSummary={menuUsageSummary}
         />
         {messageToasts.length > 0 ? (
-          <div className="message-toast-stack" aria-live="polite">
+          <div className="message-toast-stack message-toast-stack--widget" aria-live="polite">
             {messageToasts.map((toast) => (
-              <div className="message-toast" key={toast.id} role="status">
+              <div className="message-toast" data-bubli-interactive="true" key={toast.id} role="status">
                 <button className="message-toast__body" onClick={() => void openMessageToast(toast)} type="button">
                   <strong className="message-toast__sender">{toast.senderName}</strong>
                   <span className="message-toast__text">{toast.text}</span>

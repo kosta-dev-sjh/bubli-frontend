@@ -2798,6 +2798,8 @@
 }
 
 .message {
+  align-self: flex-start;
+  max-width: 78%;
   padding: 8px 10px;
   border: 1px solid var(--widget-hairline);
   border-radius: 12px;
@@ -2811,6 +2813,60 @@
   border-color: color-mix(in srgb, var(--acc) 22%, transparent);
   color: var(--acc-ink);
   background: color-mix(in srgb, var(--acc) 12%, transparent);
+}
+
+/* 스레드 화면의 대화 전체 — 웹처럼 스크롤로 쭉 이어지게. 헤더/보이스 스트립/컴포저 사이의
+   남는 세로 공간을 전부 채운다(flex: 1). */
+.messageThread {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 2px 1px;
+  scrollbar-width: none;
+}
+
+.messageThread::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.messageThread .message {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.messageThreadSender {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--widget-muted);
+}
+
+.messageThreadText {
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.messageThreadTime {
+  align-self: flex-end;
+  font-size: 10px;
+  font-weight: 650;
+  color: var(--widget-faint);
+}
+
+.messageThreadEmpty {
+  margin: auto;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--widget-muted);
+  text-align: center;
 }
 
 .reactionDock {
