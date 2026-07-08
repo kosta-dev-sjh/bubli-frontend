@@ -3541,7 +3541,7 @@
   padding: 0 6px;
   border: 2px solid rgba(255, 255, 255, 0.92);
   border-radius: 999px;
-  background: linear-gradient(180deg, #43b3ff 0%, #1687e5 100%);
+  background: linear-gradient(180deg, var(--bubble-blue) 0%, #1B84DF 100%);
   box-shadow: 0 8px 16px -8px rgba(22, 135, 229, 0.9);
   color: #fff;
   font-size: 14px;
@@ -3829,7 +3829,7 @@
 }
 
 .menuRoomOption[data-active="true"] {
-  color: #075C93;
+  color: var(--blue-ink);
   background: rgba(216, 240, 255, 0.7);
 }
 
@@ -3842,7 +3842,7 @@
 
 .menuRoomOption svg {
   justify-self: end;
-  color: #0A67A4;
+  color: var(--blue-ink);
 }
 
 .menuRoomOption:disabled {
