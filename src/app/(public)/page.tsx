@@ -25,7 +25,7 @@ const faqItems: { qKey: MessageKey; aKey: MessageKey }[] = [
   { qKey: "public.home.faq4Q", aKey: "public.home.faq4A" },
 ];
 
-const macosInstallerHref = "/downloads/macos/Bubli-macOS-0.1.3-arm64.dmg";
+const macosInstallerHref = "/downloads/macos/Bubli-macOS-0.1.4-arm64.dmg";
 const windowsInstallerHref = "/downloads/windows/Bubli-Windows-latest.exe";
 
 export default function HomePage() {
