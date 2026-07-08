@@ -48,6 +48,7 @@ import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
 import { tauriCommands } from "@/lib/tauri/commands";
 import { listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { isWindowsTauriRuntime } from "@/lib/tauri/platform";
 import { readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
 import { writeWindowsChatRoomsCache, writeWindowsProjectRoomsCache } from "@/lib/tauri/windows-route-cache";
 import {
@@ -73,6 +74,7 @@ const TAURI_SESSION_RESTORE_GRACE_ATTEMPTS = 6;
 const TAURI_SESSION_RESTORE_GRACE_DELAY_MS = 250;
 const TAURI_SESSION_RESTORE_COMMAND_TIMEOUT_MS = 1_000;
 const MAX_MESSAGE_TOASTS = 3;
+const WINDOWS_SHELL_BACKGROUND_DELAY_MS = 700;
 
 type AppShellProps = {
   children: ReactNode;
@@ -87,6 +89,10 @@ type ShellState =
 type TopbarMenu = "notifications" | "profile" | null;
 
 type NotificationToastKind = "chat-invite" | "friend-accepted" | "friend-request" | "message" | "room-invite";
+
+function windowsShellBackgroundDelayMs() {
+  return isWindowsTauriRuntime() ? WINDOWS_SHELL_BACKGROUND_DELAY_MS : 0;
+}
 
 function initialsFromName(name?: string | null) {
   const cleanName = name?.trim();
@@ -473,21 +479,23 @@ export function AppShell({ children }: AppShellProps) {
         const widgetContext = widgetContextResult.status === "fulfilled" ? widgetContextResult.value : null;
         await applyWorkspaceHydration(roomPage, widgetContext);
 
-        void Promise.allSettled([notificationApi.list(), projectRoomApi.getMyInvitations("PENDING")]).then(
-          ([notificationPageResult, invitationPageResult]) => {
-            if (!isCurrentRun()) return;
+        window.setTimeout(() => {
+          void Promise.allSettled([notificationApi.list(), projectRoomApi.getMyInvitations("PENDING")]).then(
+            ([notificationPageResult, invitationPageResult]) => {
+              if (!isCurrentRun()) return;
 
-            if (notificationPageResult.status === "fulfilled") {
-              setState((current) =>
-                current.kind === "ready" ? { ...current, notifications: notificationPageResult.value.items } : current,
-              );
-            }
+              if (notificationPageResult.status === "fulfilled") {
+                setState((current) =>
+                  current.kind === "ready" ? { ...current, notifications: notificationPageResult.value.items } : current,
+                );
+              }
 
-            if (invitationPageResult.status === "fulfilled") {
-              setMyInvitations(invitationPageResult.value.items);
-            }
-          },
-        );
+              if (invitationPageResult.status === "fulfilled") {
+                setMyInvitations(invitationPageResult.value.items);
+              }
+            },
+          );
+        }, windowsShellBackgroundDelayMs());
       } catch (error) {
         if (!isCurrentRun()) return;
         if (error instanceof ApiClientError && error.status === 401) {
@@ -568,10 +576,14 @@ export function AppShell({ children }: AppShellProps) {
   useEffect(() => {
     if (!shellReady) return;
 
-    void chatApi
-      .listRooms()
-      .then((page) => writeWindowsChatRoomsCache(page.items))
-      .catch(() => undefined);
+    const timeoutId = window.setTimeout(() => {
+      void chatApi
+        .listRooms()
+        .then((page) => writeWindowsChatRoomsCache(page.items))
+        .catch(() => undefined);
+    }, windowsShellBackgroundDelayMs());
+
+    return () => window.clearTimeout(timeoutId);
   }, [shellReady]);
 
   const pushNotificationToast = useCallback((kind: NotificationToastKind, notification: NotificationResponse, chatRoomId?: string) => {

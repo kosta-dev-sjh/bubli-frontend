@@ -297,6 +297,11 @@ assertContains(
   "Windows Tauri chat room lists must render the recent successful room list before waiting on the server, then replace it with the latest server list.",
 );
 assertContains(
+  appChat,
+  /readWindowsChatAuxTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*withWindowsChatAuxDeadline[\s\S]*windowsChatAuxDelayMs[\s\S]*const friendsRequest = friendApi\.listFriends\(\)[\s\S]*const requestsRequest = friendApi\.listRequests\(\)[\s\S]*withWindowsChatAuxDeadline\(friendsRequest[\s\S]*withWindowsChatAuxDeadline\(requestsRequest[\s\S]*Promise\.allSettled\(\[friendsRequest, requestsRequest\]\)[\s\S]*const userRequest = authApi\.getMe\(\)[\s\S]*withWindowsChatAuxDeadline<AuthUser \| null>\(userRequest[\s\S]*WINDOWS_CHAT_AUX_POLL_INTERVAL_MS/,
+  "Windows Tauri chat auxiliary social/profile/invitation requests must be delayed, deadline-bound, and backfilled so route transitions are not blocked by secondary server calls.",
+);
+assertContains(
   projectRoomsPage,
   /readWindowsProjectRoomsCache[\s\S]*writeWindowsProjectRoomsCache[\s\S]*const cachedRooms = await readWindowsProjectRoomsCache\(\)[\s\S]*setState\(cachedRooms \? \{ kind: "ready", rooms: cachedRooms \} : \{ kind: "loading" \}\)[\s\S]*projectRoomApi\.list\(\)[\s\S]*void writeWindowsProjectRoomsCache\(page\.items\)/,
   "Windows Tauri project room lists must render the recent successful room list before waiting on the server, then replace it with the latest server list.",
@@ -310,6 +315,11 @@ assertContains(
   appShell,
   /writeWindowsChatRoomsCache[\s\S]*writeWindowsProjectRoomsCache[\s\S]*void writeWindowsProjectRoomsCache\(roomPage\.items\)[\s\S]*void writeWindowsProjectRoomsCache\(roomPage\.value\.items\)[\s\S]*chatApi[\s\S]*\.listRooms\(\)[\s\S]*writeWindowsChatRoomsCache\(page\.items\)/,
   "AppShell must prewarm Windows route caches so first navigation does not wait on room-list server calls.",
+);
+assertContains(
+  appShell,
+  /isWindowsTauriRuntime[\s\S]*WINDOWS_SHELL_BACKGROUND_DELAY_MS[\s\S]*windowsShellBackgroundDelayMs[\s\S]*window\.setTimeout\(\(\) => \{[\s\S]*notificationApi\.list\(\)[\s\S]*projectRoomApi\.getMyInvitations\("PENDING"\)[\s\S]*window\.setTimeout\(\(\) => \{[\s\S]*chatApi[\s\S]*\.listRooms\(\)[\s\S]*windowsShellBackgroundDelayMs\(\)/,
+  "Windows AppShell background notification/invitation/chat-cache requests must be delayed so they do not compete with first route rendering.",
 );
 assertContains(
   projectRoomWorkRoute,
