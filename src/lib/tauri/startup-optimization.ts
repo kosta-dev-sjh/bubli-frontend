@@ -17,6 +17,7 @@ export type TauriStartupOptimizationConfig = {
 
 const STARTUP_OPTIMIZATION_CACHE_KEY = "tauri-runtime";
 const STARTUP_OPTIMIZATION_KIND = "startup_optimization_profile";
+let startupOptimizationConfigPromise: Promise<TauriStartupOptimizationConfig> | null = null;
 
 const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimizationConfig> = {
   aggressive: {
@@ -91,8 +92,9 @@ export function defaultTauriStartupOptimizationConfig(): TauriStartupOptimizatio
 
 export async function readTauriStartupOptimizationConfig(): Promise<TauriStartupOptimizationConfig> {
   if (!isTauriRuntime()) return defaultTauriStartupOptimizationConfig();
+  if (startupOptimizationConfigPromise) return startupOptimizationConfigPromise;
 
-  try {
+  startupOptimizationConfigPromise = (async () => {
     const cached = await tauriCommands.readWidgetPref({
       cacheKey: STARTUP_OPTIMIZATION_CACHE_KEY,
       kind: STARTUP_OPTIMIZATION_KIND,
@@ -100,6 +102,10 @@ export async function readTauriStartupOptimizationConfig(): Promise<TauriStartup
     if (!cached) return defaultTauriStartupOptimizationConfig();
     const parsed = JSON.parse(cached.valueJson) as { profile?: unknown };
     return profileConfigs[normalizeProfileOrDefault(parsed.profile)];
+  })().catch(() => defaultTauriStartupOptimizationConfig());
+
+  try {
+    return await startupOptimizationConfigPromise;
   } catch {
     return defaultTauriStartupOptimizationConfig();
   }
@@ -108,6 +114,7 @@ export async function readTauriStartupOptimizationConfig(): Promise<TauriStartup
 export async function writeTauriStartupOptimizationProfile(profile: TauriStartupOptimizationProfile): Promise<void> {
   if (!isTauriRuntime()) return;
 
+  startupOptimizationConfigPromise = Promise.resolve(profileConfigs[normalizeProfileOrDefault(profile)]);
   await tauriCommands.storeWidgetPref({
     cacheKey: STARTUP_OPTIMIZATION_CACHE_KEY,
     kind: STARTUP_OPTIMIZATION_KIND,
