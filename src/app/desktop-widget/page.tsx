@@ -2391,6 +2391,10 @@ function DesktopWidgetSurface() {
       const loadChat = shouldLoadBubbleData("chat");
       const loadRoom = Boolean(selectedRoomId) && (loadFullDisplay || activeBubble !== "alert");
       const loadRoomBoard = Boolean(selectedRoomId) && shouldLoadBubbleData("todo");
+      const initialDisplayPageSize =
+        isTauri && !displayLoadedOnceRef.current && startupOptimization.initialDisplayPageSize > 0
+          ? startupOptimization.initialDisplayPageSize
+          : 0;
       const loadProjectRooms =
         isBubbleBar || loadFullDisplay || activeBubble === "agent" || activeBubble === "todo" || activeBubble === "memo" || activeBubble === "schedule";
       const [
@@ -2417,11 +2421,31 @@ function DesktopWidgetSurface() {
         await Promise.allSettled([
           loadDashboard ? widgetDisplayApi.getDashboardWork() : Promise.resolve(null),
           loadTasks ? widgetDisplayApi.listMyTasks(30) : Promise.resolve(null),
-          loadSchedules ? widgetDisplayApi.listAllSchedules(selectedRoomId) : Promise.resolve(null),
-          loadResources ? widgetDisplayApi.listAllResources(selectedRoomId) : Promise.resolve(null),
-          loadMemos ? widgetDisplayApi.listAllMemos(selectedRoomId) : Promise.resolve(null),
-          loadMemos && selectedRoomId ? widgetDisplayApi.listAllMemos(null) : Promise.resolve(null),
-          loadSchedules && selectedRoomId ? widgetDisplayApi.listAllSchedules(null) : Promise.resolve(null),
+          loadSchedules
+            ? initialDisplayPageSize > 0
+              ? widgetDisplayApi.listSchedules(selectedRoomId, initialDisplayPageSize)
+              : widgetDisplayApi.listAllSchedules(selectedRoomId)
+            : Promise.resolve(null),
+          loadResources
+            ? initialDisplayPageSize > 0
+              ? widgetDisplayApi.listResources(selectedRoomId, initialDisplayPageSize)
+              : widgetDisplayApi.listAllResources(selectedRoomId)
+            : Promise.resolve(null),
+          loadMemos
+            ? initialDisplayPageSize > 0
+              ? widgetDisplayApi.listMemos(selectedRoomId, initialDisplayPageSize)
+              : widgetDisplayApi.listAllMemos(selectedRoomId)
+            : Promise.resolve(null),
+          loadMemos && selectedRoomId
+            ? initialDisplayPageSize > 0
+              ? widgetDisplayApi.listMemos(null, initialDisplayPageSize)
+              : widgetDisplayApi.listAllMemos(null)
+            : Promise.resolve(null),
+          loadSchedules && selectedRoomId
+            ? initialDisplayPageSize > 0
+              ? widgetDisplayApi.listSchedules(null, initialDisplayPageSize)
+              : widgetDisplayApi.listAllSchedules(null)
+            : Promise.resolve(null),
           loadNotifications ? listWidgetVisibleUnreadNotifications() : Promise.resolve(null),
           loadChat ? widgetDisplayApi.listChatRooms(20) : Promise.resolve(null),
           loadChat ? widgetDisplayApi.listFriends() : Promise.resolve(null),
@@ -2656,7 +2680,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [activeBubble, activeVoiceRoomId, agentRevision, barFullDisplayReady, chatScope, communicationRevision, currentUserBubliId, currentUserId, displayRefreshRevision, isBubbleBar, isMenuOrb, isTauri, isWidgetChrome, itemStateOverrides, memoRevision, notificationRevision, resourceRevision, scheduleRevision, selectedPeerChatRoomId, selectedWidgetRoomId, t, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContextInitialized, widgetSessionReady]);
+  }, [activeBubble, activeVoiceRoomId, agentRevision, barFullDisplayReady, chatScope, communicationRevision, currentUserBubliId, currentUserId, displayRefreshRevision, isBubbleBar, isMenuOrb, isTauri, isWidgetChrome, itemStateOverrides, memoRevision, notificationRevision, resourceRevision, scheduleRevision, selectedPeerChatRoomId, selectedWidgetRoomId, startupOptimization.initialDisplayPageSize, t, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContextInitialized, widgetSessionReady]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;

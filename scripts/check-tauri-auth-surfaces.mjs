@@ -243,8 +243,8 @@ assertContains(
 );
 assertContains(
   startupOptimization,
-  /windows:\s*\{[\s\S]*bubbleOpenStaggerMs:\s*0,[\s\S]*deferBarFullDisplayUntilAfterFirstPaint:\s*true,[\s\S]*summaryPrewarmTimeoutMs:\s*1_800/,
-  "Windows startup optimization must use batched widget opening while keeping first-paint deferral and summary prewarm enabled.",
+  /windows:\s*\{[\s\S]*bubbleOpenStaggerMs:\s*0,[\s\S]*deferBarFullDisplayUntilAfterFirstPaint:\s*true,[\s\S]*initialDisplayPageSize:\s*30,[\s\S]*summaryPrewarmTimeoutMs:\s*1_800/,
+  "Windows startup optimization must use batched widget opening, bounded initial display loads, first-paint deferral, and summary prewarm.",
 );
 assertContains(
   publishTauriWindowsDownload,
@@ -1793,6 +1793,11 @@ assertContains(
   widgetPage,
   /readWidgetSummary\(\{ preferLocalCache: false[\s\S]*serverResult\.status !== "failed"[\s\S]*summary:server-refresh-failed/,
   "Desktop widget cached summary fallback must record server refresh failures instead of hiding backend/API failures.",
+);
+assertContains(
+  widgetPage,
+  /const initialDisplayPageSize =[\s\S]*isTauri && !displayLoadedOnceRef\.current && startupOptimization\.initialDisplayPageSize > 0[\s\S]*widgetDisplayApi\.listSchedules\(selectedRoomId, initialDisplayPageSize\)[\s\S]*widgetDisplayApi\.listResources\(selectedRoomId, initialDisplayPageSize\)[\s\S]*widgetDisplayApi\.listMemos\(selectedRoomId, initialDisplayPageSize\)[\s\S]*startupOptimization\.initialDisplayPageSize/,
+  "Desktop widget must use the Windows startup profile to bound first-load schedule/resource/memo requests without affecting later refreshes.",
 );
 
 assertContains(
