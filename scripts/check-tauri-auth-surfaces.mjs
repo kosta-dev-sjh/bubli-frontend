@@ -22,6 +22,7 @@ const files = {
   appAgent: "src/app/(workspace)/app/agent/page.tsx",
   projectRoomsPage: "src/app/(workspace)/app/project-rooms/page.tsx",
   projectRoomWorkRoute: "src/app/(workspace)/app/project-rooms/[roomId]/work/page.tsx",
+  projectRoomSettingsPanel: "src/features/project-room/components/project-room-settings-panel.tsx",
   wbsGanttPanel: "src/features/wbs/components/wbs-gantt-panel.tsx",
   workspaceDashboard: "src/features/dashboard/components/workspace-dashboard.tsx",
   memoDashboardCard: "src/features/memo/components/memo-dashboard-card.tsx",
@@ -220,6 +221,7 @@ const appChat = read(files.appChat);
 const appAgent = read(files.appAgent);
 const projectRoomsPage = read(files.projectRoomsPage);
 const projectRoomWorkRoute = read(files.projectRoomWorkRoute);
+const projectRoomSettingsPanel = read(files.projectRoomSettingsPanel);
 const wbsGanttPanel = read(files.wbsGanttPanel);
 const workspaceDashboard = read(files.workspaceDashboard);
 const memoDashboardCard = read(files.memoDashboardCard);
@@ -334,6 +336,11 @@ assertContains(
   wbsGanttPanel,
   /readWindowsWbsCalendarTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*withWindowsWbsCalendarDeadline[\s\S]*const request = calendarApi\.getEvents\(\{ roomId, \.\.\.scheduleRangeQuery\(\) \}\)[\s\S]*withWindowsWbsCalendarDeadline\(request, timeoutMs, null\)[\s\S]*setSchedules\(page\.items\.filter[\s\S]*request[\s\S]*setSchedules\(latest\.items\.filter[\s\S]*const request = calendarApi\.getGoogleConnection\(\)[\s\S]*withWindowsWbsCalendarDeadline<GoogleCalendarConnectionResponse \| null>\(request, timeoutMs, null\)[\s\S]*setCalendarSync\(isActive \? "recording" : "off"\)[\s\S]*const request = calendarApi\.getGroupedEvents\(\{ from, roomId, to \}\)[\s\S]*setRoomGroupEventCount/,
   "WBS Gantt panel must not block Windows work-board rendering on auxiliary calendar/Google status calls; it should deadline-bound and backfill those calendar details.",
+);
+assertContains(
+  projectRoomSettingsPanel,
+  /readWindowsRoomSettingsTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*withWindowsRoomSettingsDeadline[\s\S]*const referencesRequest = agentApi\.listRoomContractReferences\(room\.id\)[\s\S]*const resourcesRequest = resourcesApi\.listRoomResources\(room\.id\)\.then\(\(page\) => page\.items\)[\s\S]*withWindowsRoomSettingsDeadline\(referencesRequest, timeoutMs, \[\]\)[\s\S]*withWindowsRoomSettingsDeadline\(resourcesRequest, timeoutMs, \[\]\)[\s\S]*Promise\.allSettled\(\[referencesRequest, resourcesRequest\]\)[\s\S]*const request = projectRoomApi\.getInvitations\(room\.id\)[\s\S]*withWindowsRoomSettingsDeadline<Awaited<typeof request> \| null>\(request, timeoutMs, null\)[\s\S]*const request = friendApi\.listFriends\(\)[\s\S]*withWindowsRoomSettingsDeadline<FriendResponse\[\] \| null>\(request, timeoutMs, null\)/,
+  "Project room settings panel must not block Windows settings interactions on contract/friend/invitation hydration; those requests should be deadline-bound and backfilled.",
 );
 assertContains(
   startupOptimization,

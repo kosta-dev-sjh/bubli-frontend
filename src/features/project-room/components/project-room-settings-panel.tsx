@@ -14,6 +14,8 @@ import { ApiClientError } from "@/lib/api/errors";
 import { notifyDataChanged } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
+import { isWindowsTauriRuntime } from "@/lib/tauri/platform";
+import { readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
 import { shouldUseWorkspacePreviewData } from "@/lib/workspace-preview-data";
 import type { AgentSuggestionResponse } from "@/types/api/agent";
 import type { FriendResponse } from "@/types/api/friend";
@@ -34,6 +36,27 @@ type ContractFillOption = {
   name: string;
   resourceId: string;
 };
+
+async function readWindowsRoomSettingsTimeoutMs() {
+  if (!isWindowsTauriRuntime()) return 0;
+
+  const startupConfig = await readTauriStartupOptimizationConfig().catch(() => null);
+  if (startupConfig?.profile !== "windows") return 0;
+  return startupConfig.settingsTimeoutMs;
+}
+
+function withWindowsRoomSettingsDeadline<T>(request: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+  if (timeoutMs <= 0 || typeof window === "undefined") return request;
+
+  let timeoutId: number | null = null;
+  const timeout = new Promise<T>((resolve) => {
+    timeoutId = window.setTimeout(() => resolve(fallback), timeoutMs);
+  });
+
+  return Promise.race([request, timeout]).finally(() => {
+    if (timeoutId !== null) window.clearTimeout(timeoutId);
+  });
+}
 
 // 계약서 추출 필드(payloadJson.fieldKey/value)를 입금 폼 슬롯으로 매핑한다.
 // 표준 fieldKey(contract_amount 등)를 우선하되, 옛 자유 문자열·한글 라벨도 관대하게 흡수한다.
@@ -326,14 +349,29 @@ export function ProjectRoomSettingsPanel({
     setIsLoadingContracts(true);
 
     try {
-      const [references, resourcePage] = await Promise.all([
-        agentApi.listRoomContractReferences(room.id),
-        resourcesApi.listRoomResources(room.id),
+      const referencesRequest = agentApi.listRoomContractReferences(room.id);
+      const resourcesRequest = resourcesApi.listRoomResources(room.id).then((page) => page.items);
+      const timeoutMs = await readWindowsRoomSettingsTimeoutMs();
+      const [references, resources] = await Promise.all([
+        withWindowsRoomSettingsDeadline(referencesRequest, timeoutMs, []),
+        withWindowsRoomSettingsDeadline(resourcesRequest, timeoutMs, []),
       ]);
-      const options = buildContractFillOptions(references, resourcePage.items, t("room.settings.contractFillUnnamed"));
+      const options = buildContractFillOptions(references, resources, t("room.settings.contractFillUnnamed"));
       setContractOptions(options);
       setSelectedContractId(options[0]?.resourceId ?? "");
       setContractFillOpen(true);
+      if (timeoutMs > 0 && references.length === 0 && resources.length === 0) {
+        void Promise.allSettled([referencesRequest, resourcesRequest]).then(([latestReferences, latestResources]) => {
+          if (latestReferences.status !== "fulfilled" || latestResources.status !== "fulfilled") return;
+          const latestOptions = buildContractFillOptions(
+            latestReferences.value,
+            latestResources.value,
+            t("room.settings.contractFillUnnamed"),
+          );
+          setContractOptions(latestOptions);
+          setSelectedContractId(latestOptions[0]?.resourceId ?? "");
+        });
+      }
     } catch (error) {
       setContractOptions([]);
       setSelectedContractId("");
@@ -369,7 +407,15 @@ export function ProjectRoomSettingsPanel({
   // 대기 중 초대 목록 — 채팅 페이지와 같은 projectRoomApi.getInvitations 계약을 그대로 쓴다.
   const loadInvitations = useCallback(async () => {
     try {
-      const page = await projectRoomApi.getInvitations(room.id);
+      const request = projectRoomApi.getInvitations(room.id);
+      const timeoutMs = await readWindowsRoomSettingsTimeoutMs();
+      const page = await withWindowsRoomSettingsDeadline<Awaited<typeof request> | null>(request, timeoutMs, null);
+      if (!page) {
+        void request
+          .then((latest) => setPendingInvitations(latest.items.filter((invitation) => invitation.status === "PENDING")))
+          .catch(() => undefined);
+        return;
+      }
       setPendingInvitations(page.items.filter((invitation) => invitation.status === "PENDING"));
     } catch {
       // 초대 목록 로드 실패는 조용히 넘기고, 초대 전송/취소 시 다시 시도한다.
@@ -380,7 +426,14 @@ export function ProjectRoomSettingsPanel({
   const loadFriends = useCallback(async () => {
     setIsLoadingFriends(true);
     try {
-      setFriends(await friendApi.listFriends());
+      const request = friendApi.listFriends();
+      const timeoutMs = await readWindowsRoomSettingsTimeoutMs();
+      const friends = await withWindowsRoomSettingsDeadline<FriendResponse[] | null>(request, timeoutMs, null);
+      if (!friends) {
+        void request.then(setFriends).catch(() => undefined);
+        return;
+      }
+      setFriends(friends);
     } catch {
       // 친구 목록 로드 실패는 조용히 넘긴다. Bubli ID 직접 초대는 그대로 쓸 수 있다.
     } finally {
