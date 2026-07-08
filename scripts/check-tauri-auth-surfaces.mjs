@@ -17,6 +17,7 @@ const files = {
   appNav: "src/components/layout/app-nav.tsx",
   appShell: "src/components/layout/app-shell.tsx",
   appChat: "src/app/(workspace)/app/chat/page.tsx",
+  workspaceDashboard: "src/features/dashboard/components/workspace-dashboard.tsx",
   apiClient: "src/lib/api/client.ts",
   authApi: "src/features/auth/api/authApi.ts",
   authPanel: "src/features/auth/components/auth-panel.tsx",
@@ -26,6 +27,7 @@ const files = {
   authenticatedSurfaces: "src/lib/tauri/authenticated-surfaces.ts",
   startupOptimization: "src/lib/tauri/startup-optimization.ts",
   chatWidgetRouting: "src/lib/tauri/chat-widget-routing.ts",
+  chatRealtime: "src/lib/websocket/chat-realtime.ts",
   desktopWidgetPage: "src/app/desktop-widget/page.tsx",
   desktopWidgetBubble: "src/features/widget/components/desktop-widget-bubble.tsx",
   desktopCommunicationRoute: "src/app/(workspace)/app/desktop/communication/page.tsx",
@@ -200,9 +202,11 @@ const windowsRuntimeSoak = read(files.windowsRuntimeSoak);
 const surfaces = read(files.authenticatedSurfaces);
 const startupOptimization = read(files.startupOptimization);
 const chatWidgetRouting = read(files.chatWidgetRouting);
+const chatRealtime = read(files.chatRealtime);
 const appNav = read(files.appNav);
 const appShell = read(files.appShell);
 const appChat = read(files.appChat);
+const workspaceDashboard = read(files.workspaceDashboard);
 const apiClient = read(files.apiClient);
 const authApi = read(files.authApi);
 const authPanel = read(files.authPanel);
@@ -249,6 +253,16 @@ assertContains(
   startupOptimization,
   /windows:\s*\{[\s\S]*bubbleOpenStaggerMs:\s*0,[\s\S]*deferredBarFullDisplayDelayMs:\s*120,[\s\S]*deferBarAgentCollectionsOnInitialDisplay:\s*true,[\s\S]*deferBarFullDisplayUntilAfterFirstPaint:\s*true,[\s\S]*displayRefreshThrottleMs:\s*200,[\s\S]*displayRequestTimeoutMs:\s*650,[\s\S]*initialDisplayPageSize:\s*30,[\s\S]*initialNotificationScanPages:\s*2,[\s\S]*menuOrbBadgeRefreshIntervalMs:\s*20_000,[\s\S]*preloadWidgetSettingsDuringStartup:\s*false,[\s\S]*requireMenuWindowDuringStartupReuse:\s*true,[\s\S]*summaryPrewarmTimeoutMs:\s*1_800,[\s\S]*widgetContextRefreshIntervalMs:\s*30_000/,
   "Windows startup optimization must use batched widget opening, defer duplicate bar agent collection loads, bound display refreshes and display request waits, bounded initial display loads, bounded initial notification scans, slower fallback polling, no startup settings prefetch, menu reuse verification, first-paint deferral, and summary prewarm.",
+);
+assertContains(
+  chatRealtime,
+  /"heart-beat":\s*"10000,10000"[\s\S]*"X-Client-Type":\s*isTauriRuntime\(\)\s*\?\s*"desktop"\s*:\s*"web"/,
+  "Chat realtime STOMP must advertise desktop client type and heartbeat so backend desktop presence is accurate on Windows/Tauri.",
+);
+assertContains(
+  workspaceDashboard,
+  /readWindowsDashboardInitialTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*withDashboardInitialDeadline[\s\S]*dashboardApi\.getWork\(\)[\s\S]*setState\(\{ data: emptyDashboard, kind: "ready" \}\)[\s\S]*workPromise[\s\S]*setState\(hasDashboardItems\(data\)/,
+  "Windows Tauri dashboard must switch out of the loading state after a bounded initial wait and finish the slower server summary in the background.",
 );
 assertContains(
   startupOptimization,
