@@ -245,8 +245,8 @@ assertContains(
 );
 assertContains(
   startupOptimization,
-  /windows:\s*\{[\s\S]*bubbleOpenStaggerMs:\s*0,[\s\S]*deferredBarFullDisplayDelayMs:\s*120,[\s\S]*deferBarAgentCollectionsOnInitialDisplay:\s*true,[\s\S]*deferBarFullDisplayUntilAfterFirstPaint:\s*true,[\s\S]*initialDisplayPageSize:\s*30,[\s\S]*initialNotificationScanPages:\s*2,[\s\S]*menuOrbBadgeRefreshIntervalMs:\s*20_000,[\s\S]*preloadWidgetSettingsDuringStartup:\s*false,[\s\S]*requireMenuWindowDuringStartupReuse:\s*true,[\s\S]*summaryPrewarmTimeoutMs:\s*1_800,[\s\S]*widgetContextRefreshIntervalMs:\s*30_000/,
-  "Windows startup optimization must use batched widget opening, defer duplicate bar agent collection loads, bounded initial display loads, bounded initial notification scans, slower fallback polling, no startup settings prefetch, menu reuse verification, first-paint deferral, and summary prewarm.",
+  /windows:\s*\{[\s\S]*bubbleOpenStaggerMs:\s*0,[\s\S]*deferredBarFullDisplayDelayMs:\s*120,[\s\S]*deferBarAgentCollectionsOnInitialDisplay:\s*true,[\s\S]*deferBarFullDisplayUntilAfterFirstPaint:\s*true,[\s\S]*displayRefreshThrottleMs:\s*200,[\s\S]*displayRequestTimeoutMs:\s*650,[\s\S]*initialDisplayPageSize:\s*30,[\s\S]*initialNotificationScanPages:\s*2,[\s\S]*menuOrbBadgeRefreshIntervalMs:\s*20_000,[\s\S]*preloadWidgetSettingsDuringStartup:\s*false,[\s\S]*requireMenuWindowDuringStartupReuse:\s*true,[\s\S]*summaryPrewarmTimeoutMs:\s*1_800,[\s\S]*widgetContextRefreshIntervalMs:\s*30_000/,
+  "Windows startup optimization must use batched widget opening, defer duplicate bar agent collection loads, bound display refreshes and display request waits, bounded initial display loads, bounded initial notification scans, slower fallback polling, no startup settings prefetch, menu reuse verification, first-paint deferral, and summary prewarm.",
 );
 assertContains(
   startupOptimization,
@@ -1845,6 +1845,26 @@ assertContains(
   widgetPage,
   /startupOptimization\.profile === "windows"[\s\S]*\? buildEmptyDisplayBubbles\(t, requestedRoomId\)[\s\S]*: withWidgetDisplayLoadState\(buildEmptyDisplayBubbles\(t, requestedRoomId\), "loading"\)[\s\S]*const deferInitialWindowsItemStateSync = isWindowsStartupProfile && !hadLoadedDisplay[\s\S]*deferInitialWindowsItemStateSync[\s\S]*\? \[\][\s\S]*listItemStates\(nextDisplayItemIds\)[\s\S]*displayLoadedOnceRef\.current = true[\s\S]*deferInitialWindowsItemStateSync && nextDisplayItemIds\.length > 0[\s\S]*listItemStates\(nextDisplayItemIds\)/,
   "Desktop widget Windows profile must show the first frame without the blocking loading copy and defer item-state sync until after first display.",
+);
+assertContains(
+  widgetPage,
+  /withWidgetDisplayDeadline[\s\S]*window\.setTimeout\(\(\) => resolve\(fallback\), timeoutMs\)[\s\S]*const displayRequestTimeoutMs = isWindowsStartupProfile \? startupOptimization\.displayRequestTimeoutMs : 0[\s\S]*readWidgetDisplaySummary[\s\S]*displayRequestTimeoutMs[\s\S]*displayRequest\(widgetDisplayApi\.getDashboardWork\(\)\)[\s\S]*displayRequest\(widgetDisplayApi\.listChatRooms\(20\)\)[\s\S]*displayRequest\(agentApi\.listGeneratedDocuments\(\)\)[\s\S]*displayRequest\(widgetDisplayApi\.listChatMessages\(activeRoom\.id, 40\)\)/,
+  "Desktop widget Windows profile must deadline slow display API requests so a delayed server response does not block widget rendering.",
+);
+assertContains(
+  widgetPage,
+  "const displayRefreshThrottleTimerRef = useRef<number | null>(null);",
+  "Desktop widget Windows profile must track a pending display refresh throttle timer.",
+);
+assertContains(
+  widgetPage,
+  /const requestDisplayRefresh = useCallback\(\(\) => \{[\s\S]*startupOptimization\.displayRefreshThrottleMs[\s\S]*if \(displayRefreshThrottleTimerRef\.current !== null\) return;[\s\S]*displayRefreshThrottleTimerRef\.current = window\.setTimeout[\s\S]*bumpRevision\(\);/,
+  "Desktop widget Windows profile must coalesce bursty display refresh requests instead of starting duplicate server refreshes.",
+);
+assertContains(
+  widgetPage,
+  /startupOptimization\.profile !== "windows"[\s\S]*buildEmptyDisplayBubbles\(t, selectedWidgetRoomId\)[\s\S]*setDisplayBubbles\(\(current\) => \{[\s\S]*current\[activeBubble\][\s\S]*notificationLabel: "widget\.data\.loading"[\s\S]*panelBody: "widget\.data\.loadingBody"/,
+  "Desktop widget Windows profile must update the active bubble presentation immediately while slower server data catches up.",
 );
 assertContains(
   widgetPage,

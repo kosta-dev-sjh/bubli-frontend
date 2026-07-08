@@ -151,6 +151,19 @@ function waitForWidgetSessionRestore(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+function withWidgetDisplayDeadline<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+  if (timeoutMs <= 0 || typeof window === "undefined") return promise;
+
+  let timeoutId: number | null = null;
+  const timeout = new Promise<T>((resolve) => {
+    timeoutId = window.setTimeout(() => resolve(fallback), timeoutMs);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timeoutId !== null) window.clearTimeout(timeoutId);
+  });
+}
+
 async function restoreWidgetStoredAuthSessionWithGrace() {
   const storedSession = getStoredAuthSession();
   if (storedSession) return storedSession;
@@ -1826,14 +1839,74 @@ function DesktopWidgetSurface() {
   const liveKitRoomRef = useRef<Room | null>(null);
   const surfaceReadySentRef = useRef(false);
   const appReadySentRef = useRef(false);
+  const displayRefreshThrottleTimerRef = useRef<number | null>(null);
+  const lastDisplayRefreshRequestedAtRef = useRef(0);
   // 첫 로드 성공 후의 배경 재조회 실패는 조용히 이전 데이터를 유지한다(에러 스켈레톤 스왑 금지).
   const displayLoadedOnceRef = useRef(false);
   const widgetContextInitialized = widgetContext !== null;
   const selectedWidgetRoomId = widgetContext ? normalizeWidgetRoomId(widgetContext.selectedRoomId) : normalizeWidgetRoomId(requestedRoomId);
   const widgetSessionReady = !isTauri || (authReady && hasAuthSession);
   const requestDisplayRefresh = useCallback(() => {
-    setDisplayRefreshRevision((current) => current + 1);
+    const throttleMs =
+      isTauri && startupOptimization.profile === "windows" ? startupOptimization.displayRefreshThrottleMs : 0;
+    const bumpRevision = () => {
+      lastDisplayRefreshRequestedAtRef.current = Date.now();
+      setDisplayRefreshRevision((current) => current + 1);
+    };
+
+    if (throttleMs <= 0) {
+      bumpRevision();
+      return;
+    }
+
+    const now = Date.now();
+    const elapsedMs = now - lastDisplayRefreshRequestedAtRef.current;
+    if (elapsedMs >= throttleMs) {
+      bumpRevision();
+      return;
+    }
+
+    if (displayRefreshThrottleTimerRef.current !== null) return;
+    displayRefreshThrottleTimerRef.current = window.setTimeout(() => {
+      displayRefreshThrottleTimerRef.current = null;
+      bumpRevision();
+    }, throttleMs - elapsedMs);
+  }, [isTauri, startupOptimization.displayRefreshThrottleMs, startupOptimization.profile]);
+
+  useEffect(() => {
+    return () => {
+      if (displayRefreshThrottleTimerRef.current !== null) {
+        window.clearTimeout(displayRefreshThrottleTimerRef.current);
+        displayRefreshThrottleTimerRef.current = null;
+      }
+    };
   }, []);
+
+  useEffect(() => {
+    if (!widgetSessionReady || isWidgetChrome || !isTauri || startupOptimization.profile !== "windows" || !windowVisible) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      const emptyBubbles = buildEmptyDisplayBubbles(t, selectedWidgetRoomId);
+      setDisplayBubbles((current) => {
+        const currentBubble = current[activeBubble] ?? emptyBubbles[activeBubble];
+        if (!currentBubble) return current;
+
+        return keepBubbleMapIfDeepEqual(current, {
+          ...current,
+          [activeBubble]: {
+            ...currentBubble,
+            notificationLabel: "widget.data.loading",
+            panelBody: "widget.data.loadingBody",
+            rows: currentBubble.rows,
+          },
+        });
+      });
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [activeBubble, isTauri, isWidgetChrome, selectedWidgetRoomId, startupOptimization.profile, t, widgetSessionReady, windowVisible]);
 
   useEffect(() => {
     if (!isTauri) return;
@@ -2399,13 +2472,20 @@ function DesktopWidgetSurface() {
     async function loadDisplayApiState() {
       let selectedRoomId = selectedWidgetRoomId;
       const isWindowsStartupProfile = isTauri && startupOptimization.profile === "windows";
+      const displayRequestTimeoutMs = isWindowsStartupProfile ? startupOptimization.displayRequestTimeoutMs : 0;
+      const displayRequest = <T,>(request: Promise<T>) =>
+        withWidgetDisplayDeadline<T | null>(request, displayRequestTimeoutMs, null);
       const loadFullDisplay = isBubbleBar && barFullDisplayReady;
       const deferInitialWindowsBarServerLoad =
         isWindowsStartupProfile && isBubbleBar && !loadFullDisplay && !displayLoadedOnceRef.current;
-      const summary = await readWidgetDisplaySummary(selectedRoomId, {
-        allowServerFallback: !deferInitialWindowsBarServerLoad,
-        refreshServerOnCacheHit: isBubbleBar && !deferInitialWindowsBarServerLoad,
-      });
+      const summary = await withWidgetDisplayDeadline(
+        readWidgetDisplaySummary(selectedRoomId, {
+          allowServerFallback: !deferInitialWindowsBarServerLoad,
+          refreshServerOnCacheHit: isBubbleBar && !deferInitialWindowsBarServerLoad,
+        }),
+        displayRequestTimeoutMs,
+        null,
+      );
       if (summary?.context) {
         selectedRoomId = selectedRoomId ?? (!widgetContextInitialized ? normalizeWidgetRoomId(summary.context.selectedRoomId) : null);
         if (!cancelled) {
@@ -2471,49 +2551,51 @@ function DesktopWidgetSurface() {
         personalGeneratedDocumentsResult,
       ] =
         await Promise.allSettled([
-          loadDashboard ? widgetDisplayApi.getDashboardWork() : Promise.resolve(null),
-          loadTasks ? widgetDisplayApi.listMyTasks(30) : Promise.resolve(null),
+          loadDashboard ? displayRequest(widgetDisplayApi.getDashboardWork()) : Promise.resolve(null),
+          loadTasks ? displayRequest(widgetDisplayApi.listMyTasks(30)) : Promise.resolve(null),
           loadSchedules
             ? initialDisplayPageSize > 0
-              ? widgetDisplayApi.listSchedules(selectedRoomId, initialDisplayPageSize)
-              : widgetDisplayApi.listAllSchedules(selectedRoomId)
+              ? displayRequest(widgetDisplayApi.listSchedules(selectedRoomId, initialDisplayPageSize))
+              : displayRequest(widgetDisplayApi.listAllSchedules(selectedRoomId))
             : Promise.resolve(null),
           loadResources
             ? initialDisplayPageSize > 0
-              ? widgetDisplayApi.listResources(selectedRoomId, initialDisplayPageSize)
-              : widgetDisplayApi.listAllResources(selectedRoomId)
+              ? displayRequest(widgetDisplayApi.listResources(selectedRoomId, initialDisplayPageSize))
+              : displayRequest(widgetDisplayApi.listAllResources(selectedRoomId))
             : Promise.resolve(null),
           loadMemos
             ? initialDisplayPageSize > 0
-              ? widgetDisplayApi.listMemos(selectedRoomId, initialDisplayPageSize)
-              : widgetDisplayApi.listAllMemos(selectedRoomId)
+              ? displayRequest(widgetDisplayApi.listMemos(selectedRoomId, initialDisplayPageSize))
+              : displayRequest(widgetDisplayApi.listAllMemos(selectedRoomId))
             : Promise.resolve(null),
           loadMemos && selectedRoomId
             ? initialDisplayPageSize > 0
-              ? widgetDisplayApi.listMemos(null, initialDisplayPageSize)
-              : widgetDisplayApi.listAllMemos(null)
+              ? displayRequest(widgetDisplayApi.listMemos(null, initialDisplayPageSize))
+              : displayRequest(widgetDisplayApi.listAllMemos(null))
             : Promise.resolve(null),
           loadSchedules && selectedRoomId
             ? initialDisplayPageSize > 0
-              ? widgetDisplayApi.listSchedules(null, initialDisplayPageSize)
-              : widgetDisplayApi.listAllSchedules(null)
+              ? displayRequest(widgetDisplayApi.listSchedules(null, initialDisplayPageSize))
+              : displayRequest(widgetDisplayApi.listAllSchedules(null))
             : Promise.resolve(null),
-          loadNotifications ? listWidgetVisibleUnreadNotifications(WIDGET_NOTIFICATION_DISPLAY_LIMIT, initialNotificationScanPages) : Promise.resolve(null),
-          loadChat ? widgetDisplayApi.listChatRooms(20) : Promise.resolve(null),
-          loadChat ? widgetDisplayApi.listFriends() : Promise.resolve(null),
-          loadChat ? widgetDisplayApi.listFriendRequests() : Promise.resolve(null),
-          loadRoom && selectedRoomId ? widgetDisplayApi.getProjectRoom(selectedRoomId) : Promise.resolve(null),
-          loadChat && voiceRoomId ? widgetDisplayApi.getVoiceRoom(voiceRoomId) : Promise.resolve(null),
-          loadProjectRooms ? widgetDisplayApi.listProjectRooms() : Promise.resolve(null),
-          loadRoomBoard && selectedRoomId ? widgetDisplayApi.listRoomBoard(selectedRoomId, 50) : Promise.resolve(null),
-          loadSuggestions ? widgetDisplayApi.listAgentSuggestions(selectedRoomId) : Promise.resolve(null),
-          loadSuggestions && selectedRoomId ? widgetDisplayApi.listAgentSuggestions(null) : Promise.resolve(null),
+          loadNotifications
+            ? displayRequest(listWidgetVisibleUnreadNotifications(WIDGET_NOTIFICATION_DISPLAY_LIMIT, initialNotificationScanPages))
+            : Promise.resolve(null),
+          loadChat ? displayRequest(widgetDisplayApi.listChatRooms(20)) : Promise.resolve(null),
+          loadChat ? displayRequest(widgetDisplayApi.listFriends()) : Promise.resolve(null),
+          loadChat ? displayRequest(widgetDisplayApi.listFriendRequests()) : Promise.resolve(null),
+          loadRoom && selectedRoomId ? displayRequest(widgetDisplayApi.getProjectRoom(selectedRoomId)) : Promise.resolve(null),
+          loadChat && voiceRoomId ? displayRequest(widgetDisplayApi.getVoiceRoom(voiceRoomId)) : Promise.resolve(null),
+          loadProjectRooms ? displayRequest(widgetDisplayApi.listProjectRooms()) : Promise.resolve(null),
+          loadRoomBoard && selectedRoomId ? displayRequest(widgetDisplayApi.listRoomBoard(selectedRoomId, 50)) : Promise.resolve(null),
+          loadSuggestions ? displayRequest(widgetDisplayApi.listAgentSuggestions(selectedRoomId)) : Promise.resolve(null),
+          loadSuggestions && selectedRoomId ? displayRequest(widgetDisplayApi.listAgentSuggestions(null)) : Promise.resolve(null),
           loadGeneratedDocuments
             ? selectedRoomId
-              ? agentApi.listRoomGeneratedDocuments(selectedRoomId)
-              : agentApi.listGeneratedDocuments()
+              ? displayRequest(agentApi.listRoomGeneratedDocuments(selectedRoomId))
+              : displayRequest(agentApi.listGeneratedDocuments())
             : Promise.resolve(null),
-          loadGeneratedDocuments && selectedRoomId ? agentApi.listGeneratedDocuments() : Promise.resolve(null),
+          loadGeneratedDocuments && selectedRoomId ? displayRequest(agentApi.listGeneratedDocuments()) : Promise.resolve(null),
         ]);
 
       if (cancelled) return;
@@ -2557,7 +2639,7 @@ function DesktopWidgetSurface() {
       if (cancelled) return;
       // 스레드 화면에서 최근 메시지 한두 개가 아니라 웹처럼 스크롤 가능한 대화 전체를 보여줘야
       // 해서 6개가 아니라 넉넉히 가져온다.
-      const messages = loadChat && activeRoom ? await widgetDisplayApi.listChatMessages(activeRoom.id, 40).catch(() => null) : null;
+      const messages = loadChat && activeRoom ? await displayRequest(widgetDisplayApi.listChatMessages(activeRoom.id, 40)).catch(() => null) : null;
       const cachedMessages =
         loadChat && isTauri && activeRoom && !messages
           ? await tauriCommands
@@ -2748,7 +2830,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [activeBubble, activeVoiceRoomId, agentRevision, barFullDisplayReady, chatScope, communicationRevision, currentUserBubliId, currentUserId, displayRefreshRevision, isBubbleBar, isMenuOrb, isTauri, isWidgetChrome, itemStateOverrides, memoRevision, notificationRevision, resourceRevision, scheduleRevision, selectedPeerChatRoomId, selectedWidgetRoomId, startupOptimization.deferBarAgentCollectionsOnInitialDisplay, startupOptimization.initialDisplayPageSize, startupOptimization.initialNotificationScanPages, startupOptimization.profile, t, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContextInitialized, widgetSessionReady]);
+  }, [activeBubble, activeVoiceRoomId, agentRevision, barFullDisplayReady, chatScope, communicationRevision, currentUserBubliId, currentUserId, displayRefreshRevision, isBubbleBar, isMenuOrb, isTauri, isWidgetChrome, itemStateOverrides, memoRevision, notificationRevision, resourceRevision, scheduleRevision, selectedPeerChatRoomId, selectedWidgetRoomId, startupOptimization.deferBarAgentCollectionsOnInitialDisplay, startupOptimization.displayRequestTimeoutMs, startupOptimization.initialDisplayPageSize, startupOptimization.initialNotificationScanPages, startupOptimization.profile, t, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContextInitialized, widgetSessionReady]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;
