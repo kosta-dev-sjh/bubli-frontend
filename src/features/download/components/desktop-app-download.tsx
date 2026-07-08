@@ -28,6 +28,7 @@ export function DesktopAppDownload() {
   const [macHref, setMacHref] = useState(MAC_FALLBACK_HREF);
   const [windowsHref, setWindowsHref] = useState(WINDOWS_FALLBACK_HREF);
   const [macGuideOpen, setMacGuideOpen] = useState(false);
+  const [windowsGuideOpen, setWindowsGuideOpen] = useState(false);
 
   useEffect(() => {
     // 매니페스트에서 실제 파일명을 읽어 버전 변경에도 링크가 유지되게 한다(실패 시 폴백 사용).
@@ -60,6 +61,7 @@ export function DesktopAppDownload() {
       className={variant === "primary" ? "bubli-button bubli-button--primary" : styles.secondary}
       download
       href={windowsHref}
+      onClick={() => setWindowsGuideOpen(true)}
     >
       {t("settings.desktop.downloadWindows")}
     </a>
@@ -95,6 +97,17 @@ export function DesktopAppDownload() {
           <li>{t("settings.desktop.macGuide1")}</li>
           <li>{t("settings.desktop.macGuide2")}</li>
           <li>{t("settings.desktop.macGuide3")}</li>
+        </ol>
+      ) : null}
+
+      <button className={styles.guideToggle} onClick={() => setWindowsGuideOpen((open) => !open)} type="button">
+        {t("settings.desktop.windowsGuideToggle")}
+      </button>
+      {windowsGuideOpen ? (
+        <ol className={styles.guide}>
+          <li>{t("settings.desktop.windowsGuide1")}</li>
+          <li>{t("settings.desktop.windowsGuide2")}</li>
+          <li>{t("settings.desktop.windowsGuide3")}</li>
         </ol>
       ) : null}
     </div>
