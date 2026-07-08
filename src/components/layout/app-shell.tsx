@@ -620,9 +620,12 @@ export function AppShell({ children }: AppShellProps) {
       }
       if (Notification.permission === "granted") {
         // OS 알림에도 버블리 마크가 뜨게 아이콘을 지정한다(데스크탑 앱은 앱 아이콘이 자동으로 붙는다).
+        // 보이스 전화 알림은 몇 초 뒤 저절로 사라지지 않게(requireInteraction) 해서, 다른 작업
+        // 중이라 놓치기 쉬운 상황에서도 사용자가 직접 닫거나 클릭할 때까지 화면에 남아 있게 한다.
         const osNotification = new Notification(notification.title, {
           body: notification.body ?? undefined,
           icon: "/brand/icon-public-180.png",
+          requireInteraction: notification.sourceType === "VOICE_CALL",
         });
         // 보이스 전화처럼 다른 작업 중에도 바로 봐야 하는 알림은 클릭하면 탭을 앞으로 가져온다.
         // 브라우저 보안상 스크립트가 임의로 창에 포커스를 뺏을 수는 없어서, 사용자가 OS 알림을
