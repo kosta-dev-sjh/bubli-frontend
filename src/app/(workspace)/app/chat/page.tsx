@@ -46,6 +46,7 @@ import {
 import { voiceStore } from "@/lib/voice-store";
 import { startCallRingtone, stopCallRingtone } from "@/lib/sound/call-sound";
 import { playNotificationSound } from "@/lib/sound/notification-sound";
+import { isWindowsTauriRuntime } from "@/lib/tauri/platform";
 import {
   ACTIVE_PROJECT_ROOM_CHANGE_EVENT,
   getActiveProjectRoomId,
@@ -990,10 +991,21 @@ function ChatPageContent() {
   }, [queryRoomId]);
 
   const loadMessages = useCallback(async (chatRoomId: string) => {
-    setMessagesState({ kind: "loading" });
+    const messagesRequest = chatApi.getMessages(chatRoomId, { size: 40 });
+
+    if (isWindowsTauriRuntime()) {
+      const cachedMessages = await readCachedRoomMessages(chatRoomId, 40);
+      if (cachedMessages.length > 0) {
+        setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, cachedMessages) });
+      } else {
+        setMessagesState({ kind: "loading" });
+      }
+    } else {
+      setMessagesState({ kind: "loading" });
+    }
 
     try {
-      const page = await chatApi.getMessages(chatRoomId, { size: 40 });
+      const page = await messagesRequest;
       const sortedMessages = [...page.items].sort((a, b) => a.roomSequence - b.roomSequence);
       void syncCachedRoomMessages(chatRoomId, sortedMessages, 0);
       setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, sortedMessages) });
