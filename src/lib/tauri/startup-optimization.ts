@@ -8,6 +8,7 @@ export type TauriStartupOptimizationConfig = {
   deferredBarFullDisplayDelayMs: number;
   deferBarFullDisplayUntilAfterFirstPaint: boolean;
   initialDisplayPageSize: number;
+  initialNotificationScanPages: number;
   openCommandTimeoutMs: number;
   profile: TauriStartupOptimizationProfile;
   retryAttempts: number;
@@ -26,6 +27,7 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
     deferredBarFullDisplayDelayMs: 1_200,
     deferBarFullDisplayUntilAfterFirstPaint: true,
     initialDisplayPageSize: 0,
+    initialNotificationScanPages: 0,
     openCommandTimeoutMs: 6_000,
     profile: "aggressive",
     retryAttempts: 1,
@@ -38,6 +40,7 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
     deferredBarFullDisplayDelayMs: 0,
     deferBarFullDisplayUntilAfterFirstPaint: false,
     initialDisplayPageSize: 0,
+    initialNotificationScanPages: 0,
     openCommandTimeoutMs: 10_000,
     profile: "balanced",
     retryAttempts: 2,
@@ -50,6 +53,7 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
     deferredBarFullDisplayDelayMs: 750,
     deferBarFullDisplayUntilAfterFirstPaint: true,
     initialDisplayPageSize: 0,
+    initialNotificationScanPages: 0,
     openCommandTimeoutMs: 8_000,
     profile: "fast",
     retryAttempts: 2,
@@ -62,6 +66,7 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
     deferredBarFullDisplayDelayMs: 350,
     deferBarFullDisplayUntilAfterFirstPaint: true,
     initialDisplayPageSize: 30,
+    initialNotificationScanPages: 2,
     openCommandTimeoutMs: 8_000,
     profile: "windows",
     retryAttempts: 2,

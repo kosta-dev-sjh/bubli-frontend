@@ -814,6 +814,7 @@ function filterWidgetVisibleUnreadNotifications(notifications: WidgetNotificatio
 
 async function listWidgetVisibleUnreadNotifications(
   limit = WIDGET_NOTIFICATION_DISPLAY_LIMIT,
+  maxScanPages = 0,
 ): Promise<PageResponse<WidgetNotificationResponse>> {
   if (limit <= 0) {
     return { hasNext: false, items: [], page: 0, size: 0, totalPages: 0 };
@@ -833,7 +834,12 @@ async function listWidgetVisibleUnreadNotifications(
       items.push(notification);
     }
     page += 1;
-  } while (lastPage.hasNext && lastPage.items.length > 0 && items.length < limit);
+  } while (
+    lastPage.hasNext &&
+    lastPage.items.length > 0 &&
+    items.length < limit &&
+    (maxScanPages <= 0 || page < maxScanPages)
+  );
 
   return {
     ...(lastPage ?? { hasNext: false, page: 0, size: WIDGET_NOTIFICATION_PAGE_SIZE, totalPages: 0 }),
@@ -2395,6 +2401,10 @@ function DesktopWidgetSurface() {
         isTauri && !displayLoadedOnceRef.current && startupOptimization.initialDisplayPageSize > 0
           ? startupOptimization.initialDisplayPageSize
           : 0;
+      const initialNotificationScanPages =
+        isTauri && !displayLoadedOnceRef.current && startupOptimization.initialNotificationScanPages > 0
+          ? startupOptimization.initialNotificationScanPages
+          : 0;
       const loadProjectRooms =
         isBubbleBar || loadFullDisplay || activeBubble === "agent" || activeBubble === "todo" || activeBubble === "memo" || activeBubble === "schedule";
       const [
@@ -2446,7 +2456,7 @@ function DesktopWidgetSurface() {
               ? widgetDisplayApi.listSchedules(null, initialDisplayPageSize)
               : widgetDisplayApi.listAllSchedules(null)
             : Promise.resolve(null),
-          loadNotifications ? listWidgetVisibleUnreadNotifications() : Promise.resolve(null),
+          loadNotifications ? listWidgetVisibleUnreadNotifications(WIDGET_NOTIFICATION_DISPLAY_LIMIT, initialNotificationScanPages) : Promise.resolve(null),
           loadChat ? widgetDisplayApi.listChatRooms(20) : Promise.resolve(null),
           loadChat ? widgetDisplayApi.listFriends() : Promise.resolve(null),
           loadChat ? widgetDisplayApi.listFriendRequests() : Promise.resolve(null),
@@ -2680,7 +2690,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [activeBubble, activeVoiceRoomId, agentRevision, barFullDisplayReady, chatScope, communicationRevision, currentUserBubliId, currentUserId, displayRefreshRevision, isBubbleBar, isMenuOrb, isTauri, isWidgetChrome, itemStateOverrides, memoRevision, notificationRevision, resourceRevision, scheduleRevision, selectedPeerChatRoomId, selectedWidgetRoomId, startupOptimization.initialDisplayPageSize, t, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContextInitialized, widgetSessionReady]);
+  }, [activeBubble, activeVoiceRoomId, agentRevision, barFullDisplayReady, chatScope, communicationRevision, currentUserBubliId, currentUserId, displayRefreshRevision, isBubbleBar, isMenuOrb, isTauri, isWidgetChrome, itemStateOverrides, memoRevision, notificationRevision, resourceRevision, scheduleRevision, selectedPeerChatRoomId, selectedWidgetRoomId, startupOptimization.initialDisplayPageSize, startupOptimization.initialNotificationScanPages, t, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, widgetContextInitialized, widgetSessionReady]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;
