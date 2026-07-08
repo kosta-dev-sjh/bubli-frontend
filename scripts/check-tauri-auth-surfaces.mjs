@@ -1672,6 +1672,11 @@ assertContains(
   "Windows Calendar page must bound secondary room-event and Google-connection hydration so slow server calls do not block the local schedule view.",
 );
 assertContains(
+  settingsPage,
+  /withSettingsHydrationTimeout[\s\S]*window\.setTimeout\(\(\) => resolve\(fallback\), timeoutMs\)[\s\S]*readWindowsSettingsHydrationTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*startupConfig\?\.profile !== "windows"[\s\S]*startupConfig\.settingsTimeoutMs[\s\S]*settingsHydrationTimeoutMs = await readWindowsSettingsHydrationTimeoutMs\(\)[\s\S]*boundSettingsHydration\(widgetApi\.getBubbles\(\), null\)[\s\S]*boundSettingsHydration\(listPersonalManagedFolders\(\), null\)[\s\S]*boundSettingsHydration\(calendarApi\.getGoogleConnection\(\), null\)[\s\S]*boundSettingsHydration\(projectRoomApi\.list\(\), null\)[\s\S]*Promise\.allSettled\(\[[\s\S]*widgetApi\.getBubbles\(\)[\s\S]*listPersonalManagedFolders\(\)[\s\S]*calendarApi\.getGoogleConnection\(\)[\s\S]*projectRoomApi\.list\(\)[\s\S]*setState\(\(current\) =>/,
+  "Windows Settings page must bound Tauri/secondary settings hydration and refresh delayed values after the page becomes ready.",
+);
+assertContains(
   appShell,
   /launchTauriAuthenticatedSurfaces\(\{[\s\S]*retryPolicy: "cooldown"[\s\S]*sessionAlreadyValidated: true[\s\S]*\}\)\.catch[\s\S]*\}, \[readyUserId, shellContextReady\]\);/,
   "AppShell must keep Tauri widget launch independent from room-tab changes to avoid repeated auto-launch flicker.",

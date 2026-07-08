@@ -50,6 +50,7 @@ import {
 } from "@/lib/local/managed-folder-client";
 import { listenManagedFolderWatchEvents } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
 import { DesktopAppDownload } from "@/features/download/components/desktop-app-download";
 import {
   tauriCommands,
@@ -188,6 +189,30 @@ const timezoneOptions: Array<{ labelKey: MessageKey; value: string }> = [
 
 function settledValue<T>(result: PromiseSettledResult<T>, fallback: T) {
   return result.status === "fulfilled" ? result.value : fallback;
+}
+
+async function withSettingsHydrationTimeout<T>(task: Promise<T>, timeoutMs: number, fallback: T) {
+  if (timeoutMs <= 0 || typeof window === "undefined") return task;
+
+  let timeoutId: number | null = null;
+  try {
+    return await Promise.race([
+      task,
+      new Promise<T>((resolve) => {
+        timeoutId = window.setTimeout(() => resolve(fallback), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId !== null) window.clearTimeout(timeoutId);
+  }
+}
+
+async function readWindowsSettingsHydrationTimeoutMs() {
+  if (!isTauriRuntime()) return 0;
+
+  const startupConfig = await readTauriStartupOptimizationConfig().catch(() => null);
+  if (startupConfig?.profile !== "windows") return 0;
+  return startupConfig.settingsTimeoutMs;
 }
 
 // 서버 계약이 어긋나거나 값이 비어 있으면 "NaNKB" 대신 fallback을 노출한다.
@@ -380,6 +405,9 @@ export default function SettingsPage() {
 
     try {
       const user = await authApi.getMe();
+      const settingsHydrationTimeoutMs = await readWindowsSettingsHydrationTimeoutMs();
+      const boundSettingsHydration = <T,>(task: Promise<T>, fallback: T) =>
+        withSettingsHydrationTimeout(task, settingsHydrationTimeoutMs, fallback);
       const [notifications, privacy, storage, activityLogs, widgetBubbles, localFolders, googleConnection, preferences, roomPage] = await Promise.allSettled([
         settingsApi.getNotificationPreferences(),
         settingsApi.getPrivacyConsents(),
@@ -387,11 +415,11 @@ export default function SettingsPage() {
         // 오늘 활동 기록은 서버 데이터라 웹에서도 조회한다(dev PR 212 이식).
         activityApi.getToday(),
         // 위젯 버블/관리 폴더는 데스크톱 앱 전용 — 웹 load()에서는 Tauri 경로를 아예 타지 않는다.
-        isTauriRuntime() ? widgetApi.getBubbles() : Promise.resolve(null),
-        isTauriRuntime() ? listPersonalManagedFolders() : Promise.resolve(null),
-        calendarApi.getGoogleConnection(),
+        isTauriRuntime() ? boundSettingsHydration(widgetApi.getBubbles(), null) : Promise.resolve(null),
+        isTauriRuntime() ? boundSettingsHydration(listPersonalManagedFolders(), null) : Promise.resolve(null),
+        boundSettingsHydration(calendarApi.getGoogleConnection(), null),
         settingsApi.getPreferences(),
-        projectRoomApi.list(),
+        boundSettingsHydration(projectRoomApi.list(), null),
       ]);
       const folderResult = settledValue(localFolders, null);
       const roomPageResult = settledValue(roomPage, null);
@@ -415,6 +443,45 @@ export default function SettingsPage() {
         },
         user,
       });
+
+      if (
+        settingsHydrationTimeoutMs > 0 &&
+        (settledValue(widgetBubbles, null) === null ||
+          folderResult === null ||
+          googleConnection.status !== "fulfilled" ||
+          googleConnection.value === null ||
+          roomPageResult === null)
+      ) {
+        void Promise.allSettled([
+          widgetApi.getBubbles(),
+          listPersonalManagedFolders(),
+          calendarApi.getGoogleConnection(),
+          projectRoomApi.list(),
+        ]).then(([widgetBubblesRetry, localFoldersRetry, googleConnectionRetry, roomPageRetry]) => {
+          setState((current) => {
+            if (current.kind !== "ready") return current;
+            const retryFolderResult = settledValue(localFoldersRetry, null);
+            const retryRoomPage = settledValue(roomPageRetry, null);
+            return {
+              ...current,
+              settings: {
+                ...current.settings,
+                folders:
+                  retryFolderResult?.status === "ready"
+                    ? retryFolderResult.data.folders.map(localManagedFolderToSettingsFolder)
+                    : current.settings.folders,
+                googleCalendarConnected:
+                  googleConnectionRetry.status === "fulfilled"
+                    ? googleConnectionRetry.value?.status === "ACTIVE"
+                    : current.settings.googleCalendarConnected,
+                rooms: retryRoomPage?.items ?? current.settings.rooms,
+                widgetBubbles:
+                  widgetBubblesRetry.status === "fulfilled" ? widgetBubblesRetry.value : current.settings.widgetBubbles,
+              },
+            };
+          });
+        });
+      }
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         setState({ kind: "auth" });
