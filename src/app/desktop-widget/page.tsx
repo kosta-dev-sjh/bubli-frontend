@@ -4015,6 +4015,21 @@ function DesktopWidgetSurface() {
     return () => stopCallRingtone();
   }, [incomingVoiceCall, isBubbleBar]);
 
+  // macOS 전체화면 앱은 always_on_top으로도 못 넘어가는 별도 Space에서 돈다 — 팝업이 뜬 채팅
+  // 창을 전체화면 위로도 강제로 띄운다. 통화 팝업이 떠 있는 동안만 켜고, 사라지면 바로 되돌려
+  // 평소 위젯 사용 중에는 다른 사람의 전체화면 작업 위로 계속 떠 있지 않게 한다.
+  useEffect(() => {
+    if (!isBubbleBar || !incomingVoiceCall || !isTauri) return;
+    void tauriCommands
+      .setWidgetFloatsOverFullscreen({ bubbleType: "chat", enabled: true, windowId: "chat" })
+      .catch(() => undefined);
+    return () => {
+      void tauriCommands
+        .setWidgetFloatsOverFullscreen({ bubbleType: "chat", enabled: false, windowId: "chat" })
+        .catch(() => undefined);
+    };
+  }, [incomingVoiceCall, isBubbleBar, isTauri]);
+
   // 발신자(전화 건 사람) 링백 — 내가 만든 OPEN 통화방에 나 혼자만 참여 중이면 상대가 받을 때까지 울린다.
   // 수신자 쪽 통화음(incomingVoiceCall)과 대칭. 상대가 참여하거나 45초가 지나면 멈춘다.
   const isWidgetRingingBack =

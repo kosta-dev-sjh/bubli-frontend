@@ -53,6 +53,7 @@ const ko = {
   "layout.voiceCall.accept": "수락",
   "layout.voiceCall.connecting": "연결 중",
   "layout.voiceCall.decline": "거절",
+  "layout.voiceCall.incomingTitleFlash": "📞 {caller}님이 보이스 통화 중",
 
   // 발신 중(링백) 팝업
   "layout.voiceCall.outgoingAria": "발신 중인 보이스 통화",
@@ -155,6 +156,7 @@ const en: Record<Key, string> = {
   "layout.voiceCall.accept": "Accept",
   "layout.voiceCall.connecting": "Connecting",
   "layout.voiceCall.decline": "Decline",
+  "layout.voiceCall.incomingTitleFlash": "📞 {caller} is calling",
 
   "layout.voiceCall.outgoingAria": "Outgoing voice call",
   "layout.voiceCall.outgoingHint": "Calling...",
@@ -251,6 +253,7 @@ const ja: Record<Key, string> = {
   "layout.voiceCall.accept": "応答",
   "layout.voiceCall.connecting": "接続中",
   "layout.voiceCall.decline": "拒否",
+  "layout.voiceCall.incomingTitleFlash": "📞 {caller}さんが発信中",
 
   "layout.voiceCall.outgoingAria": "発信中のボイス通話",
   "layout.voiceCall.outgoingHint": "発信中です",

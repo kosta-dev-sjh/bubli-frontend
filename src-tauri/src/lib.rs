@@ -19,6 +19,9 @@ use tauri::{
 };
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
+#[cfg(target_os = "macos")]
+use objc2_app_kit::{NSPopUpMenuWindowLevel, NSWindow, NSWindowCollectionBehavior};
+
 mod activity;
 mod local_db;
 mod local_files;
@@ -2552,6 +2555,55 @@ fn raise_widget_window(app: &AppHandle, widget: &WidgetWindowState) {
     let _ = window.show();
     let _ = window.set_focus();
     let _ = window.request_user_attention(Some(tauri::UserAttentionType::Critical));
+}
+
+// macOS 전체화면 앱은 always_on_top/request_user_attention이 못 넘어가는 별도의 Space에서 돈다
+// (raise_widget_window의 방법으로는 백그라운드 "일반" 창까지만 넘어설 수 있다). 수신 전화 팝업이
+// 떠 있는 동안만 채팅 창의 NSWindow를 직접 건드려 모든 Space(전체화면 포함)를 따라다니게 하고
+// 팝업 메뉴 수준까지 레벨을 올린다. 통화 팝업이 사라지면 즉시 원래 상태로 되돌려, 평소 위젯
+// 사용 중에는 다른 사람의 전체화면 작업 위로 계속 떠 있는 성가신 부작용이 없게 한다.
+#[cfg(target_os = "macos")]
+fn set_widget_window_floats_over_fullscreen(window: &WebviewWindow, enabled: bool) {
+    let Ok(ns_window_ptr) = window.ns_window() else {
+        return;
+    };
+    if ns_window_ptr.is_null() {
+        return;
+    }
+    unsafe {
+        let ns_window: &NSWindow = &*ns_window_ptr.cast();
+        if enabled {
+            let behavior = NSWindowCollectionBehavior::CanJoinAllSpaces
+                | NSWindowCollectionBehavior::FullScreenAuxiliary
+                | NSWindowCollectionBehavior::Transient;
+            ns_window.setCollectionBehavior(behavior);
+            ns_window.setLevel(NSPopUpMenuWindowLevel);
+        } else {
+            ns_window.setCollectionBehavior(NSWindowCollectionBehavior::Default);
+            ns_window.setLevel(0);
+        }
+    }
+}
+
+#[tauri::command]
+fn set_widget_floats_over_fullscreen(
+    app: AppHandle,
+    state: tauri::State<'_, WidgetState>,
+    input: WidgetBooleanInput,
+) -> Result<(), String> {
+    let widget = with_widget_state(&state, input.bubble_type, input.window_id, |_| {})?;
+    #[cfg(target_os = "macos")]
+    {
+        let label = widget_window_label(&widget);
+        if let Some(window) = app.get_webview_window(&label) {
+            set_widget_window_floats_over_fullscreen(&window, input.enabled);
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (app, widget, input.enabled);
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -5534,6 +5586,7 @@ pub fn run() {
             set_preferred_app_monitor,
             set_widget_always_on_top,
             set_widget_click_through,
+            set_widget_floats_over_fullscreen,
             set_widget_interactive_rects,
             set_widget_room_context,
             set_widget_window_mode,
