@@ -1872,6 +1872,7 @@ function DesktopWidgetSurface() {
   const surfaceReadySentRef = useRef(false);
   const appReadySentRef = useRef(false);
   const displayRefreshThrottleTimerRef = useRef<number | null>(null);
+  const deferredBarCollectionRefreshTimerRef = useRef<number | null>(null);
   const lastDisplayRefreshRequestedAtRef = useRef(0);
   // 첫 로드 성공 후의 배경 재조회 실패는 조용히 이전 데이터를 유지한다(에러 스켈레톤 스왑 금지).
   const displayLoadedOnceRef = useRef(false);
@@ -1911,6 +1912,10 @@ function DesktopWidgetSurface() {
       if (displayRefreshThrottleTimerRef.current !== null) {
         window.clearTimeout(displayRefreshThrottleTimerRef.current);
         displayRefreshThrottleTimerRef.current = null;
+      }
+      if (deferredBarCollectionRefreshTimerRef.current !== null) {
+        window.clearTimeout(deferredBarCollectionRefreshTimerRef.current);
+        deferredBarCollectionRefreshTimerRef.current = null;
       }
     };
   }, []);
@@ -2541,12 +2546,14 @@ function DesktopWidgetSurface() {
       const displayRequest = <T,>(request: Promise<T>) =>
         withWidgetDisplayDeadline<T | null>(request, displayRequestTimeoutMs, null);
       const loadFullDisplay = isBubbleBar && barFullDisplayReady;
+      const deferInitialWindowsBarCollectionLoad =
+        isWindowsStartupProfile && loadFullDisplay && !displayLoadedOnceRef.current;
       const deferInitialWindowsBarServerLoad =
         isWindowsStartupProfile && isBubbleBar && !loadFullDisplay && !displayLoadedOnceRef.current;
       const summary = await withWidgetDisplayDeadline(
         readWidgetDisplaySummary(selectedRoomId, {
-          allowServerFallback: !deferInitialWindowsBarServerLoad,
-          refreshServerOnCacheHit: isBubbleBar && !deferInitialWindowsBarServerLoad,
+          allowServerFallback: !deferInitialWindowsBarServerLoad && !deferInitialWindowsBarCollectionLoad,
+          refreshServerOnCacheHit: isBubbleBar && !deferInitialWindowsBarServerLoad && !deferInitialWindowsBarCollectionLoad,
         }),
         displayRequestTimeoutMs,
         null,
@@ -2559,7 +2566,7 @@ function DesktopWidgetSurface() {
       }
 
       const shouldLoadBubbleData = (...bubbleTypes: WidgetBubbleType[]) =>
-        loadFullDisplay || (!isWidgetChrome && bubbleTypes.includes(activeBubble));
+        (loadFullDisplay && !deferInitialWindowsBarCollectionLoad) || (!isWidgetChrome && bubbleTypes.includes(activeBubble));
       const deferBarAgentCollections =
         isTauri &&
         loadFullDisplay &&
@@ -2871,6 +2878,16 @@ function DesktopWidgetSurface() {
         ),
       );
       displayLoadedOnceRef.current = true;
+      if (
+        deferInitialWindowsBarCollectionLoad &&
+        startupOptimization.deferredBarCollectionRefreshDelayMs > 0 &&
+        deferredBarCollectionRefreshTimerRef.current === null
+      ) {
+        deferredBarCollectionRefreshTimerRef.current = window.setTimeout(() => {
+          deferredBarCollectionRefreshTimerRef.current = null;
+          requestDisplayRefresh();
+        }, startupOptimization.deferredBarCollectionRefreshDelayMs);
+      }
       if (deferInitialWindowsItemStateSync && nextDisplayItemIds.length > 0) {
         void widgetApi
           .listItemStates(nextDisplayItemIds)
@@ -2896,7 +2913,7 @@ function DesktopWidgetSurface() {
     return () => {
       cancelled = true;
     };
-  }, [activeBubble, activeVoiceRoomId, agentRevision, barFullDisplayReady, chatScope, communicationRevision, currentUserBubliId, currentUserId, displayRefreshRevision, isBubbleBar, isMenuOrb, isTauri, isWidgetChrome, isWindowsStartupProfile, itemStateOverrides, memoRevision, notificationRevision, resourceRevision, scheduleRevision, selectedPeerChatRoomId, selectedWidgetRoomId, startupOptimization.deferBarAgentCollectionsOnInitialDisplay, startupOptimization.displayRequestTimeoutMs, startupOptimization.initialDisplayPageSize, startupOptimization.initialNotificationScanPages, startupOptimization.profile, t, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, voiceParticipantMicMuted, widgetContextInitialized, widgetSessionReady]);
+  }, [activeBubble, activeVoiceRoomId, agentRevision, barFullDisplayReady, chatScope, communicationRevision, currentUserBubliId, currentUserId, displayRefreshRevision, isBubbleBar, isMenuOrb, isTauri, isWidgetChrome, isWindowsStartupProfile, itemStateOverrides, memoRevision, notificationRevision, requestDisplayRefresh, resourceRevision, scheduleRevision, selectedPeerChatRoomId, selectedWidgetRoomId, startupOptimization.deferBarAgentCollectionsOnInitialDisplay, startupOptimization.deferredBarCollectionRefreshDelayMs, startupOptimization.displayRequestTimeoutMs, startupOptimization.initialDisplayPageSize, startupOptimization.initialNotificationScanPages, startupOptimization.profile, t, timerRevision, timerSnapshot, todoRevision, voiceConnectionLabel, voiceParticipantMicMuted, widgetContextInitialized, widgetSessionReady]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;
