@@ -703,12 +703,18 @@ export function AppShell({ children }: AppShellProps) {
   // declineVoiceRoom은 방 상태를 안 바꾸고 알림만 만든다(끊는 건 이 알림을 받은 발신자 쪽
   // 클라이언트 책임) — 그래서 방 상태를 폴링해선 거절을 절대 못 잡는다(방은 계속 OPEN).
   // 대신 알림 목록에서 이 통화방으로 온 거절 알림 자체를 직접 찾는다.
+  // 이펙트 의존성을 persistVoice "객체 전체"로 두면 안 된다 — 채팅 페이지가 링백 중 3초마다
+  // 통화방 상태를 자체 폴링해서 voiceStore를 계속 새 객체로 갱신하는데(같은 방이어도 참조가
+  // 매번 바뀐다), 그때마다 이 이펙트가 통째로 재시작되면서 setInterval이 한 주기(3초)도 못
+  // 채우고 계속 리셋돼 안전망이 사실상 전혀 동작하지 않았다. 방을 식별하는 안정적인 값(id)만
+  // 의존성으로 두고, 실제 방 정보는 이펙트가 시작될 때 한 번만 읽는다(같은 방인 동안은 안 바뀜).
+  const outgoingVoiceRoomId = persistVoice?.room.id;
+  const outgoingChatRoomId = persistVoice?.room.chatRoomId;
   useEffect(() => {
-    if (!isCallerRingingBack || !persistVoice) return;
-    const voiceRoomId = persistVoice.room.id;
-    const chatRoomId = persistVoice.room.chatRoomId;
-    if (!chatRoomId) return;
-    const callStartedAt = persistVoice.room.createdAt ? new Date(persistVoice.room.createdAt).getTime() : 0;
+    if (!isCallerRingingBack || !outgoingVoiceRoomId || !outgoingChatRoomId) return;
+    const voiceRoomId = outgoingVoiceRoomId;
+    const chatRoomId = outgoingChatRoomId;
+    const callStartedAt = persistVoice?.room.createdAt ? new Date(persistVoice.room.createdAt).getTime() : 0;
     const interval = window.setInterval(() => {
       void notificationApi
         .list({ page: 0, size: 10 })
@@ -733,7 +739,8 @@ export function AppShell({ children }: AppShellProps) {
         .catch(() => undefined);
     }, 3_000);
     return () => window.clearInterval(interval);
-  }, [isCallerRingingBack, persistVoice, t]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- persistVoice는 일부러 뺐다(위 주석): 참조가 자주 바뀌어 폴링 안전망 자체를 무력화한다. 안정적인 id/chatRoomId만으로 재시작을 제어한다.
+  }, [isCallerRingingBack, outgoingVoiceRoomId, outgoingChatRoomId, t]);
 
   const cancelOutgoingCall = useCallback(() => {
     if (!persistVoice) return;

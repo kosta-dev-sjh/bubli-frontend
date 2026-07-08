@@ -4036,11 +4036,16 @@ function DesktopWidgetSurface() {
   // 방 상태를 폴링해선 거절을 절대 못 잡는다(방은 계속 OPEN으로 남는다). 대신 알림 목록에서
   // 이 통화방으로 온 거절 알림 자체를 직접 찾는다. activeVoiceRoomId는 이미 창 간에 동기화되어
   // 있으므로 바 창 하나만 폴링해도 다른 창에 전파된다.
+  // 이펙트 의존성을 activeVoiceRoom "객체 전체"로 두면 안 된다 — 대량 데이터 로딩 effect가
+  // 주기적으로 이 방을 다시 조회해서 매번 새 객체로 갱신하는데(같은 방이어도 참조가 바뀐다),
+  // 그때마다 이 이펙트가 통째로 재시작되면서 setInterval이 한 주기(3초)도 못 채우고 계속
+  // 리셋돼 안전망이 사실상 전혀 동작하지 않았다. 안정적인 값(chatRoomId)만 의존성으로 둔다.
+  const outgoingChatRoomId = activeVoiceRoom?.chatRoomId;
   useEffect(() => {
-    if (!isBubbleBar || !isWidgetRingingBack || !activeVoiceRoomId || !activeVoiceRoom?.chatRoomId) return;
+    if (!isBubbleBar || !isWidgetRingingBack || !activeVoiceRoomId || !outgoingChatRoomId) return;
     const voiceRoomId = activeVoiceRoomId;
-    const chatRoomId = activeVoiceRoom.chatRoomId;
-    const callStartedAt = activeVoiceRoom.createdAt ? new Date(activeVoiceRoom.createdAt).getTime() : 0;
+    const chatRoomId = outgoingChatRoomId;
+    const callStartedAt = activeVoiceRoom?.createdAt ? new Date(activeVoiceRoom.createdAt).getTime() : 0;
     const interval = window.setInterval(() => {
       void widgetDisplayApi
         .listNotifications(10)
@@ -4070,7 +4075,8 @@ function DesktopWidgetSurface() {
         .catch(() => undefined);
     }, 3_000);
     return () => window.clearInterval(interval);
-  }, [activeVoiceRoom, activeVoiceRoomId, isBubbleBar, isWidgetRingingBack, t]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- activeVoiceRoom은 일부러 뺐다(위 주석): 참조가 자주 바뀌어 폴링 안전망 자체를 무력화한다. 안정적인 chatRoomId만으로 재시작을 제어한다.
+  }, [activeVoiceRoomId, isBubbleBar, isWidgetRingingBack, outgoingChatRoomId, t]);
 
   const dismissIncomingVoiceCall = useCallback(() => {
     if (!incomingVoiceCall) return;
