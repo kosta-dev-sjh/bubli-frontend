@@ -241,6 +241,30 @@ function resolveWidgetBubble(value: string, fallback: WidgetBubbleType): WidgetB
   return desktopWidgetBubbleTypes.includes(value as WidgetBubbleType) ? (value as WidgetBubbleType) : fallback;
 }
 
+function widgetWindowStateBelongsToSurface(
+  state: WidgetWindowState,
+  currentWindowBubble: WidgetWindowBubbleType,
+  windowId?: string,
+) {
+  // Treat native state payloads as cross-window until proven otherwise; applying a
+  // timer/schedule payload in the memo window turns the already-open window into
+  // the last restored bubble.
+  if (state.activeBubble !== currentWindowBubble) return false;
+
+  const expectedKeys = new Set<string>([currentWindowBubble]);
+  const requestedWindowId = windowId?.trim();
+  if (requestedWindowId) expectedKeys.add(requestedWindowId);
+
+  const stateKeys = new Set<string>([state.activeBubble]);
+  const stateWindowId = state.windowId?.trim();
+  if (stateWindowId) stateKeys.add(stateWindowId);
+
+  for (const key of stateKeys) {
+    if (expectedKeys.has(key)) return true;
+  }
+  return false;
+}
+
 function getModeFromSetting(setting?: WidgetBubbleSettingResponse): WidgetWindowMode | null {
   if (!setting) return null;
   if (setting.minimized) return "MINIMIZED";
@@ -284,7 +308,7 @@ function getWidgetWindowSize(bubbleType: WidgetBubbleType, mode: WidgetWindowMod
   if (bubbleType === "agent") return { height: 420 + WIDGET_WINDOW_GUTTER, width: 332 + WIDGET_WINDOW_GUTTER };
   if (bubbleType === "timer") return { height: 400 + WIDGET_WINDOW_GUTTER, width: 356 + WIDGET_WINDOW_GUTTER };
   if (bubbleType === "resource") return { height: 330 + WIDGET_WINDOW_GUTTER, width: 324 + WIDGET_WINDOW_GUTTER };
-  if (bubbleType === "memo") return { height: 348 + WIDGET_WINDOW_GUTTER, width: 308 + WIDGET_WINDOW_GUTTER };
+  if (bubbleType === "memo") return { height: 320 + WIDGET_WINDOW_GUTTER, width: 308 + WIDGET_WINDOW_GUTTER };
   if (bubbleType === "schedule") return { height: 340 + WIDGET_WINDOW_GUTTER, width: 324 + WIDGET_WINDOW_GUTTER };
   return { height: 360 + WIDGET_WINDOW_GUTTER, width: 324 + WIDGET_WINDOW_GUTTER };
 }
@@ -1564,25 +1588,9 @@ function widgetContextForRoomId(roomId?: string | null): WidgetContextResponse {
   return selectedRoomId ? { mode: "ROOM", selectedRoomId } : { mode: "PERSONAL", selectedRoomId: null };
 }
 
-async function resolveWidgetRoomContextTarget(lastKnownRoomId?: string | null) {
-  const lastKnown = normalizeWidgetRoomId(lastKnownRoomId);
-  if (lastKnown) return lastKnown;
-
+async function resolveWidgetRoomContextTarget() {
   const localActiveRoom = await tauriCommands.readActiveProjectRoom().catch(() => null);
-  const localRoomId = normalizeWidgetRoomId(localActiveRoom?.roomId);
-  if (localRoomId) return localRoomId;
-
-  const serverContext = await widgetApi.getContext().catch(() => null);
-  const serverRoomId = normalizeWidgetRoomId(serverContext?.selectedRoomId);
-  if (serverRoomId) return serverRoomId;
-
-  const projectRooms = await widgetDisplayApi.listProjectRooms().catch(() => null);
-  const firstAvailableRoom = projectRooms?.items.find((room) => room.status === "ACTIVE") ?? projectRooms?.items[0] ?? null;
-  const firstAvailableRoomId = normalizeWidgetRoomId(firstAvailableRoom?.id);
-  if (firstAvailableRoomId) return firstAvailableRoomId;
-
-  const cachedRoomNames = await readCachedWidgetRoomNames(null).catch(() => null);
-  return Object.keys(cachedRoomNames ?? {}).find((roomId) => Boolean(normalizeWidgetRoomId(roomId))) ?? null;
+  return normalizeWidgetRoomId(localActiveRoom?.roomId);
 }
 
 function nextWidgetScheduleStart() {
@@ -1817,17 +1825,10 @@ function DesktopWidgetSurface() {
   const displayLoadedOnceRef = useRef(false);
   const widgetContextInitialized = widgetContext !== null;
   const selectedWidgetRoomId = widgetContext ? normalizeWidgetRoomId(widgetContext.selectedRoomId) : normalizeWidgetRoomId(requestedRoomId);
-  const lastWidgetRoomContextRef = useRef<string | null>(selectedWidgetRoomId);
   const widgetSessionReady = !isTauri || (authReady && hasAuthSession);
   const requestDisplayRefresh = useCallback(() => {
     setDisplayRefreshRevision((current) => current + 1);
   }, []);
-
-  useEffect(() => {
-    if (selectedWidgetRoomId) {
-      lastWidgetRoomContextRef.current = selectedWidgetRoomId;
-    }
-  }, [selectedWidgetRoomId]);
 
   useEffect(() => {
     if (!isTauri) return;
@@ -2062,6 +2063,7 @@ function DesktopWidgetSurface() {
           })
           : state;
 
+        if (!widgetWindowStateBelongsToSurface(nextState, currentWindowBubble, windowId)) return;
         setActiveBubble(resolveWidgetBubble(nextState.activeBubble, requestedBubble));
         setMode(nextState.mode);
         setAlwaysOnTop(nextState.alwaysOnTop);
@@ -2071,7 +2073,7 @@ function DesktopWidgetSurface() {
       .catch(() => {
         // Browser previews and incomplete Tauri permissions should not break the widget surface.
       });
-  }, [isTauri, isWidgetChrome, requestedBubble, requestedMode, selectedWidgetRoomId, widgetSessionReady, windowId]);
+  }, [currentWindowBubble, isTauri, isWidgetChrome, requestedBubble, requestedMode, selectedWidgetRoomId, widgetSessionReady, windowId]);
 
   useEffect(() => {
     if (!widgetSessionReady) return;
@@ -2120,6 +2122,7 @@ function DesktopWidgetSurface() {
     let cancelled = false;
 
     void listenWidgetWindowStateChanged((state) => {
+      if (!widgetWindowStateBelongsToSurface(state, currentWindowBubble, windowId)) return;
       setActiveBubble(resolveWidgetBubble(state.activeBubble, requestedBubble));
       setMode(state.mode);
       setAlwaysOnTop(state.alwaysOnTop);
@@ -2137,7 +2140,7 @@ function DesktopWidgetSurface() {
       cancelled = true;
       unlisten?.();
     };
-  }, [isTauri, isWidgetChrome, requestedBubble]);
+  }, [currentWindowBubble, isTauri, isWidgetChrome, requestedBubble, windowId]);
 
   useEffect(() => {
     if (!isTauri) return;
@@ -2147,11 +2150,20 @@ function DesktopWidgetSurface() {
 
     void listenWidgetRoomContextChanged((payload) => {
       const roomId = payload.selectedRoomId?.trim() || null;
-      syncActiveProjectRoomFromWidgetContext(roomId);
+      if (roomId) {
+        syncActiveProjectRoomFromWidgetContext(roomId);
+      } else {
+        void widgetApi.updateContext({ selectedRoomId: null }).catch(() => undefined);
+      }
       setWidgetContext(widgetContextForRoomId(roomId));
+      setAgentRevision((current) => current + 1);
       setCommunicationRevision((current) => current + 1);
       setMemoRevision((current) => current + 1);
+      setNotificationRevision((current) => current + 1);
+      setResourceRevision((current) => current + 1);
+      setScheduleRevision((current) => current + 1);
       setTimerRevision((current) => current + 1);
+      setTodoRevision((current) => current + 1);
       requestDisplayRefresh();
     }).then((nextUnlisten) => {
       if (cancelled) {
@@ -3318,8 +3330,8 @@ function DesktopWidgetSurface() {
           setAgentReplyBadgeCount(0);
         }
 
-        setAgentRevision((current) => current + 1);
         setCommunicationRevision((current) => current + 1);
+        setAgentRevision((current) => current + 1);
         publishWidgetDataChanged("agent");
         publishWidgetDataChanged("chat");
         return;
@@ -3421,8 +3433,8 @@ function DesktopWidgetSurface() {
         setAgentReplyBadgeCount(0);
       }
 
-      setAgentRevision((current) => current + 1);
       setCommunicationRevision((current) => current + 1);
+      setAgentRevision((current) => current + 1);
       publishWidgetDataChanged("agent");
       publishWidgetDataChanged("chat");
 
@@ -4543,23 +4555,34 @@ function DesktopWidgetSurface() {
   const selectWidgetRoomContext = useCallback(async (roomId: string | null) => {
     const selectedRoomId = normalizeWidgetRoomId(roomId);
     try {
+      const selectedRoomLabel = selectedRoomId
+        ? widgetRoomOptions.find((room) => room.id === selectedRoomId)?.name ?? null
+        : null;
+
       if (selectedRoomId) {
-        lastWidgetRoomContextRef.current = selectedRoomId;
         setWidgetContext(widgetContextForRoomId(selectedRoomId));
-        syncActiveProjectRoomFromWidgetContext(selectedRoomId);
+        syncActiveProjectRoomFromWidgetContext(selectedRoomId, selectedRoomLabel);
       } else {
-        lastWidgetRoomContextRef.current = selectedWidgetRoomId;
         setWidgetContext(widgetContextForRoomId(null));
+        void widgetApi.updateContext({ selectedRoomId: null }).catch(() => undefined);
       }
 
       if (isTauri) {
         await tauriCommands.setWidgetRoomContext({ selectedRoomId });
       }
+      setAgentRevision((current) => current + 1);
+      setCommunicationRevision((current) => current + 1);
+      setMemoRevision((current) => current + 1);
+      setNotificationRevision((current) => current + 1);
+      setResourceRevision((current) => current + 1);
+      setScheduleRevision((current) => current + 1);
+      setTimerRevision((current) => current + 1);
+      setTodoRevision((current) => current + 1);
       requestDisplayRefresh();
     } catch {
       // Browser preview fallback.
     }
-  }, [isTauri, requestDisplayRefresh, selectedWidgetRoomId]);
+  }, [isTauri, requestDisplayRefresh, widgetRoomOptions]);
 
   const toggleWidgetRoomContext = useCallback(async () => {
     try {
@@ -4568,20 +4591,13 @@ function DesktopWidgetSurface() {
         return;
       }
 
-      const roomId = await resolveWidgetRoomContextTarget(lastWidgetRoomContextRef.current);
+      const roomId = await resolveWidgetRoomContextTarget();
       if (!roomId) return;
       await selectWidgetRoomContext(roomId);
     } catch {
       // Browser preview fallback.
     }
   }, [selectWidgetRoomContext, selectedWidgetRoomId]);
-
-  const selectWidgetRoomContextFromMenu = useCallback(
-    (roomId: string) => {
-      void selectWidgetRoomContext(roomId);
-    },
-    [selectWidgetRoomContext],
-  );
 
   if (!mounted || !widgetSessionReady) {
     return null;
@@ -4615,10 +4631,7 @@ function DesktopWidgetSurface() {
           onOpenSettings={openMainAppSettings}
           onQuit={quitDesktopApp}
           onRestoreBubble={restoreBubbleFromBar}
-          onSelectRoomContext={selectWidgetRoomContextFromMenu}
           onToggleRoomContext={toggleWidgetRoomContext}
-          roomOptions={widgetRoomOptions}
-          selectedRoomId={selectedWidgetRoomId}
           usageSummary={menuUsageSummary}
         />
         {messageToasts.length > 0 ? (
@@ -4649,6 +4662,13 @@ function DesktopWidgetSurface() {
   // 전화 수신/발신 팝업은 소통 위젯(채팅 창)에만 겹쳐 그린다 — 별개 창처럼 안 보이게, 실제로
   // 통화가 시작·수신되는 화면 위에 바로 뜬다. 다른 버블 창(투두/메모 등)에는 안 뜬다.
   const showVoiceCallOverlay = windowId === "chat";
+  if (!isTauri && !windowVisible) {
+    return null;
+  }
+
+  const widgetViewportSize = !isTauri
+    ? getWidgetWindowSize(activeBubble, windowVisible ? mode : "MINIMIZED")
+    : undefined;
 
   return (
     <>
@@ -4695,6 +4715,7 @@ function DesktopWidgetSurface() {
         speakingUserIds={speakingUserIds}
         presentation="tauri"
         timerActionNotice={timerActionNotice}
+        viewportSize={widgetViewportSize}
         windowId={windowId}
         windowVisible={windowVisible}
       />
