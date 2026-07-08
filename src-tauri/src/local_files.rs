@@ -10,6 +10,8 @@ use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+#[cfg(target_os = "macos")]
+use std::process::Command;
 use std::sync::Mutex;
 use std::time::UNIX_EPOCH;
 
@@ -1794,28 +1796,141 @@ fn extract_pdf_text(path: &Path) -> Result<String, String> {
         return Err("UNSUPPORTED".to_string());
     }
 
-    let extracted = match pdf_extract::extract_text(path) {
+    let mut primary_error: Option<String> = None;
+    let primary_extracted = match pdf_extract::extract_text(path) {
         Ok(text) => text,
-        Err(primary_error) => {
+        Err(error) => {
             let fallback = extract_pdf_text_lossy(&bytes);
             if fallback.trim().is_empty() {
-                return Err(primary_error.to_string());
+                primary_error = Some(error.to_string());
+                String::new()
+            } else {
+                fallback
             }
-            fallback
         }
     };
 
-    let text = extracted
+    let primary_text = normalize_pdf_extracted_text(&primary_extracted);
+    let primary_text = (!primary_text.is_empty()).then_some(primary_text);
+    let spotlight_text = extract_pdf_text_macos_spotlight(path)
+        .ok()
+        .map(|text| normalize_pdf_extracted_text(&text))
+        .filter(|text| !text.is_empty());
+
+    let prefer_spotlight =
+        should_prefer_spotlight_pdf_text(primary_text.as_deref(), spotlight_text.as_deref());
+    if prefer_spotlight {
+        return Ok(spotlight_text.expect("preferred Spotlight PDF text exists"));
+    }
+
+    if let Some(text) = primary_text {
+        return Ok(text);
+    }
+
+    if let Some(text) = spotlight_text {
+        return Ok(text);
+    }
+
+    Err(primary_error.unwrap_or_else(|| "EMPTY".to_string()))
+}
+
+fn normalize_pdf_extracted_text(extracted: &str) -> String {
+    extracted
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
         .trim()
-        .to_string();
-    if text.is_empty() {
-        return Err("EMPTY".to_string());
+        .to_string()
+}
+
+fn should_prefer_spotlight_pdf_text(primary: Option<&str>, spotlight: Option<&str>) -> bool {
+    let Some(spotlight) = spotlight else {
+        return false;
+    };
+    let Some(primary) = primary else {
+        return true;
+    };
+    let primary_sentence_count = extract_key_sentences(primary, 3, 700).len();
+    let spotlight_sentence_count = extract_key_sentences(spotlight, 3, 700).len();
+
+    if primary_sentence_count == 0 && spotlight_sentence_count > 0 {
+        return true;
     }
 
-    Ok(text)
+    spotlight.chars().count() > primary.chars().count().saturating_mul(2)
+        && spotlight_sentence_count >= primary_sentence_count
+}
+
+#[cfg(target_os = "macos")]
+fn extract_pdf_text_macos_spotlight(path: &Path) -> Result<String, String> {
+    let output = Command::new("/usr/bin/mdimport")
+        .args(["-n", "-d3"])
+        .arg(path)
+        .output()
+        .map_err(|error| error.to_string())?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let combined = format!("{stdout}\n{stderr}");
+
+    parse_mdimport_text_content(&combined)
+        .filter(|text| !text.trim().is_empty())
+        .ok_or_else(|| {
+            if output.status.success() {
+                "macOS PDF text importer returned no text".to_string()
+            } else {
+                format!("macOS PDF text importer failed: {}", output.status)
+            }
+        })
+}
+
+#[cfg(not(target_os = "macos"))]
+fn extract_pdf_text_macos_spotlight(_path: &Path) -> Result<String, String> {
+    Err("macOS PDF text importer unavailable".to_string())
+}
+
+fn parse_mdimport_text_content(output: &str) -> Option<String> {
+    let marker = "kMDItemTextContent = \"";
+    let start = output.find(marker)? + marker.len();
+    let mut chars = output[start..].chars();
+    let mut text = String::new();
+
+    while let Some(ch) = chars.next() {
+        match ch {
+            '"' => break,
+            '\\' => match chars.next() {
+                Some('n') => text.push('\n'),
+                Some('r') => text.push('\r'),
+                Some('t') => text.push('\t'),
+                Some('"') => text.push('"'),
+                Some('\\') => text.push('\\'),
+                Some('U') | Some('u') => {
+                    if let Some(value) = read_mdimport_unicode_escape(&mut chars) {
+                        text.push(value);
+                    }
+                }
+                Some(other) => text.push(other),
+                None => break,
+            },
+            other => text.push(other),
+        }
+    }
+
+    let text = text.trim().to_string();
+    (!text.is_empty()).then_some(text)
+}
+
+fn read_mdimport_unicode_escape(chars: &mut std::str::Chars<'_>) -> Option<char> {
+    let mut value = String::with_capacity(4);
+    for _ in 0..4 {
+        let ch = chars.next()?;
+        if !ch.is_ascii_hexdigit() {
+            return None;
+        }
+        value.push(ch);
+    }
+    u32::from_str_radix(&value, 16)
+        .ok()
+        .and_then(char::from_u32)
 }
 
 fn extract_rtf_text(path: &Path) -> Result<String, String> {
@@ -6903,6 +7018,27 @@ mod tests {
             .any(|sentence| sentence.text.contains("잔금")));
 
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn parses_mdimport_pdf_text_content_unicode_escapes() {
+        let output = r#"
+        kMDItemTextContent = "\Uad50\Uc721 \Ubd84\Uc57c\nREQ-ED-001. \"강좌\" \\ 제출.";
+        "#;
+        let parsed = parse_mdimport_text_content(output).expect("parse mdimport text");
+
+        assert_eq!(parsed, "교육 분야\nREQ-ED-001. \"강좌\" \\ 제출.");
+    }
+
+    #[test]
+    fn prefers_spotlight_pdf_text_when_primary_has_no_sentence_candidates() {
+        let primary = "abc";
+        let spotlight = "교육 분야 요구명세서 예시. 학습자는 과제 마감일을 놓치기 쉽다.";
+
+        assert!(should_prefer_spotlight_pdf_text(
+            Some(primary),
+            Some(spotlight)
+        ));
     }
 
     #[test]

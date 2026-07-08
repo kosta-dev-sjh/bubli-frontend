@@ -6,7 +6,7 @@ import { useLiveAuthUser } from "@/features/auth/hooks/use-live-auth-user";
 import { PublicOrbitPreview } from "@/features/public-site/components/public-orbit-preview";
 import { useI18n } from "@/lib/i18n";
 
-const macosInstallerHref = "/downloads/macos/Bubli-macOS-0.1.4-arm64.dmg";
+const macosInstallerHref = "/downloads/macos/Bubli-macOS-0.1.5-arm64.dmg";
 const windowsInstallerHref = "/downloads/windows/Bubli-Windows-latest.exe";
 
 export function PublicHero() {

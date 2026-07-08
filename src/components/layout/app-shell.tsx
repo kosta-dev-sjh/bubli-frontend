@@ -1008,6 +1008,8 @@ export function AppShell({ children }: AppShellProps) {
 
     void listenWidgetRoomContextChanged((payload) => {
       const roomId = payload.selectedRoomId?.trim() || null;
+      if (!roomId) return;
+
       const room = roomId ? roomsRef.current.find((item) => item.id === roomId) : undefined;
       const roomLabel = room?.name ?? null;
 
