@@ -18859,18 +18859,35 @@ html {
   word-break: keep-all;
 }
 
-.landing-download__float {
+.landing-download__buttons {
   position: absolute;
   z-index: 3;
+  left: 6%;
+  right: 6%;
+  bottom: 6%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 14px;
+}
+
+.landing-download__float {
+  position: relative;
+  left: auto;
+  right: auto;
+  top: auto;
+  bottom: auto;
+  z-index: auto;
   display: inline-flex;
-  min-width: 222px;
+  flex: 1 1 210px;
+  min-width: 210px;
   min-height: 62px;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
   border: 1px solid rgba(255, 255, 255, 0.84);
   border-radius: 24px;
-  padding: 12px 14px;
+  padding: 12px 18px;
   color: var(--color-text);
   background: rgba(255, 255, 255, 0.72);
   box-shadow:
@@ -18882,33 +18899,26 @@ html {
   white-space: nowrap;
   backdrop-filter: blur(18px) saturate(1.08);
   -webkit-backdrop-filter: blur(18px) saturate(1.08);
+  transform: none;
   transition:
     transform 220ms var(--ease-out),
     box-shadow 220ms var(--ease-out);
 }
 
 .landing-download__float:hover {
-  transform: translateY(-5px) rotate(var(--float-rotate, 0deg));
+  transform: translateY(-4px);
   box-shadow:
     var(--inner-highlight-light),
     0 30px 54px -34px rgba(35, 48, 59, 0.38);
 }
 
 .landing-download__float--primary {
-  --float-rotate: -7deg;
-  left: -12%;
-  bottom: 22%;
   color: white;
   background: linear-gradient(100deg, var(--blue-ink), var(--bubble-blue) 58%, var(--lilac-ink));
-  transform: rotate(-7deg);
 }
 
 .landing-download__float--soft {
-  --float-rotate: 5deg;
-  right: -4%;
-  bottom: 14%;
   background: rgba(216, 240, 255, 0.72);
-  transform: rotate(5deg);
 }
 
 .landing-download__float-os,
@@ -18939,23 +18949,6 @@ html {
 .landing-download__float--soft .landing-download__float-download {
   color: var(--blue-ink);
   background: rgba(255, 255, 255, 0.68);
-}
-
-.landing-download__float--login {
-  --float-rotate: -2deg;
-  left: 26%;
-  bottom: 7%;
-  background: rgba(255, 255, 255, 0.82);
-  transform: rotate(-2deg);
-}
-
-.landing-download__float--bubble {
-  --float-rotate: 8deg;
-  right: 18%;
-  bottom: 5%;
-  color: var(--lilac-ink);
-  background: rgba(230, 221, 248, 0.56);
-  transform: rotate(8deg);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -19028,33 +19021,20 @@ html {
     padding: 22px;
   }
 
-  .landing-download__float {
+  .landing-download__buttons {
     position: relative;
     left: auto;
     right: auto;
     bottom: auto;
+    flex-direction: column;
+  }
+
+  .landing-download__float {
     min-width: 0;
     min-height: 58px;
     border-radius: 20px;
     padding: 14px 18px;
     font-size: 15px;
-    transform: none;
-  }
-
-  .landing-download__float--primary {
-    color: white;
-  }
-
-  .landing-download__float--soft {
-    background: rgba(216, 240, 255, 0.72);
-  }
-
-  .landing-download__float--login {
-    background: rgba(255, 255, 255, 0.82);
-  }
-
-  .landing-download__float--bubble {
-    display: none;
   }
 }
 
