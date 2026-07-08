@@ -12,6 +12,7 @@ const files = {
   personalResourceWorkspace: "src/features/resources/components/personal-resource-workspace.tsx",
   desktopAppDownload: "src/features/download/components/desktop-app-download.tsx",
   settingsPage: "src/app/(workspace)/app/settings/page.tsx",
+  calendarPage: "src/app/(workspace)/app/calendar/page.tsx",
   frontendSmoke: "scripts/check-frontend-smoke.mjs",
   appNav: "src/components/layout/app-nav.tsx",
   appShell: "src/components/layout/app-shell.tsx",
@@ -166,6 +167,7 @@ const publicLandingNav = read(files.publicLandingNav);
 const personalResourceWorkspace = read(files.personalResourceWorkspace);
 const desktopAppDownload = read(files.desktopAppDownload);
 const settingsPage = read(files.settingsPage);
+const calendarPage = read(files.calendarPage);
 const frontendSmoke = read(files.frontendSmoke);
 const launcher = read(files.postLoginLauncher);
 const tauriRuntimeGates = read(files.tauriRuntimeGates);
@@ -1629,6 +1631,11 @@ assertContains(
   /user = await authApi\.getMe\(\);[\s\S]*setState\(\(current\) =>[\s\S]*\{ kind: "ready", notifications: \[\], rooms: roomsRef\.current, user \}[\s\S]*projectRoomApi\.list\(\),[\s\S]*widgetApi\.getContext\(\),/,
   "AppShell must open the authenticated Tauri shell immediately after /api/me before slower room and widget context hydration.",
 );
+assertContains(
+  appShell,
+  /readWindowsWorkspaceHydrationTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*startupConfig\?\.profile !== "windows"[\s\S]*startupConfig\.settingsTimeoutMs[\s\S]*boundWindowsWorkspaceHydration[\s\S]*withTimeout\(task, timeoutMs, fallback\)[\s\S]*workspaceHydrationTimeoutMs = await readWindowsWorkspaceHydrationTimeoutMs\(\)[\s\S]*boundWindowsWorkspaceHydration\(projectRoomApi\.list\(\), workspaceHydrationTimeoutMs, null\)[\s\S]*boundWindowsWorkspaceHydration\(widgetApi\.getContext\(\), workspaceHydrationTimeoutMs, null\)[\s\S]*queueWorkspaceHydration\(\)/,
+  "Windows AppShell hydration must bound slow room/widget context calls and continue with background hydration.",
+);
 assertNotContains(
   appShell,
   /if \(isTauriRuntime\(\)\) \{[\s\S]*restoredSession\.user[\s\S]*\{ kind: "ready", notifications: \[\], rooms: roomsRef\.current, user: restoredSession\.user \}[\s\S]*user = await authApi\.getMe\(\);/,
@@ -1658,6 +1665,11 @@ assertContains(
   appShell,
   /if \(isTauriRuntime\(\) && !getActiveProjectRoomId\(\) && roomPage\.items\[0\]\) \{[\s\S]*widgetApi\.updateContext\(\{ selectedRoomId: firstRoom\.id \}\)/,
   "AppShell first-room fallback must stay Tauri-only so the web shell does not silently change widget context.",
+);
+assertContains(
+  calendarPage,
+  /withCalendarHydrationTimeout[\s\S]*window\.setTimeout\(\(\) => resolve\(fallback\), timeoutMs\)[\s\S]*readWindowsCalendarHydrationTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*startupConfig\?\.profile !== "windows"[\s\S]*startupConfig\.settingsTimeoutMs[\s\S]*windowsHydrationTimeoutMs = await readWindowsCalendarHydrationTimeoutMs\(\)[\s\S]*withCalendarHydrationTimeout\([\s\S]*calendarApi\.getProjectRoomEvents\(selectedRoomId, \{ limit: 100 \}\)[\s\S]*windowsHydrationTimeoutMs[\s\S]*withCalendarHydrationTimeout\(calendarApi\.getGoogleConnection\(\), windowsHydrationTimeoutMs, null\)[\s\S]*calendarApi[\s\S]*\.getGoogleConnection\(\)[\s\S]*setGoogleConnection/,
+  "Windows Calendar page must bound secondary room-event and Google-connection hydration so slow server calls do not block the local schedule view.",
 );
 assertContains(
   appShell,
@@ -1823,6 +1835,11 @@ assertContains(
 );
 assertContains(
   widgetPage,
+  /const isWindowsStartupProfile = isTauri && startupOptimization\.profile === "windows"[\s\S]*const validateWidgetAuthSession = useCallback\(async \(\) => \{[\s\S]*const session = await restoreWidgetStoredAuthSessionWithGrace\(\)[\s\S]*if \(isWindowsStartupProfile\) \{[\s\S]*void authApi\.getMe\(\)\.catch[\s\S]*clearStoredAuthSession\(\)[\s\S]*AUTH_SESSION_CHANGE_EVENT[\s\S]*return true;[\s\S]*await authApi\.getMe\(\);/,
+  "Windows desktop widget startup must render from the restored Tauri auth mirror immediately while backend getMe validation continues in the background.",
+);
+assertContains(
+  widgetPage,
   /surfaceReadySentRef = useRef\(false\)[\s\S]*if \(!isTauri \|\| !mounted \|\| surfaceReadySentRef\.current\) return;[\s\S]*surfaceReadyOnly:\s*true/,
   "Desktop widget windows must send a surface-ready appReady after mount so Windows can apply transparent background before auth/data loading.",
 );
@@ -1890,6 +1907,11 @@ assertContains(
   widgetPage,
   /refreshMenuOrbAgentReplyBadge[\s\S]*window\.setInterval\(\(\) => \{[\s\S]*startupOptimization\.menuOrbBadgeRefreshIntervalMs[\s\S]*startupOptimization\.menuOrbBadgeRefreshIntervalMs/,
   "Desktop widget menu orb must use the startup profile for fallback agent badge polling instead of a hard-coded fast interval.",
+);
+assertContains(
+  widgetPage,
+  /readCachedWidgetSummaryRoomId[\s\S]*readWidgetDisplaySummary\(null, \{ allowServerFallback: false \}\)[\s\S]*refreshMenuOrbAgentReplyBadge[\s\S]*isWindowsStartupProfile[\s\S]*readCachedWidgetSummaryRoomId\(\)[\s\S]*withWidgetDisplayDeadline\([\s\S]*widgetApi\.getContext\(\)[\s\S]*displayRequestTimeoutMs[\s\S]*openAgentFromMenuOrb[\s\S]*isWindowsStartupProfile[\s\S]*readCachedWidgetSummaryRoomId\(\)[\s\S]*withWidgetDisplayDeadline\([\s\S]*widgetApi\.getContext\(\)[\s\S]*displayRequestTimeoutMs/,
+  "Desktop widget Windows menu orb must resolve agent room context from local summary first and deadline slow widget context calls before opening the agent bubble.",
 );
 assertContains(
   widgetPage,
