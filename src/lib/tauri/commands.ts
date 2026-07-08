@@ -797,6 +797,7 @@ export type MainWindowRouteInput = {
 
 export type WidgetWindowModeInput = {
   bubbleType?: WidgetWindowBubbleType;
+  clearSelectedRoomId?: boolean;
   mode: WidgetWindowMode;
   selectedRoomId?: string | null;
   windowId?: string;
@@ -850,6 +851,7 @@ export type WidgetArrangeInput = {
 
 export type WidgetWindowOpenInput = {
   bubbleType?: WidgetWindowBubbleType;
+  clearSelectedRoomId?: boolean;
   mode?: WidgetWindowMode;
   selectedRoomId?: string | null;
   windowId?: string;

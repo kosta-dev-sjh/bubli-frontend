@@ -632,6 +632,7 @@ type AppMonitorState = Mutex<AppMonitorPreferenceStore>;
 #[serde(rename_all = "camelCase")]
 struct WidgetWindowModeInput {
     bubble_type: Option<String>,
+    clear_selected_room_id: Option<bool>,
     mode: String,
     selected_room_id: Option<String>,
     window_id: Option<String>,
@@ -696,6 +697,7 @@ struct WidgetWindowResizeInput {
 #[serde(rename_all = "camelCase")]
 struct WidgetWindowOpenInput {
     bubble_type: Option<String>,
+    clear_selected_room_id: Option<bool>,
     mode: Option<String>,
     selected_room_id: Option<String>,
     window_id: Option<String>,
@@ -1008,6 +1010,7 @@ fn apply_widget_window_mode_update(
     widget: &mut WidgetWindowState,
     mode: String,
     selected_room_id: Option<String>,
+    clear_selected_room_id: bool,
 ) {
     widget.mode = normalize_widget_mode(mode);
     // GHOST는 시각 모드일 뿐 영구 OS click-through로 저장하지 않는다.
@@ -1021,6 +1024,8 @@ fn apply_widget_window_mode_update(
     widget.dock_orb_visible = false;
     if let Some(selected_room_id) = selected_room_id {
         widget.selected_room_id = Some(selected_room_id);
+    } else if clear_selected_room_id {
+        widget.selected_room_id = None;
     }
     widget.window_visible = widget.active_bubble == "bar" || widget.mode != "MINIMIZED";
 }
@@ -1029,6 +1034,7 @@ fn apply_open_widget_window_update(
     widget: &mut WidgetWindowState,
     next_mode: String,
     selected_room_id: Option<String>,
+    clear_selected_room_id: bool,
 ) {
     widget.mode = next_mode;
     widget.click_through = false;
@@ -1036,6 +1042,8 @@ fn apply_open_widget_window_update(
     widget.dock_orb_visible = false;
     if let Some(selected_room_id) = selected_room_id {
         widget.selected_room_id = Some(selected_room_id);
+    } else if clear_selected_room_id {
+        widget.selected_room_id = None;
     }
     widget.window_visible = widget.active_bubble == "bar" || widget.mode != "MINIMIZED";
 }
@@ -2961,13 +2969,20 @@ fn set_widget_window_mode(
 ) -> Result<WidgetWindowState, String> {
     let WidgetWindowModeInput {
         bubble_type,
+        clear_selected_room_id,
         mode,
         selected_room_id,
         window_id,
     } = input;
+    let clear_selected_room_id = clear_selected_room_id.unwrap_or(false);
     let selected_room_id = normalize_optional_query_value(selected_room_id);
     let widget = with_widget_state(&state, bubble_type, window_id, |widget| {
-        apply_widget_window_mode_update(widget, mode, selected_room_id.clone());
+        apply_widget_window_mode_update(
+            widget,
+            mode,
+            selected_room_id.clone(),
+            clear_selected_room_id,
+        );
     })?;
     if widget.mode == "MINIMIZED" && widget_minimizes_to_bar(&widget) {
         ensure_widget_bar_window(&app, &monitor_state, &state)?;
@@ -4760,6 +4775,7 @@ fn prepare_open_widget_window(
     input: WidgetWindowOpenInput,
 ) -> Result<WidgetWindowState, String> {
     let bubble_type = normalize_bubble_type(input.bubble_type);
+    let clear_selected_room_id = input.clear_selected_room_id.unwrap_or(false);
     let window_id = input.window_id;
     let selected_room_id = normalize_optional_query_value(input.selected_room_id);
     let next_mode = input
@@ -4767,7 +4783,12 @@ fn prepare_open_widget_window(
         .map(normalize_widget_mode)
         .unwrap_or_else(|| "DEFAULT".to_string());
     let widget = with_widget_state(state, Some(bubble_type), window_id, |widget| {
-        apply_open_widget_window_update(widget, next_mode.clone(), selected_room_id.clone());
+        apply_open_widget_window_update(
+            widget,
+            next_mode.clone(),
+            selected_room_id.clone(),
+            clear_selected_room_id,
+        );
     })?;
 
     let canonical_label = widget_window_label(&widget);
@@ -5051,14 +5072,14 @@ mod tests {
             always_on_top: false,
             ..default_widget_window_state("agent", Some("agent".to_string()))
         };
-        apply_open_widget_window_update(&mut agent, "DEFAULT".to_string(), None);
+        apply_open_widget_window_update(&mut agent, "DEFAULT".to_string(), None, false);
         assert!(agent.always_on_top);
 
         let mut menu = WidgetWindowState {
             always_on_top: false,
             ..default_widget_window_state("menu", Some("menu".to_string()))
         };
-        apply_open_widget_window_update(&mut menu, "DEFAULT".to_string(), None);
+        apply_open_widget_window_update(&mut menu, "DEFAULT".to_string(), None, false);
         assert!(menu.always_on_top);
 
         let store = widget_window_store_from_layout(StoredWidgetWindowLayout {
@@ -5868,7 +5889,7 @@ mod widget_runtime_tests {
             ..default_widget_window_state("todo", Some("todo".to_string()))
         };
 
-        apply_widget_window_mode_update(&mut widget, "MINIMIZED".to_string(), None);
+        apply_widget_window_mode_update(&mut widget, "MINIMIZED".to_string(), None, false);
 
         assert_eq!(widget.mode, "MINIMIZED");
         assert_eq!(widget.selected_room_id.as_deref(), Some("room-1"));
@@ -5877,6 +5898,7 @@ mod widget_runtime_tests {
             &mut widget,
             "DEFAULT".to_string(),
             Some("room-2".to_string()),
+            false,
         );
 
         assert_eq!(widget.selected_room_id.as_deref(), Some("room-2"));
@@ -5886,13 +5908,13 @@ mod widget_runtime_tests {
     fn ghost_mode_remains_clickable_for_exit_actions() {
         let mut widget = default_widget_window_state("todo", Some("todo".to_string()));
 
-        apply_widget_window_mode_update(&mut widget, "GHOST".to_string(), None);
+        apply_widget_window_mode_update(&mut widget, "GHOST".to_string(), None, false);
 
         assert_eq!(widget.mode, "GHOST");
         assert!(!widget.click_through);
 
         widget.click_through = true;
-        apply_open_widget_window_update(&mut widget, "GHOST".to_string(), None);
+        apply_open_widget_window_update(&mut widget, "GHOST".to_string(), None, false);
 
         assert_eq!(widget.mode, "GHOST");
         assert!(!widget.click_through);
@@ -5905,7 +5927,7 @@ mod widget_runtime_tests {
             ..default_widget_window_state("schedule", Some("schedule".to_string()))
         };
 
-        apply_open_widget_window_update(&mut widget, "DEFAULT".to_string(), None);
+        apply_open_widget_window_update(&mut widget, "DEFAULT".to_string(), None, false);
 
         assert_eq!(widget.mode, "DEFAULT");
         assert_eq!(widget.selected_room_id.as_deref(), Some("room-1"));
@@ -5914,9 +5936,36 @@ mod widget_runtime_tests {
             &mut widget,
             "TRANSLUCENT".to_string(),
             Some("room-2".to_string()),
+            false,
         );
 
         assert_eq!(widget.selected_room_id.as_deref(), Some("room-2"));
+    }
+
+    #[test]
+    fn open_widget_window_clear_room_id_removes_existing_room_context() {
+        let mut widget = WidgetWindowState {
+            selected_room_id: Some("room-1".to_string()),
+            ..default_widget_window_state("schedule", Some("schedule".to_string()))
+        };
+
+        apply_open_widget_window_update(&mut widget, "DEFAULT".to_string(), None, true);
+
+        assert_eq!(widget.mode, "DEFAULT");
+        assert!(widget.selected_room_id.is_none());
+    }
+
+    #[test]
+    fn widget_window_mode_clear_room_id_removes_existing_room_context() {
+        let mut widget = WidgetWindowState {
+            selected_room_id: Some("room-1".to_string()),
+            ..default_widget_window_state("todo", Some("todo".to_string()))
+        };
+
+        apply_widget_window_mode_update(&mut widget, "MINIMIZED".to_string(), None, true);
+
+        assert_eq!(widget.mode, "MINIMIZED");
+        assert!(widget.selected_room_id.is_none());
     }
 
     #[test]
