@@ -1444,13 +1444,13 @@ assertContains(
 );
 assertContains(
   surfaces,
-  /startupWindowStateIsReady[\s\S]*state\.windowVisible \|\| state\.mode === "MINIMIZED"[\s\S]*authenticatedStartupWindowsReady[\s\S]*getWidgetWindowState\(widgetTargetFromInput\(input\)\)[\s\S]*startupWindowStateIsReady\(input, state\)/,
-  "launchTauriAuthenticatedSurfaces must treat visible or minimized already-launched widget windows as ready.",
+  /startupWindowStateIsReady[\s\S]*if \(input\.mode === "MINIMIZED"\) return state\.mode === "MINIMIZED" && !state\.windowVisible;[\s\S]*return state\.windowVisible && state\.mode !== "MINIMIZED";[\s\S]*authenticatedStartupWindowsReady[\s\S]*getWidgetWindowState\(widgetTargetFromInput\(input\)\)[\s\S]*startupWindowStateIsReady\(input, state\)/,
+  "launchTauriAuthenticatedSurfaces must reopen stale minimized DEFAULT startup widgets instead of treating them as ready.",
 );
 assertContains(
   surfaces,
   /getAuthenticatedSurfacesEnabled\(\)[\s\S]*const shouldReuseExistingWindows = launchedAuthenticatedSurfaces \|\| nativeAuthenticatedSurfacesEnabled;[\s\S]*if \(shouldReuseExistingWindows\) \{[\s\S]*authenticatedStartupWindowsReady\(startupWindows\)[\s\S]*if \(startupWindowsReady\) \{[\s\S]*timeline\.completed = true[\s\S]*return;[\s\S]*\}[\s\S]*launchedAuthenticatedSurfaces = false;[\s\S]*closeAllWidgetWindows\(\)/,
-  "launchTauriAuthenticatedSurfaces must reuse ready visible/minimized windows and recover stale native launched state.",
+  "launchTauriAuthenticatedSurfaces must reuse ready visible windows and recover stale native launched state.",
 );
 assertContains(
   surfaces,
