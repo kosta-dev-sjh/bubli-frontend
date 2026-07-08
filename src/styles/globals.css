@@ -4139,7 +4139,7 @@ button.workspace-route__friend-row:hover {
   border: 1px solid rgba(232, 176, 102, 0.36);
   border-radius: 999px;
   background: rgba(255, 248, 236, 0.72);
-  color: #8A5B1F;
+  color: var(--signal-memo);
   font-size: 12px;
   font-weight: 760;
   line-height: 1.25;
@@ -22537,7 +22537,7 @@ body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main {
 [data-theme="dark"] .workspace-route__message-grounding span {
   border-color: rgba(241, 190, 114, 0.26);
   background: rgba(82, 57, 26, 0.38);
-  color: #F4C982;
+  color: var(--signal-memo);
 }
 
 [data-theme="dark"] .workspace-route__message-citations {
