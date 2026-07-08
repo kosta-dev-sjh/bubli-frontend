@@ -324,6 +324,12 @@ function targetBody(t: TranslateFn, key: MessageKey, value: string | null | unde
   return cleaned ? t(key, { name: cleaned }) : null;
 }
 
+function notificationSourceTitle(rawTitle: string, fallback: string): string {
+  const cleaned = cleanPreviewText(rawTitle);
+  if (!cleaned || JOB_BOILERPLATE_PATTERN.test(cleaned)) return fallback;
+  return cleaned;
+}
+
 function formatNotificationBySourceType(
   t: TranslateFn,
   notification: FormatNotificationInput,
@@ -365,7 +371,7 @@ function formatNotificationBySourceType(
       };
     case "RESOURCE":
       return {
-        title: t("notification.type.resource"),
+        title: notificationSourceTitle(rawTitle, t("notification.type.resource")),
         body: resourceTitle ? t("notification.job.resourceTarget", { title: resourceTitle }) : responsePreview || rawBody || null,
       };
     default:
