@@ -15,6 +15,17 @@ export type ChatMessageResponse = {
   sender: RealtimeActor;
 };
 
+export type AgentCitation = {
+  chunkIndex?: number | null;
+  endLine?: number | null;
+  pageNumber?: number | null;
+  quote?: string | null;
+  resourceId: string;
+  similarityScore?: number | null;
+  startLine?: number | null;
+  title: string;
+};
+
 export type ChatMessageListResponse = PageResponse<ChatMessageResponse>;
 
 export type ChatRoomType = "DIRECT" | "GROUP" | "ROOM";
