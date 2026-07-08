@@ -30,6 +30,9 @@ export const TAURI_EVENTS = {
   // 라벨로만 보내는 상태 동기화 이벤트. 새로 빌드되는 창은 URL 쿼리 초기 동기화가 대신한다.
   widgetWindowStateChanged: "bubli-widget-window-state-changed",
   widgetBarItemsChanged: "bubli-widget-bar-items-changed",
+  // 통화가 어느 창(chat)에서 시작됐는지와 무관하게 바(bar) 창의 발신 팝업/알림 처리가
+  // 그 통화방을 알 수 있도록, 활성 보이스 통화방 id를 창 간에 브로드캐스트한다.
+  widgetVoiceCallStateChanged: "bubli-widget-voice-call-state-changed",
 } as const;
 
 export type ManagedFolderWatchEventPayload = {
@@ -49,6 +52,13 @@ export type WidgetMenuPanelRequestedPayload = {
 export type WidgetDataChangedPayload = {
   domain: DataChangedDomain;
   /** 발행한 창(웹뷰) 식별자 — tauri emit은 발행 창 자신에게도 오므로 자기 메아리를 거른다. */
+  emitterId: string;
+  occurredAt: number;
+};
+
+export type WidgetVoiceCallStateChangedPayload = {
+  /** 활성 보이스 통화방 id. 통화가 끝나면 null로 브로드캐스트해 다른 창의 발신 팝업도 같이 닫는다. */
+  voiceRoomId: string | null;
   emitterId: string;
   occurredAt: number;
 };
@@ -163,6 +173,30 @@ export async function emitWidgetDataChanged(domain: DataChangedDomain) {
 // 다른 창이 발행한 데이터 변경만 전달한다(자기 창 발행분은 이미 낙관적으로 반영했으므로 무시).
 export function listenWidgetDataChanged(handler: (payload: WidgetDataChangedPayload) => void) {
   return listenTauriEvent<WidgetDataChangedPayload>(TAURI_EVENTS.widgetDataChanged, (payload) => {
+    if (payload.emitterId === widgetDataChangedEmitterId) return;
+    handler(payload);
+  });
+}
+
+// 통화를 시작/종료한 창이 활성 보이스 통화방 id를 다른 모든 창(특히 바 창)에 알린다 —
+// 바 창은 자체적으로는 통화를 시작하지 않으므로 이 브로드캐스트가 없으면 발신 팝업을 띄울
+// 방 id를 영영 알 수 없다.
+export async function emitWidgetVoiceCallStateChanged(voiceRoomId: string | null) {
+  if (!isTauriRuntime()) return;
+
+  const { emit } = (await import("@tauri-apps/api/event")) as {
+    emit: (eventName: string, payload?: unknown) => Promise<void>;
+  };
+
+  await emit(TAURI_EVENTS.widgetVoiceCallStateChanged, {
+    voiceRoomId,
+    emitterId: widgetDataChangedEmitterId,
+    occurredAt: Date.now(),
+  } satisfies WidgetVoiceCallStateChangedPayload);
+}
+
+export function listenWidgetVoiceCallStateChanged(handler: (payload: WidgetVoiceCallStateChangedPayload) => void) {
+  return listenTauriEvent<WidgetVoiceCallStateChangedPayload>(TAURI_EVENTS.widgetVoiceCallStateChanged, (payload) => {
     if (payload.emitterId === widgetDataChangedEmitterId) return;
     handler(payload);
   });

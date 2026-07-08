@@ -1,7 +1,7 @@
 "use client";
 
 import { Room, RoomEvent, Track } from "livekit-client";
-import type { RemoteTrack } from "livekit-client";
+import type { Participant, RemoteTrack } from "livekit-client";
 import { Phone } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
@@ -58,9 +58,11 @@ import { openTauriChatWidget } from "@/lib/tauri/chat-widget-routing";
 import { setWidgetWindowDragLocked, tauriCommands, waitForPendingWidgetUsageEventRecords, type AppMonitorInfo, type WidgetArrangeLayout, type WidgetBubbleType, type WidgetInteractiveRect, type WidgetWindowBubbleType, type WidgetWindowMode, type WidgetWindowState } from "@/lib/tauri/commands";
 import {
   emitWidgetDataChanged,
+  emitWidgetVoiceCallStateChanged,
   listenWidgetBarItemsChanged,
   listenWidgetDataChanged,
   listenWidgetRoomContextChanged,
+  listenWidgetVoiceCallStateChanged,
   listenWidgetWindowStateChanged,
 } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
@@ -1002,8 +1004,13 @@ function buildDisplayBubbles(input: {
       rows: unreadNotifications.slice(0, 3).map((item) => widgetNotificationToRow(t, item)),
     }),
     chat: withBubble("chat", {
-      chatRoomId: input.chatRoom?.id,
+      // 1:1/그룹 스코프에서는 선택된 상대 채팅방을, 프로젝트룸 스코프에서는 프로젝트룸의 채팅을
+      // 가리켜야 한다. 이 두 값을 안 나누면(항상 input.chatRoom?.id) 1:1 스코프에서 메시지 전송·
+      // 보이스 시작이 전부 "현재 열려있는 프로젝트룸"의 채팅방/보이스로 잘못 나간다 — 상대는
+      // 아무 알림도 못 받고, 발신자만 "성공"으로 보이는 조용한 오발신 버그가 된다.
+      chatRoomId: input.chatScope === "direct" ? (input.selectedPeerChatRoomId ?? undefined) : input.chatRoom?.id,
       chatScope: input.chatScope,
+      isDirectChat: input.chatRoom?.chatType === "DIRECT",
       currentUserId: input.currentUserId,
       myBubliId: input.currentUserBubliId,
       peerRooms: input.peerRooms ?? [],
@@ -1019,10 +1026,11 @@ function buildDisplayBubbles(input: {
       // DIRECT 채팅방은 백엔드 chat room name을 쓰고, 룸 채팅은 프로젝트룸 라벨을 쓴다.
       panelLabel: t("widget.chat.panelLabel", { label: input.chatRoom?.name?.trim() || label }),
       participantLabels: input.friends.slice(0, 3).map((item) => item.name),
-      roomId: input.roomId,
+      roomId: input.chatScope === "direct" ? null : input.roomId,
       roomLabel: label,
       voiceLabel: input.voiceConnectionLabel ?? (input.voiceRoom?.status === "OPEN" ? t("widget.chat.voiceOpen") : t("widget.chat.voiceWaiting")),
       voiceParticipants: voiceParticipants.map((item) => item.userName).filter(Boolean).join(" · ") || t("widget.chat.noParticipants"),
+      voiceParticipantList: voiceParticipants.map((item) => ({ userId: item.userId, userName: item.userName })),
       voiceRoomId: input.voiceRoom?.id,
       rows: [
         ...input.friends.slice(0, 1).map((item) => ({
@@ -1424,6 +1432,11 @@ function DesktopWidgetSurface() {
   const [activeVoiceRoomId, setActiveVoiceRoomId] = useState<string | null>(devVoiceRoomId);
   // 발신자 링백 판단용 — 최근 로드된 통화방을 들고 있는다(참여자·상태·개설자).
   const [activeVoiceRoom, setActiveVoiceRoom] = useState<WidgetVoiceRoomResponse | null>(null);
+  // "말하는 중" 표시 — 웹(livekit-client.ts)과 동일하게 LiveKit identity(=userId)로 판단한다.
+  const [speakingUserIds, setSpeakingUserIds] = useState<ReadonlySet<string>>(new Set());
+  const handleWidgetActiveSpeakersChanged = useCallback((speakers: Participant[]) => {
+    setSpeakingUserIds(new Set(speakers.map((participant) => participant.identity)));
+  }, []);
   // 알림 구독 콜백(의존성 배열이 좁아 클로저가 갱신되지 않음)에서 최신 값을 읽기 위한 ref.
   const activeVoiceRoomRef = useRef(activeVoiceRoom);
   useEffect(() => {
@@ -1433,6 +1446,32 @@ function DesktopWidgetSurface() {
   useEffect(() => {
     currentUserIdRef.current = currentUserId;
   }, [currentUserId]);
+  // 통화는 채팅(chat) 창에서 시작되지만 발신 팝업은 바(bar) 창에만 그려진다 — 서로 다른
+  // 웹뷰/React 인스턴스라 activeVoiceRoomId를 공유하지 않으면 바 창은 통화가 시작된 것 자체를
+  // 몰라 팝업을 못 띄운다. 창 간 브로드캐스트로 받은 id를 이 창의 로컬 상태에도 반영한다 —
+  // 그러면 기존 폴링 effect가 알아서 전체 방 정보(activeVoiceRoom)까지 채워준다.
+  useEffect(() => {
+    let cancelled = false;
+    let unlisten: (() => void) | null = null;
+    void listenWidgetVoiceCallStateChanged((payload) => {
+      if (cancelled) return;
+      setActiveVoiceRoomId(payload.voiceRoomId);
+      if (!payload.voiceRoomId) {
+        setActiveVoiceRoom(null);
+        setSpeakingUserIds(new Set());
+      }
+    }).then((nextUnlisten) => {
+      if (cancelled) {
+        nextUnlisten();
+        return;
+      }
+      unlisten = nextUnlisten;
+    });
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, []);
   const [agentRevision, setAgentRevision] = useState(0);
   const [communicationRevision, setCommunicationRevision] = useState(0);
   const [itemStateOverrides, setItemStateOverrides] = useState<Record<string, WidgetItemStateAction>>({});
@@ -1465,6 +1504,8 @@ function DesktopWidgetSurface() {
     notificationId: string;
   } | null>(null);
   const [voiceCallResponding, setVoiceCallResponding] = useState(false);
+  // 발신 중 팝업에 잠깐 띄우는 상태 문구("상대가 거절했습니다" 등) — 몇 초 뒤 자동으로 사라진다.
+  const [widgetOutgoingCallNotice, setWidgetOutgoingCallNotice] = useState<string | null>(null);
   // 카카오톡 스타일 실시간 미리보기 토스트 — 메시지뿐 아니라 친구 요청/수락, 룸 초대, 1:1·그룹 초대도 표시한다.
   const [messageToasts, setMessageToasts] = useState<
     { chatRoomId?: string; id: string; kind: NotificationToastKind; senderName: string; text: string }[]
@@ -3372,17 +3413,33 @@ function DesktopWidgetSurface() {
       }
 
       // 상대가 내가 건 전화를 거절함 — 마이크가 켜진 채로 대기하는 발신자 화면을 자동으로 끊는다.
+      // activeVoiceRoomRef로 판단하면 안 된다 — 통화는 채팅(chat) 창에서 시작되는데 이 알림 구독은
+      // 바(bar) 창에서만 도는 별개의 웹뷰/React 인스턴스라, 바 창의 activeVoiceRoomRef는 항상
+      // 비어 있다(서로 state를 공유하지 않는다). 그래서 매칭이 늘 실패해 발신자 쪽 방이 절대
+      // 안 끊겼다. 알림에 실려온 chatRoomId로 서버에서 직접 방을 다시 조회해 판단한다 —
+      // 어느 창에서 통화를 시작했든 항상 동작한다(이미 dismissIncomingVoiceCall/타임아웃 거절에서
+      // 쓰던 것과 같은, 창 상태에 의존하지 않는 방식).
       if (notification.sourceType === "VOICE_CALL_DECLINED" && notification.sourceId) {
-        const room = activeVoiceRoomRef.current;
-        if (
-          room &&
-          room.status === "OPEN" &&
-          room.chatRoomId === notification.sourceId &&
-          room.createdByUserId === currentUserIdRef.current
-        ) {
-          void widgetCommunicationApi.endVoiceRoom(room.id).catch(() => undefined);
-          stopCallRingtone();
-        }
+        const declinedChatRoomId = notification.sourceId;
+        void widgetCommunicationApi
+          .getOpenVoiceRoomByChatRoomId(declinedChatRoomId)
+          .then((room) => {
+            if (room.status !== "OPEN" || room.createdByUserId !== currentUserIdRef.current) return;
+            void widgetCommunicationApi.endVoiceRoom(room.id).catch(() => undefined);
+            if (liveKitRoomRef.current) {
+              detachWidgetRemoteAudio(liveKitRoomRef.current);
+              liveKitRoomRef.current.disconnect();
+              liveKitRoomRef.current = null;
+            }
+            stopCallRingtone();
+            setActiveVoiceRoomId(null);
+            setActiveVoiceRoom(null);
+            setSpeakingUserIds(new Set());
+            void emitWidgetVoiceCallStateChanged(null).catch(() => undefined);
+            setWidgetOutgoingCallNotice(t("layout.voiceCall.declinedNotice"));
+            window.setTimeout(() => setWidgetOutgoingCallNotice(null), 3_000);
+          })
+          .catch(() => undefined);
         void notificationApi.markRead(notification.id).catch(() => undefined);
       }
 
@@ -3421,7 +3478,7 @@ function DesktopWidgetSurface() {
         pushToast("friend-accepted");
       }
     });
-  }, [isBubbleBar, widgetSessionReady]);
+  }, [isBubbleBar, t, widgetSessionReady]);
 
   // 상대(발신자)에게 거절/타임아웃을 알려야 마이크가 켜진 채로 대기하는 발신자 화면을 자동으로 끊을 수 있다.
   // createVoiceRoom("있으면 join, 없으면 create")으로 방 id를 구하면, 타이밍 등으로 기존 방을
@@ -3481,6 +3538,21 @@ function DesktopWidgetSurface() {
     setIncomingVoiceCall(null);
   }, [incomingVoiceCall, notifyIncomingVoiceCallDeclined]);
 
+  const cancelOutgoingWidgetCall = useCallback(() => {
+    if (!activeVoiceRoomId) return;
+    void widgetCommunicationApi.endVoiceRoom(activeVoiceRoomId).catch(() => undefined);
+    if (liveKitRoomRef.current) {
+      detachWidgetRemoteAudio(liveKitRoomRef.current);
+      liveKitRoomRef.current.disconnect();
+      liveKitRoomRef.current = null;
+    }
+    stopCallRingtone();
+    setActiveVoiceRoomId(null);
+    setActiveVoiceRoom(null);
+    setSpeakingUserIds(new Set());
+    void emitWidgetVoiceCallStateChanged(null).catch(() => undefined);
+  }, [activeVoiceRoomId]);
+
   const acceptIncomingVoiceCall = useCallback(async () => {
     if (!incomingVoiceCall || voiceCallResponding) return;
     const call = incomingVoiceCall;
@@ -3488,6 +3560,7 @@ function DesktopWidgetSurface() {
     try {
       const voiceRoom = await widgetCommunicationApi.createVoiceRoom({ chatRoomId: call.chatRoomId });
       setActiveVoiceRoomId(voiceRoom.id);
+      void emitWidgetVoiceCallStateChanged(voiceRoom.id).catch(() => undefined);
       setVoiceConnectionLabel("Voice room opened");
       setCommunicationRevision((current) => current + 1);
       publishWidgetDataChanged("chat");
@@ -3514,6 +3587,7 @@ function DesktopWidgetSurface() {
           liveKitRoom.on(RoomEvent.TrackUnsubscribed, (track) => {
             track.detach().forEach((element) => element.remove());
           });
+          liveKitRoom.on(RoomEvent.ActiveSpeakersChanged, handleWidgetActiveSpeakersChanged);
           if (liveKitRoomRef.current) {
             detachWidgetRemoteAudio(liveKitRoomRef.current);
             liveKitRoomRef.current.disconnect();
@@ -3534,7 +3608,7 @@ function DesktopWidgetSurface() {
       void notificationApi.markRead(call.notificationId).catch(() => undefined);
       setIncomingVoiceCall(null);
     }
-  }, [incomingVoiceCall, isTauri, publishWidgetDataChanged, voiceCallResponding]);
+  }, [handleWidgetActiveSpeakersChanged, incomingVoiceCall, isTauri, publishWidgetDataChanged, voiceCallResponding]);
 
   const dismissMessageToast = useCallback((toastId: string) => {
     setMessageToasts((current) => current.filter((toast) => toast.id !== toastId));
@@ -3585,13 +3659,27 @@ function DesktopWidgetSurface() {
         return;
       }
 
-      const voiceRoom = activeVoiceRoomId
-        ? await widgetCommunicationApi.getVoiceRoom(activeVoiceRoomId)
-        : await widgetCommunicationApi.createVoiceRoom(
-            bubble.roomId ? { roomId: bubble.roomId } : { chatRoomId: bubble.chatRoomId },
-          );
+      // 항상 createVoiceRoom을 호출한다(웹의 startVoice와 동일) — 서버가 이미 "OPEN 방 있으면
+      // 합류, 없으면 생성"을 처리해준다. 로컬 activeVoiceRoomId로 재사용 여부를 판단하면, 상대가
+      // 거절/취소해서 방이 이미 ENDED됐는데도 activeVoiceRoomId가 안 지워진 채 남아 있을 때
+      // 죽은 방을 계속 GET만 하고 새 방을 절대 안 만들어(=상대에게 알림도 안 감) 벨소리만 울리고
+      // 실제로는 전화가 안 가는 버그가 됐다.
+      const voiceRoom = await widgetCommunicationApi.createVoiceRoom(
+        bubble.roomId ? { roomId: bubble.roomId } : { chatRoomId: bubble.chatRoomId },
+      );
 
       setActiveVoiceRoomId(voiceRoom.id);
+      // 통화는 채팅(chat) 창에서 시작되지만 발신 팝업은 바(bar) 창에서 그린다 — 서로 다른 창이라
+      // 이 브로드캐스트 없이는 바 창이 통화 시작 자체를 알 길이 없다.
+      void emitWidgetVoiceCallStateChanged(voiceRoom.id).catch(() => undefined);
+      // activeVoiceRoom(전체 응답)을 여기서 바로 채워야 한다 — 이 값은 원래 대량 폴링 effect가
+      // 나중에 채워주는데, 그때까지는 isWidgetRingingBack이 false라 "전화 거는 중" 팝업이 안 뜨고,
+      // activeVoiceRoomRef도 비어 있어서 그 사이에 상대가 바로 거절하면 발신자 쪽에서
+      // VOICE_CALL_DECLINED를 받고도 매칭에 실패해 방을 못 끊는다.
+      await widgetDisplayApi
+        .getVoiceRoom(voiceRoom.id)
+        .then(setActiveVoiceRoom)
+        .catch(() => setActiveVoiceRoom(null));
       setVoiceConnectionLabel("Voice room opened");
 
       let token;
@@ -3610,6 +3698,7 @@ function DesktopWidgetSurface() {
         liveKitRoom.on(RoomEvent.TrackUnsubscribed, (track) => {
           track.detach().forEach((element) => element.remove());
         });
+        liveKitRoom.on(RoomEvent.ActiveSpeakersChanged, handleWidgetActiveSpeakersChanged);
         if (liveKitRoomRef.current) {
           detachWidgetRemoteAudio(liveKitRoomRef.current);
           liveKitRoomRef.current.disconnect();
@@ -3641,7 +3730,7 @@ function DesktopWidgetSurface() {
       setCommunicationRevision((current) => current + 1);
       publishWidgetDataChanged("chat");
     },
-    [activeVoiceRoomId, isTauri, publishWidgetDataChanged],
+    [handleWidgetActiveSpeakersChanged, isTauri, publishWidgetDataChanged],
   );
 
   const toggleWidgetVoiceMic = useCallback(
@@ -3683,8 +3772,18 @@ function DesktopWidgetSurface() {
         liveKitRoomRef.current.disconnect();
       }
       liveKitRoomRef.current = null;
-      await widgetCommunicationApi.leaveVoiceRoom(voiceRoomId);
+      // 1:1 채팅은 "나가기, 상대는 계속 통화"라는 개념이 없다 — 웹(chat/page.tsx)과 동일하게
+      // 1:1이면 무조건 종료(endVoiceRoom)한다. leaveVoiceRoom만 부르면 참가자만 빠지고 방은
+      // OPEN인 채로 남아, 다음 통화 시도가 이 죽은 방을 계속 재사용하는 문제로 이어진다.
+      if (bubble.isDirectChat) {
+        await widgetCommunicationApi.endVoiceRoom(voiceRoomId);
+      } else {
+        await widgetCommunicationApi.leaveVoiceRoom(voiceRoomId);
+      }
       setActiveVoiceRoomId(null);
+      setActiveVoiceRoom(null);
+      setSpeakingUserIds(new Set());
+      void emitWidgetVoiceCallStateChanged(null).catch(() => undefined);
       setVoiceMicMuted(false);
       setVoiceConnectionLabel("Voice left");
 
@@ -3954,6 +4053,24 @@ function DesktopWidgetSurface() {
             </div>
           </div>
         ) : null}
+        {!incomingVoiceCall && (isWidgetRingingBack || widgetOutgoingCallNotice) ? (
+          <div className="voice-call-invite voice-call-invite--widget" role="status" aria-label={t("layout.voiceCall.outgoingAria")}>
+            <div className="voice-call-invite__card" data-bubli-interactive="true">
+              <div className="voice-call-invite__avatar" aria-hidden="true">
+                <Phone size={26} strokeWidth={2} />
+              </div>
+              <strong className="voice-call-invite__caller">{t("layout.voiceCall.outgoingHint")}</strong>
+              <span className="voice-call-invite__hint">{widgetOutgoingCallNotice ?? t("layout.voiceCall.outgoingHint")}</span>
+              {isWidgetRingingBack ? (
+                <div className="voice-call-invite__actions">
+                  <button className="voice-call-invite__decline" onClick={cancelOutgoingWidgetCall} type="button">
+                    {t("layout.voiceCall.cancel")}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
         {messageToasts.length > 0 ? (
           <div className="message-toast-stack" aria-live="polite">
             {messageToasts.map((toast) => (
@@ -4019,6 +4136,7 @@ function DesktopWidgetSurface() {
       onStartVoice={startWidgetVoice}
       onToggleAlwaysOnTop={toggleAlwaysOnTop}
       onToggleVoiceMic={toggleWidgetVoiceMic}
+      speakingUserIds={speakingUserIds}
       presentation="tauri"
       timerActionNotice={timerActionNotice}
       windowId={windowId}
