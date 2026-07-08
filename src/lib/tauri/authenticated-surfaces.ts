@@ -9,7 +9,10 @@ import { readDesktopWidgetStartupPreference } from "@/features/onboarding/lib/on
 import { getStoredAuthSession, setStoredAuthSessionAndWaitForTauriMirror } from "@/lib/auth/auth-session";
 import { tauriCommands, type WidgetWindowOpenInput } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
-import { readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
+import {
+  readTauriStartupOptimizationConfig,
+  type TauriStartupOptimizationConfig,
+} from "@/lib/tauri/startup-optimization";
 import { readWidgetSummary } from "@/lib/widget";
 import { startWidgetUsageAutoSync, stopWidgetUsageAutoSync } from "@/lib/widget/widget-usage-auto-sync";
 import {
@@ -157,8 +160,13 @@ async function prewarmWidgetSummaryCache(selectedRoomId: string | null): Promise
   return result?.status === "ready";
 }
 
-function startupWindowRequiresVisibleWindow(input: WidgetWindowOpenInput) {
-  return input.mode !== "MINIMIZED" && input.bubbleType !== "menu";
+function startupWindowRequiresVisibleWindow(
+  input: WidgetWindowOpenInput,
+  startupConfig: TauriStartupOptimizationConfig,
+) {
+  if (input.mode === "MINIMIZED") return false;
+  if (input.bubbleType === "menu") return startupConfig.requireMenuWindowDuringStartupReuse;
+  return true;
 }
 
 function startupWindowStateIsReady(
@@ -171,18 +179,16 @@ function startupWindowStateIsReady(
 }
 
 async function authenticatedStartupWindowsReady(startupWindows: WidgetWindowOpenInput[]) {
-  for (const input of startupWindows) {
-    if (!startupWindowRequiresVisibleWindow(input)) continue;
-
-    try {
+  const startupConfig = await readTauriStartupOptimizationConfig();
+  const requiredWindows = startupWindows.filter((input) => startupWindowRequiresVisibleWindow(input, startupConfig));
+  const readyStates = await Promise.all(
+    requiredWindows.map(async (input) => {
       const state = await tauriCommands.getWidgetWindowState(widgetTargetFromInput(input));
-      if (!startupWindowStateIsReady(input, state)) return false;
-    } catch {
-      return false;
-    }
-  }
+      return startupWindowStateIsReady(input, state);
+    }),
+  ).catch(() => null);
 
-  return true;
+  return readyStates?.every(Boolean) ?? false;
 }
 
 async function openWidgetWindowWithRetry(

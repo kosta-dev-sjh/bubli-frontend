@@ -243,8 +243,8 @@ assertContains(
 );
 assertContains(
   startupOptimization,
-  /windows:\s*\{[\s\S]*bubbleOpenStaggerMs:\s*0,[\s\S]*deferBarFullDisplayUntilAfterFirstPaint:\s*true,[\s\S]*initialDisplayPageSize:\s*30,[\s\S]*initialNotificationScanPages:\s*2,[\s\S]*menuOrbBadgeRefreshIntervalMs:\s*20_000,[\s\S]*preloadWidgetSettingsDuringStartup:\s*false,[\s\S]*summaryPrewarmTimeoutMs:\s*1_800,[\s\S]*widgetContextRefreshIntervalMs:\s*30_000/,
-  "Windows startup optimization must use batched widget opening, bounded initial display loads, bounded initial notification scans, slower fallback polling, no startup settings prefetch, first-paint deferral, and summary prewarm.",
+  /windows:\s*\{[\s\S]*bubbleOpenStaggerMs:\s*0,[\s\S]*deferBarFullDisplayUntilAfterFirstPaint:\s*true,[\s\S]*initialDisplayPageSize:\s*30,[\s\S]*initialNotificationScanPages:\s*2,[\s\S]*menuOrbBadgeRefreshIntervalMs:\s*20_000,[\s\S]*preloadWidgetSettingsDuringStartup:\s*false,[\s\S]*requireMenuWindowDuringStartupReuse:\s*true,[\s\S]*summaryPrewarmTimeoutMs:\s*1_800,[\s\S]*widgetContextRefreshIntervalMs:\s*30_000/,
+  "Windows startup optimization must use batched widget opening, bounded initial display loads, bounded initial notification scans, slower fallback polling, no startup settings prefetch, menu reuse verification, first-paint deferral, and summary prewarm.",
 );
 assertContains(
   publishTauriWindowsDownload,
@@ -1462,8 +1462,8 @@ assertContains(
 );
 assertContains(
   surfaces,
-  /startupWindowStateIsReady[\s\S]*if \(input\.mode === "MINIMIZED"\) return state\.mode === "MINIMIZED" && !state\.windowVisible;[\s\S]*return state\.windowVisible && state\.mode !== "MINIMIZED";[\s\S]*authenticatedStartupWindowsReady[\s\S]*getWidgetWindowState\(widgetTargetFromInput\(input\)\)[\s\S]*startupWindowStateIsReady\(input, state\)/,
-  "launchTauriAuthenticatedSurfaces must reopen stale minimized DEFAULT startup widgets instead of treating them as ready.",
+  /startupWindowRequiresVisibleWindow[\s\S]*input\.bubbleType === "menu"[\s\S]*startupConfig\.requireMenuWindowDuringStartupReuse[\s\S]*startupWindowStateIsReady[\s\S]*if \(input\.mode === "MINIMIZED"\) return state\.mode === "MINIMIZED" && !state\.windowVisible;[\s\S]*return state\.windowVisible && state\.mode !== "MINIMIZED";[\s\S]*authenticatedStartupWindowsReady[\s\S]*const startupConfig = await readTauriStartupOptimizationConfig\(\);[\s\S]*startupWindows\.filter\(\(input\) => startupWindowRequiresVisibleWindow\(input, startupConfig\)\)[\s\S]*Promise\.all\([\s\S]*getWidgetWindowState\(widgetTargetFromInput\(input\)\)[\s\S]*startupWindowStateIsReady\(input, state\)[\s\S]*readyStates\?\.every\(Boolean\) \?\? false/,
+  "launchTauriAuthenticatedSurfaces must reopen stale minimized DEFAULT startup widgets, require the Windows menu orb before reuse, and parallelize startup state probes.",
 );
 assertContains(
   surfaces,
