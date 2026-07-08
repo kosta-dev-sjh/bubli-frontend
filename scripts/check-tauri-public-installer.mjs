@@ -26,6 +26,7 @@ assert(manifest.file === manifestFile, `manifest.file must be ${manifestFile}.`)
 assert(manifest.source === manifestSource, `manifest.source must be ${manifestSource}.`);
 assert(Number.isFinite(manifest.sizeBytes), "manifest.sizeBytes must be a number.");
 assert(manifest.sizeBytes === targetStat.size, "manifest.sizeBytes must match the public installer size.");
+assert(manifest.sha256 === targetHash, "manifest.sha256 must match the public installer SHA256 hash.");
 assert(sourceStat.size === targetStat.size, "source NSIS installer and public installer sizes must match.");
 assert(sourceHash === targetHash, "source NSIS installer and public installer SHA256 hashes must match.");
 assert(typeof manifest.updatedAt === "string" && !Number.isNaN(Date.parse(manifest.updatedAt)), "manifest.updatedAt must be an ISO date.");

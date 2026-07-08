@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,11 +18,13 @@ mkdirSync(dirname(target), { recursive: true });
 copyFileSync(source, target);
 
 const stat = statSync(target);
+const hash = sha256(target);
 writeFileSync(
   manifestTarget,
   `${JSON.stringify(
     {
       file: "/downloads/windows/Bubli-Windows-latest.exe",
+      sha256: hash,
       sizeBytes: stat.size,
       source: sourceRelative,
       updatedAt: new Date(stat.mtimeMs).toISOString(),
@@ -42,4 +45,8 @@ function windowsInstallerSourceRelative() {
   }
 
   return `src-tauri/target/release/bundle/nsis/${productName}_${version}_x64-setup.exe`;
+}
+
+function sha256(path) {
+  return createHash("sha256").update(readFileSync(path)).digest("hex").toUpperCase();
 }

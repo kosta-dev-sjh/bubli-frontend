@@ -186,6 +186,19 @@ Installed real OAuth QA evidence:
 - Backend base URL: `https://bubli.n-e.kr`
 - Status: passed
 
+Latest public Windows installer refresh:
+
+- Built from frontend `develop` commit `07bc07e0`.
+- Public installer SHA256: `54867649965D83EB880B602613FEB1CE04142A40F03A5ADB6D47A39C6FCBBD07`.
+- Public installer size: `22,222,129` bytes.
+- Manifest updatedAt: `2026-07-08T19:44:30.400Z`.
+- Silent install from `public/downloads/windows/Bubli-Windows-latest.exe` succeeded.
+- Installed exe: `C:\Users\acorn\AppData\Local\Bubli\bubli.exe`.
+- Installed exe PE subsystem: Windows GUI.
+- Public installed launch smoke: 3/3 launches produced a single `bubli.exe` process; first visible title detection averaged 202 ms.
+
+The launch-smoke timing only measures first visible window-title detection. It is not a substitute for authenticated app data-readiness timing or cold/warm backend request timing.
+
 Blocked or suspicious local verification:
 
 - Backend `test --tests "com.bubli.personal.notification.service.NotificationServiceTest"` failed locally with a Gradle test worker `ClassNotFoundException`, even though `compileTestJava` produced classes and `javap` could load the test class. Treat this as a local test-runner/classpath issue until CI or another clean environment proves otherwise.

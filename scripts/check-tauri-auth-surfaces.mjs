@@ -349,8 +349,8 @@ assertContains(
 );
 assertContains(
   publishTauriWindowsDownload,
-  /const sourceRelative = windowsInstallerSourceRelative\(\)[\s\S]*const source = resolve\(root, sourceRelative\)[\s\S]*public\/downloads\/windows\/Bubli-Windows-latest\.exe[\s\S]*manifest\.json[\s\S]*source: sourceRelative[\s\S]*src-tauri\/target\/release\/bundle\/nsis\/\$\{productName\}_\$\{version\}_x64-setup\.exe/,
-  "Windows download publish must copy the signed/iconed NSIS installer to the public direct-download exe path.",
+  /const sourceRelative = windowsInstallerSourceRelative\(\)[\s\S]*const source = resolve\(root, sourceRelative\)[\s\S]*public\/downloads\/windows\/Bubli-Windows-latest\.exe[\s\S]*manifest\.json[\s\S]*const hash = sha256\(target\)[\s\S]*sha256: hash[\s\S]*source: sourceRelative[\s\S]*src-tauri\/target\/release\/bundle\/nsis\/\$\{productName\}_\$\{version\}_x64-setup\.exe/,
+  "Windows download publish must copy the signed/iconed NSIS installer to the public direct-download exe path and record its SHA256 in the manifest.",
 );
 if (existsSync(files.publicDownloadRoute)) {
   throw new Error("/download must not be implemented as a public page; public CTAs must download installers directly from the landing page.");
