@@ -1344,30 +1344,36 @@ assertNotContains(
 );
 
 const startupWindows = extractConstArray(surfaces, "loginStartupWindows");
+const startupBubbleWindows = extractConstArray(surfaces, "loginStartupBubbleWindows");
 assertContains(
   startupWindows,
   "loginStartupBarWindow",
   "Login startup windows must include the Bubli bar.",
 );
-assertNotContains(
+assertContains(
   startupWindows,
-  /loginStartupMenuWindow/,
-  "Login startup windows must not open the standalone orb menu automatically; the bar is the only first-launch surface.",
+  "loginStartupAgentOrbWindow",
+  "Login startup windows must include the agent orb window.",
 );
-assertNotContains(
+assertContains(
   startupWindows,
+  "...loginStartupBubbleWindows",
+  "Login startup windows must include the default auto-login bubble set.",
+);
+assertContains(
+  startupBubbleWindows,
   /bubbleType:\s*"todo"[\s\S]*windowId:\s*"todo"/,
-  "Login startup windows must not fan out the TODO bubble automatically; it should be restored from the bar.",
+  "Login startup bubble windows must open the TODO bubble automatically.",
 );
 for (const required of ["agent", "alert", "chat", "memo", "schedule", "timer"]) {
-  assertNotContains(
-    startupWindows,
+  assertContains(
+    startupBubbleWindows,
     new RegExp(`bubbleType:\\s*"${required}"[\\s\\S]*windowId:\\s*"${required}"`),
-    `Login startup windows must not fan out the ${required} bubble automatically; it should be restored from the bar.`,
+    `Login startup bubble windows must open the ${required} bubble automatically.`,
   );
 }
 assertNotContains(
-  startupWindows,
+  startupBubbleWindows,
   /bubbleType:\s*"resource"[\s\S]*windowId:\s*"resource"/,
   "Login startup windows must not open the standalone resource/draft bubble because generated drafts live inside the agent widget.",
 );
