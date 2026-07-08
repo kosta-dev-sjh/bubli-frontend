@@ -1629,6 +1629,11 @@ assertContains(
   /user = await authApi\.getMe\(\);[\s\S]*setState\(\(current\) =>[\s\S]*\{ kind: "ready", notifications: \[\], rooms: roomsRef\.current, user \}[\s\S]*projectRoomApi\.list\(\),[\s\S]*widgetApi\.getContext\(\),/,
   "AppShell must open the authenticated Tauri shell immediately after /api/me before slower room and widget context hydration.",
 );
+assertContains(
+  appShell,
+  /readWindowsWorkspaceHydrationTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*startupConfig\?\.profile !== "windows"[\s\S]*startupConfig\.settingsTimeoutMs[\s\S]*boundWindowsWorkspaceHydration[\s\S]*withTimeout\(task, timeoutMs, fallback\)[\s\S]*workspaceHydrationTimeoutMs = await readWindowsWorkspaceHydrationTimeoutMs\(\)[\s\S]*boundWindowsWorkspaceHydration\(projectRoomApi\.list\(\), workspaceHydrationTimeoutMs, null\)[\s\S]*boundWindowsWorkspaceHydration\(widgetApi\.getContext\(\), workspaceHydrationTimeoutMs, null\)[\s\S]*queueWorkspaceHydration\(\)/,
+  "Windows AppShell hydration must bound slow room/widget context calls and continue with background hydration.",
+);
 assertNotContains(
   appShell,
   /if \(isTauriRuntime\(\)\) \{[\s\S]*restoredSession\.user[\s\S]*\{ kind: "ready", notifications: \[\], rooms: roomsRef\.current, user: restoredSession\.user \}[\s\S]*user = await authApi\.getMe\(\);/,
