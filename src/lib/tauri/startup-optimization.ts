@@ -6,6 +6,7 @@ export type TauriStartupOptimizationProfile = "aggressive" | "balanced" | "fast"
 export type TauriStartupOptimizationConfig = {
   bubbleOpenStaggerMs: number;
   deferredBarFullDisplayDelayMs: number;
+  deferredBarCollectionRefreshDelayMs: number;
   deferBarFullDisplayUntilAfterFirstPaint: boolean;
   deferBarAgentCollectionsOnInitialDisplay: boolean;
   displayRefreshThrottleMs: number;
@@ -32,6 +33,7 @@ let startupOptimizationConfigPromise: Promise<TauriStartupOptimizationConfig> | 
 const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimizationConfig> = {
   aggressive: {
     bubbleOpenStaggerMs: 180,
+    deferredBarCollectionRefreshDelayMs: 0,
     deferredBarFullDisplayDelayMs: 1_200,
     deferBarAgentCollectionsOnInitialDisplay: false,
     deferBarFullDisplayUntilAfterFirstPaint: true,
@@ -52,6 +54,7 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
   },
   balanced: {
     bubbleOpenStaggerMs: 0,
+    deferredBarCollectionRefreshDelayMs: 0,
     deferredBarFullDisplayDelayMs: 0,
     deferBarAgentCollectionsOnInitialDisplay: false,
     deferBarFullDisplayUntilAfterFirstPaint: false,
@@ -72,6 +75,7 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
   },
   fast: {
     bubbleOpenStaggerMs: 90,
+    deferredBarCollectionRefreshDelayMs: 0,
     deferredBarFullDisplayDelayMs: 750,
     deferBarAgentCollectionsOnInitialDisplay: false,
     deferBarFullDisplayUntilAfterFirstPaint: true,
@@ -92,6 +96,7 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
   },
   windows: {
     bubbleOpenStaggerMs: 0,
+    deferredBarCollectionRefreshDelayMs: 1_800,
     deferredBarFullDisplayDelayMs: 120,
     deferBarAgentCollectionsOnInitialDisplay: true,
     deferBarFullDisplayUntilAfterFirstPaint: true,

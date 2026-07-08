@@ -269,8 +269,8 @@ assertContains(
 );
 assertContains(
   startupOptimization,
-  /windows:\s*\{[\s\S]*bubbleOpenStaggerMs:\s*0,[\s\S]*deferredBarFullDisplayDelayMs:\s*120,[\s\S]*deferBarAgentCollectionsOnInitialDisplay:\s*true,[\s\S]*deferBarFullDisplayUntilAfterFirstPaint:\s*true,[\s\S]*displayRefreshThrottleMs:\s*200,[\s\S]*displayRequestTimeoutMs:\s*650,[\s\S]*initialDisplayPageSize:\s*30,[\s\S]*initialNotificationScanPages:\s*2,[\s\S]*menuOrbBadgeRefreshIntervalMs:\s*20_000,[\s\S]*preloadWidgetSettingsDuringStartup:\s*false,[\s\S]*requireMenuWindowDuringStartupReuse:\s*true,[\s\S]*summaryPrewarmTimeoutMs:\s*1_800,[\s\S]*widgetContextRefreshIntervalMs:\s*30_000/,
-  "Windows startup optimization must use batched widget opening, defer duplicate bar agent collection loads, bound display refreshes and display request waits, bounded initial display loads, bounded initial notification scans, slower fallback polling, no startup settings prefetch, menu reuse verification, first-paint deferral, and summary prewarm.",
+  /windows:\s*\{[\s\S]*bubbleOpenStaggerMs:\s*0,[\s\S]*deferredBarCollectionRefreshDelayMs:\s*1_800,[\s\S]*deferredBarFullDisplayDelayMs:\s*120,[\s\S]*deferBarAgentCollectionsOnInitialDisplay:\s*true,[\s\S]*deferBarFullDisplayUntilAfterFirstPaint:\s*true,[\s\S]*displayRefreshThrottleMs:\s*200,[\s\S]*displayRequestTimeoutMs:\s*650,[\s\S]*initialDisplayPageSize:\s*30,[\s\S]*initialNotificationScanPages:\s*2,[\s\S]*menuOrbBadgeRefreshIntervalMs:\s*20_000,[\s\S]*preloadWidgetSettingsDuringStartup:\s*false,[\s\S]*requireMenuWindowDuringStartupReuse:\s*true,[\s\S]*summaryPrewarmTimeoutMs:\s*1_800,[\s\S]*widgetContextRefreshIntervalMs:\s*30_000/,
+  "Windows startup optimization must use batched widget opening, defer initial bar collection refreshes, defer duplicate bar agent collection loads, bound display refreshes and display request waits, bounded initial display loads, bounded initial notification scans, slower fallback polling, no startup settings prefetch, menu reuse verification, first-paint deferral, and summary prewarm.",
 );
 assertContains(
   chatRealtime,
@@ -2007,8 +2007,8 @@ assertContains(
 );
 assertContains(
   widgetPage,
-  /allowServerFallback\?: boolean[\s\S]*if \(options\.allowServerFallback === false\) return null[\s\S]*const isWindowsStartupProfile = isTauri && startupOptimization\.profile === "windows"[\s\S]*const deferInitialWindowsBarServerLoad =[\s\S]*isWindowsStartupProfile && isBubbleBar && !loadFullDisplay && !displayLoadedOnceRef\.current[\s\S]*allowServerFallback: !deferInitialWindowsBarServerLoad[\s\S]*refreshServerOnCacheHit: isBubbleBar && !deferInitialWindowsBarServerLoad[\s\S]*const loadRoom =[\s\S]*\(loadFullDisplay \|\| \(!isBubbleBar && activeBubble !== "alert"\) \|\| \(isBubbleBar && !isWindowsStartupProfile\)\)[\s\S]*const loadProjectRooms =[\s\S]*\(isBubbleBar && \(!isWindowsStartupProfile \|\| loadFullDisplay \|\| displayLoadedOnceRef\.current\)\)/,
-  "Desktop widget must let the Windows startup profile defer initial bar server fallback, server refresh, room detail, and project-room list loads until the bar is ready.",
+  /allowServerFallback\?: boolean[\s\S]*if \(options\.allowServerFallback === false\) return null[\s\S]*const isWindowsStartupProfile = isTauri && startupOptimization\.profile === "windows"[\s\S]*const deferInitialWindowsBarCollectionLoad =[\s\S]*isWindowsStartupProfile && loadFullDisplay && !displayLoadedOnceRef\.current[\s\S]*const deferInitialWindowsBarServerLoad =[\s\S]*isWindowsStartupProfile && isBubbleBar && !loadFullDisplay && !displayLoadedOnceRef\.current[\s\S]*allowServerFallback: !deferInitialWindowsBarServerLoad && !deferInitialWindowsBarCollectionLoad[\s\S]*refreshServerOnCacheHit: isBubbleBar && !deferInitialWindowsBarServerLoad && !deferInitialWindowsBarCollectionLoad[\s\S]*\(loadFullDisplay && !deferInitialWindowsBarCollectionLoad\)[\s\S]*deferredBarCollectionRefreshTimerRef\.current = window\.setTimeout[\s\S]*requestDisplayRefresh\(\)[\s\S]*startupOptimization\.deferredBarCollectionRefreshDelayMs/,
+  "Desktop widget must let the Windows startup profile render the initial bar from cache/summary first and defer heavy bar collection loads until after the first usable paint.",
 );
 assertContains(
   widgetPage,
