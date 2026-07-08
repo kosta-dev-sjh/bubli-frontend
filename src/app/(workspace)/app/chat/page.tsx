@@ -74,7 +74,7 @@ import type {
   RoomAgentCommandMode,
 } from "@/types/api/chat";
 import type { FriendRequestResponse, FriendResponse, FriendSearchResponse } from "@/types/api/friend";
-import type { ProjectRoomInvitationResponse } from "@/types/api/projectRoom";
+import type { ProjectRoomInvitationResponse, ProjectRoomMemberResponse } from "@/types/api/projectRoom";
 import type { VoiceParticipantResponse, VoiceRoomResponse } from "@/types/api/voice";
 
 type RoomsState =
@@ -467,6 +467,10 @@ function commandTextsMatch(left: string, right: string) {
   return left.trim().replace(/\s+/g, " ") === right.trim().replace(/\s+/g, " ");
 }
 
+function stringBodyValue(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
 function isExistingCommandForResponse(t: TranslateFn, command: ChatMessageResponse, response: ChatMessageResponse, requestText: string) {
   if (command.messageType !== "AGENT_COMMAND") return false;
   if (command.chatRoomId !== response.chatRoomId) return false;
@@ -474,16 +478,42 @@ function isExistingCommandForResponse(t: TranslateFn, command: ChatMessageRespon
   return Math.abs(command.roomSequence - response.roomSequence) <= 1;
 }
 
-function agentCommandSender(t: TranslateFn, response: ChatMessageResponse, currentUser: AuthUser | null) {
-  const requesterId = response.sender.id ?? null;
+function agentCommandSender(
+  t: TranslateFn,
+  response: ChatMessageResponse,
+  currentUser: AuthUser | null,
+  senderNamesById: ReadonlyMap<string, string>,
+) {
+  const requesterId =
+    stringBodyValue(response.body.requesterId) ??
+    stringBodyValue(response.body.requestedByUserId) ??
+    (response.sender.type === "AGENT" ? response.sender.id : null);
+  const requesterName =
+    stringBodyValue(response.body.requesterName) ??
+    stringBodyValue(response.body.requestedByName) ??
+    (requesterId === currentUser?.id ? currentUser.name : requesterId ? senderNamesById.get(requesterId) ?? null : null) ??
+    (response.sender.type === "USER" ? response.sender.name : null) ??
+    t("chat.participant.fallbackName");
   return {
     id: requesterId,
-    name: requesterId && requesterId === currentUser?.id ? currentUser.name : t("chat.participant.fallbackName"),
+    name: requesterName,
     type: "USER" as const,
   };
 }
 
-function withAgentCommandMessages(t: TranslateFn, messages: ChatMessageResponse[], currentUser: AuthUser | null) {
+function withAgentCommandMessages(
+  t: TranslateFn,
+  messages: ChatMessageResponse[],
+  currentUser: AuthUser | null,
+  senderNamesById: ReadonlyMap<string, string> = new Map(),
+) {
+  const knownSenderNames = new Map(senderNamesById);
+  if (currentUser) knownSenderNames.set(currentUser.id, currentUser.name);
+  for (const message of messages) {
+    if (message.sender.type === "USER" && message.sender.id && message.sender.name.trim()) {
+      knownSenderNames.set(message.sender.id, message.sender.name);
+    }
+  }
   const existingCommandKeys = new Set(
     messages
       .filter((message) => message.messageType === "AGENT_COMMAND")
@@ -507,7 +537,7 @@ function withAgentCommandMessages(t: TranslateFn, messages: ChatMessageResponse[
           messageType: "AGENT_COMMAND",
           resourceId: message.resourceId,
           roomSequence: message.roomSequence - 0.1,
-          sender: agentCommandSender(t, message, currentUser),
+          sender: agentCommandSender(t, message, currentUser, knownSenderNames),
         });
       }
     }
@@ -677,6 +707,7 @@ function ChatPageContent() {
   const [selectedGroupMemberIds, setSelectedGroupMemberIds] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
   const [agentCommandNotice, setAgentCommandNotice] = useState<string | null>(null);
+  const [projectRoomMembers, setProjectRoomMembers] = useState<ProjectRoomMemberResponse[]>([]);
   const [speakingUserIds, setSpeakingUserIds] = useState<ReadonlySet<string>>(new Set());
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [messageMenuId, setMessageMenuId] = useState<string | null>(null);
@@ -700,6 +731,19 @@ function ChatPageContent() {
   const activeChatRoomIdRef = useRef<string | null>(null);
   const currentUserRef = useRef<AuthUser | null>(null);
   const currentUser = profileState.kind === "ready" ? profileState.user : null;
+  const knownSenderNamesById = useMemo(() => {
+    const names = new Map<string, string>();
+    if (currentUser?.id && currentUser.name.trim()) names.set(currentUser.id, currentUser.name);
+    if (socialState.kind === "ready") {
+      for (const friend of socialState.friends) {
+        if (friend.friendUserId && friend.name.trim()) names.set(friend.friendUserId, friend.name);
+      }
+    }
+    for (const member of projectRoomMembers) {
+      if (member.userId && member.name.trim()) names.set(member.userId, member.name);
+    }
+    return names;
+  }, [currentUser, projectRoomMembers, socialState]);
   const typingPublishRef = useRef<{ lastStartSentAt: number; stopTimer: number | null }>({
     lastStartSentAt: 0,
     stopTimer: null,
@@ -762,11 +806,11 @@ function ChatPageContent() {
         if (fresh.length === 0) return current;
         return {
           kind: "ready",
-          messages: withAgentCommandMessages(t, [...withoutSyntheticAgentCommands(base), ...fresh], currentUser),
+          messages: withAgentCommandMessages(t, [...withoutSyntheticAgentCommands(base), ...fresh], currentUser, knownSenderNamesById),
         };
       });
     },
-    [currentUser, t],
+    [currentUser, knownSenderNamesById, t],
   );
 
   // 재연결 시 놓친 메시지 보정 — 최신 페이지를 다시 받아 병합한다(교체 아님).
@@ -921,6 +965,40 @@ function ChatPageContent() {
       input.setSelectionRange(completedText.length, completedText.length);
     });
   }, []);
+
+  useEffect(() => {
+    if (!selectedProjectRoomId) {
+      const timeoutId = window.setTimeout(() => setProjectRoomMembers([]), 0);
+      return () => window.clearTimeout(timeoutId);
+    }
+
+    let cancelled = false;
+    void projectRoomApi
+      .getMembers(selectedProjectRoomId)
+      .then((page) => {
+        if (cancelled) return;
+        const activeMembers = page.items.filter((member) => member.status === "ACTIVE");
+        const nextSenderNames = new Map(knownSenderNamesById);
+        for (const member of activeMembers) {
+          if (member.userId && member.name.trim()) nextSenderNames.set(member.userId, member.name);
+        }
+        setProjectRoomMembers(activeMembers);
+        setMessagesState((current) => {
+          if (current.kind !== "ready") return current;
+          return {
+            kind: "ready",
+            messages: withAgentCommandMessages(t, withoutSyntheticAgentCommands(current.messages), currentUser, nextSenderNames),
+          };
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setProjectRoomMembers([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser, knownSenderNamesById, selectedProjectRoomId, t]);
   const agentAutocomplete = useAgentCommandAutocomplete({
     draft,
     enabled: selectedRoom?.chatType === "ROOM",
@@ -1052,7 +1130,7 @@ function ChatPageContent() {
     if (isWindowsTauriRuntime()) {
       const cachedMessages = await readCachedRoomMessages(chatRoomId, 40);
       if (cachedMessages.length > 0) {
-        setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, cachedMessages, currentUser) });
+        setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, cachedMessages, currentUser, knownSenderNamesById) });
       } else {
         setMessagesState({ kind: "loading" });
       }
@@ -1064,7 +1142,7 @@ function ChatPageContent() {
       const page = await messagesRequest;
       const sortedMessages = [...page.items].sort((a, b) => a.roomSequence - b.roomSequence);
       void syncCachedRoomMessages(chatRoomId, sortedMessages, 0);
-      setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, sortedMessages, currentUser) });
+      setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, sortedMessages, currentUser, knownSenderNamesById) });
       const lastReadSequence = sortedMessages.at(-1)?.roomSequence;
       if (lastReadSequence !== undefined) {
         void chatApi.markRead(chatRoomId, lastReadSequence).catch(() => {
@@ -1073,17 +1151,17 @@ function ChatPageContent() {
       }
     } catch {
       if (shouldUseWorkspacePreviewData()) {
-        setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, workspacePreviewChatMessages(chatRoomId), currentUser) });
+        setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, workspacePreviewChatMessages(chatRoomId), currentUser, knownSenderNamesById) });
         return;
       }
       const cachedMessages = await readCachedRoomMessages(chatRoomId, 40);
       if (cachedMessages.length > 0) {
-        setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, cachedMessages, currentUser) });
+        setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, cachedMessages, currentUser, knownSenderNamesById) });
         return;
       }
       setMessagesState({ kind: "offline" });
     }
-  }, [currentUser, t]);
+  }, [currentUser, knownSenderNamesById, t]);
 
   const loadSocial = useCallback(async () => {
     setSocialState({ kind: "loading" });
