@@ -4064,7 +4064,7 @@ button.workspace-route__friend-row:hover {
     rgba(255, 255, 255, 0.66);
 }
 
-.workspace-route__message div {
+.workspace-route__message > div {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -4118,6 +4118,62 @@ button.workspace-route__friend-row:hover {
   font-size: 14px;
   font-weight: 680;
   line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.workspace-route__message-citations {
+  display: block;
+  margin-top: 6px;
+  padding: 9px 10px;
+  border: 1px solid rgba(126, 173, 220, 0.34);
+  border-radius: 12px;
+  background: rgba(246, 251, 255, 0.74);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.workspace-route__message-citations summary {
+  display: list-item;
+  width: fit-content;
+  color: var(--blue-ink);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 820;
+}
+
+.workspace-route__message-citations ol {
+  display: grid;
+  gap: 8px;
+  margin: 9px 0 0;
+  padding: 0 0 0 20px;
+}
+
+.workspace-route__message-citations li {
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.workspace-route__message-citations cite {
+  display: block;
+  color: var(--ink);
+  font-style: normal;
+  font-weight: 780;
+  overflow-wrap: anywhere;
+}
+
+.workspace-route__message-citations blockquote {
+  margin: 5px 0 0;
+  padding: 6px 8px 6px 10px;
+  border-left: 2px solid rgba(126, 173, 220, 0.58);
+  border-radius: 0 8px 8px 0;
+  background: rgba(255, 255, 255, 0.54);
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.5;
   white-space: pre-wrap;
   word-break: keep-all;
   overflow-wrap: anywhere;
@@ -22449,6 +22505,30 @@ body[data-bubli-surface="hybrid-app"] .bubli-app-layout .bubli-main {
 
 [data-theme="dark"] .workspace-route__message p {
   color: #C2CFE6;
+}
+
+[data-theme="dark"] .workspace-route__message-citations {
+  border-color: rgba(158, 216, 255, 0.22);
+  background: rgba(34, 46, 72, 0.42);
+  box-shadow: var(--inner-highlight-dark);
+}
+
+[data-theme="dark"] .workspace-route__message-citations summary {
+  color: #BFD6F5;
+}
+
+[data-theme="dark"] .workspace-route__message-citations li,
+[data-theme="dark"] .workspace-route__message-citations blockquote {
+  color: #A7B6CC;
+}
+
+[data-theme="dark"] .workspace-route__message-citations cite {
+  color: #EAF0F8;
+}
+
+[data-theme="dark"] .workspace-route__message-citations blockquote {
+  border-left-color: rgba(158, 216, 255, 0.34);
+  background: rgba(20, 30, 50, 0.28);
 }
 
 [data-theme="dark"] .workspace-route__message-tools button {
