@@ -111,19 +111,16 @@ const loginStartupBubbleWindows: WidgetWindowOpenInput[] = [
 const loginStartupWindows: WidgetWindowOpenInput[] = [
   loginStartupBarWindow,
   loginStartupAgentOrbWindow,
-  ...loginStartupBubbleWindows,
 ];
-const desktopWidgetBoardWindows: WidgetWindowOpenInput[] = [
-  { bubbleType: "todo", mode: "DEFAULT", windowId: "todo" },
-  { bubbleType: "agent", mode: "DEFAULT", windowId: "agent" },
-  { bubbleType: "schedule", mode: "DEFAULT", windowId: "schedule" },
-  { bubbleType: "timer", mode: "DEFAULT", windowId: "timer" },
-];
-const desktopWidgetCascadeWindows: WidgetWindowOpenInput[] = [
-  { bubbleType: "todo", mode: "DEFAULT", windowId: "todo" },
-  { bubbleType: "agent", mode: "DEFAULT", windowId: "agent" },
-  { bubbleType: "timer", mode: "DEFAULT", windowId: "timer" },
-];
+const desktopWidgetBoardWindows = loginStartupBubbleWindows.filter((window) =>
+  window.bubbleType === "todo" ||
+  window.bubbleType === "agent" ||
+  window.bubbleType === "schedule" ||
+  window.bubbleType === "timer",
+);
+const desktopWidgetCascadeWindows = loginStartupBubbleWindows.filter((window) =>
+  window.bubbleType === "todo" || window.bubbleType === "agent" || window.bubbleType === "timer",
+);
 
 type WidgetOpenResult =
   | { input: WidgetWindowOpenInput; status: "fulfilled" }
@@ -278,6 +275,9 @@ export async function resolveLoginStartupWindows(): Promise<WidgetWindowOpenInpu
     ).catch(() => null);
   }
   const preference = readDesktopWidgetStartupPreference();
+  if (preference.mode === "bar") {
+    return loginStartupWindows;
+  }
   if (preference.mode === "board") {
     return [loginStartupBarWindow, loginStartupAgentOrbWindow, ...desktopWidgetBoardWindows];
   }

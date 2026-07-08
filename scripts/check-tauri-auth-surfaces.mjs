@@ -917,7 +917,7 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /setAuthenticatedSurfacesEnabled\(\{ enabled: true \}\)[\s\S]*openWidgetWindows\(\{[\s\S]*bubbleType: "bar"[\s\S]*\.\.\.smokeWidgetBubbles\.map[\s\S]*native bar and all bubble widget windows opened after login[\s\S]*setWidgetRoomContext\(\{ selectedRoomId: smokeRoomId \}\)[\s\S]*Promise\.all\([\s\S]*getWidgetWindowState\(\{ bubbleType, windowId: bubbleType \}\)[\s\S]*all bubble widget windows visible[\s\S]*project room context propagated to all bubble widgets/,
+  /setAuthenticatedSurfacesEnabled\(\{ enabled: true \}\)[\s\S]*openWidgetWindows\(\{[\s\S]*bubbleType: "bar"[\s\S]*\.\.\.smokeWidgetBubbles\.map[\s\S]*native bar and all bubble widget windows can be opened explicitly[\s\S]*setWidgetRoomContext\(\{ selectedRoomId: smokeRoomId \}\)[\s\S]*Promise\.all\([\s\S]*getWidgetWindowState\(\{ bubbleType, windowId: bubbleType \}\)[\s\S]*all bubble widget windows visible[\s\S]*project room context propagated to all bubble widgets/,
   "TauriRuntimeSmokeRunner must verify post-login native bar plus all bubble widget windows and room context propagation.",
 );
 assertContains(
@@ -1087,8 +1087,8 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /launchTauriAuthenticatedSurfaces\(\)[\s\S]*post-login launcher opened all auto-login bubble widgets with project room context[\s\S]*post-login launcher kept standalone resource widget hidden[\s\S]*isActivityAutoCaptureRunning\(\)[\s\S]*isManagedFolderAutoSyncRunning\(\)[\s\S]*isWidgetUsageAutoSyncRunning\(\)[\s\S]*post-login launcher started activity folder and widget sync loops[\s\S]*stopTauriAuthenticatedSurfaces\(\)[\s\S]*post-login stop cleared active project room context[\s\S]*post-login stop closed all bubble widget windows[\s\S]*post-login stop stopped activity folder and widget sync loops/,
-  "TauriRuntimeSmokeRunner must prove the real post-login authenticated launcher opens widgets, starts sync loops, and stops both widgets and loops.",
+  /launchTauriAuthenticatedSurfaces\(\)[\s\S]*post-login launcher opened only the bar and menu by default[\s\S]*post-login launcher kept bubble widgets hidden by default[\s\S]*post-login launcher seeded bubble restore items without opening them[\s\S]*isActivityAutoCaptureRunning\(\)[\s\S]*isManagedFolderAutoSyncRunning\(\)[\s\S]*isWidgetUsageAutoSyncRunning\(\)[\s\S]*post-login launcher started activity folder and widget sync loops[\s\S]*stopTauriAuthenticatedSurfaces\(\)[\s\S]*post-login stop cleared active project room context[\s\S]*post-login stop closed all bubble widget windows[\s\S]*post-login stop stopped activity folder and widget sync loops/,
+  "TauriRuntimeSmokeRunner must prove the real post-login authenticated launcher opens bar/menu, seeds restore items, starts sync loops, and stops both widgets and loops.",
 );
 assertContains(
   runtimeSmokeRunner,
@@ -1127,7 +1127,7 @@ assertContains(
 );
 assertContains(
   windowsRuntimeSmoke,
-  /const CONTRACT_ONLY = process\.argv\.includes\("--contract"\)[\s\S]*if \(CONTRACT_ONLY\) \{[\s\S]*const contractChecks = runContractCheck\(\);[\s\S]*checks: contractChecks[\s\S]*mode: "contract"[\s\S]*process\.exit\(0\);[\s\S]*function runContractCheck\(\)[\s\S]*runner verifies post-login bar and auto-login bubble widgets with room context[\s\S]*runner verifies real backend widget context and settings persistence[\s\S]*runner verifies SQLite backup creation and restore queueing[\s\S]*runner verifies local file scan reindex watch sync and analysis backfill/,
+  /const CONTRACT_ONLY = process\.argv\.includes\("--contract"\)[\s\S]*if \(CONTRACT_ONLY\) \{[\s\S]*const contractChecks = runContractCheck\(\);[\s\S]*checks: contractChecks[\s\S]*mode: "contract"[\s\S]*process\.exit\(0\);[\s\S]*function runContractCheck\(\)[\s\S]*runner verifies post-login bar menu and hidden bubble restore items[\s\S]*runner verifies real backend widget context and settings persistence[\s\S]*runner verifies SQLite backup creation and restore queueing[\s\S]*runner verifies local file scan reindex watch sync and analysis backfill/,
   "Windows runtime smoke --contract mode must statically verify key runtime smoke functional assertions before reporting pass.",
 );
 assertContains(
@@ -1384,21 +1384,21 @@ assertContains(
   "loginStartupAgentOrbWindow",
   "Login startup windows must include the agent orb window.",
 );
-assertContains(
+assertNotContains(
   startupWindows,
   "...loginStartupBubbleWindows",
-  "Login startup windows must include the default auto-login bubble set.",
+  "Default login startup windows must not fan out every bubble window.",
 );
 assertContains(
   startupBubbleWindows,
   /bubbleType:\s*"todo"[\s\S]*windowId:\s*"todo"/,
-  "Login startup bubble windows must open the TODO bubble automatically.",
+  "Login startup bubble windows must keep the TODO restore definition.",
 );
 for (const required of ["agent", "alert", "chat", "memo", "schedule", "timer"]) {
   assertContains(
     startupBubbleWindows,
     new RegExp(`bubbleType:\\s*"${required}"[\\s\\S]*windowId:\\s*"${required}"`),
-    `Login startup bubble windows must open the ${required} bubble automatically.`,
+    `Login startup bubble windows must keep the ${required} restore definition.`,
   );
 }
 assertNotContains(
@@ -1429,8 +1429,8 @@ assertContains(
 );
 assertContains(
   surfaces,
-  /return loginStartupWindows;/,
-  "The default startup preference must keep first launch to the Bubli bar only.",
+  /preference\.mode === "bar"[\s\S]*return loginStartupWindows;/,
+  "The default bar startup preference must keep first launch to the Bubli bar/menu only.",
 );
 assertNotContains(
   surfaces,
