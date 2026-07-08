@@ -22,6 +22,7 @@ const files = {
   projectRoomsPage: "src/app/(workspace)/app/project-rooms/page.tsx",
   projectRoomWorkRoute: "src/app/(workspace)/app/project-rooms/[roomId]/work/page.tsx",
   workspaceDashboard: "src/features/dashboard/components/workspace-dashboard.tsx",
+  memoDashboardCard: "src/features/memo/components/memo-dashboard-card.tsx",
   apiClient: "src/lib/api/client.ts",
   authApi: "src/features/auth/api/authApi.ts",
   authPanel: "src/features/auth/components/auth-panel.tsx",
@@ -217,6 +218,7 @@ const appAgent = read(files.appAgent);
 const projectRoomsPage = read(files.projectRoomsPage);
 const projectRoomWorkRoute = read(files.projectRoomWorkRoute);
 const workspaceDashboard = read(files.workspaceDashboard);
+const memoDashboardCard = read(files.memoDashboardCard);
 const apiClient = read(files.apiClient);
 const authApi = read(files.authApi);
 const authPanel = read(files.authPanel);
@@ -273,6 +275,11 @@ assertContains(
   workspaceDashboard,
   /readWindowsDashboardInitialTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*withDashboardInitialDeadline[\s\S]*dashboardApi\.getWork\(\)[\s\S]*setState\(\{ data: emptyDashboard, kind: "ready" \}\)[\s\S]*workPromise[\s\S]*setState\(hasDashboardItems\(data\)/,
   "Windows Tauri dashboard must switch out of the loading state after a bounded initial wait and finish the slower server summary in the background.",
+);
+assertContains(
+  memoDashboardCard,
+  /readWindowsMemoInitialTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*withMemoInitialDeadline[\s\S]*const memosRequest = roomId \? memoApi\.listRoom\(roomId, \{ size: MEMO_PAGE_SIZE \}\) : memoApi\.listPersonal\(\{ size: MEMO_PAGE_SIZE \}\)[\s\S]*const initialPage = await withMemoInitialDeadline\(memosRequest, initialTimeoutMs\)[\s\S]*setState\(\(current\) => \(current\.kind === "ready" \? current : \{ kind: "ready", memos: \[\] \}\)\)[\s\S]*memosRequest\.then\(applyMemoPage\)/,
+  "Windows Tauri memo dashboard card must not hold the dashboard on memo server latency; it should deadline-bound the first load and backfill memos.",
 );
 assertContains(
   appAgent,
