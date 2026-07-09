@@ -49,6 +49,7 @@ The issue should not be described only as "performance optimization." The more a
 | Server-side notification filtering | Notification list calls now support `status=UNREAD` so unread-only surfaces do not fetch read items first |
 | Unread-only widget polling | Widget notification surfaces and voice-call decline polling now request unread notifications instead of repeatedly scanning broad notification history |
 | Windows route cache reuse | Agent page now reuses cached project-room options when Windows initial AI hydration exceeds the startup deadline |
+| Dashboard route cache reuse | Dashboard project-room widgets now reuse cached room options while the broader Windows dashboard batch backfills |
 | Windows-compatible script arguments | Smoke scripts were adjusted away from Unix-style inline env assumptions where needed |
 | Runtime smoke progress reporting | The Tauri smoke runner now reports progress steps before the final report |
 | Runtime preflight guard | The preflight now checks for existing Bubli processes before launching Windows runtime smoke |
@@ -66,6 +67,7 @@ This is the working engineering version of the Windows/macOS runtime-difference 
 | Notification panel showed old/read items and very high counts | Notification surfaces fetched broad notification history and filtered too late in the client | Added unread status filtering on frontend calls and backend notification API support | Backend `/api/notifications?status=UNREAD` companion patch merged; frontend unread surfaces no longer need broad history first |
 | Widget voice-call ringback could keep polling broad notification history | The decline detector used notification polling without a status filter | Changed the widget call-decline polling request to `status=UNREAD` and added an auth-surface contract guard | Remaining widget notification list calls are now unread-scoped |
 | Agent page could drop to an empty room selector after the Windows initial hydration deadline | The page deadline unblocked rendering, but fallback data used an empty room list unless the previous agent state was already ready | Seed fallback project-room options from the Windows route cache and refresh that cache when full server data arrives | The route can leave loading faster while retaining recent room options until full AI data backfills |
+| Dashboard room widgets waited for the full auxiliary batch before room options appeared | The dashboard summary was deadline-bound, but project-room options still came from the broader batch result | Seed dashboard room options from the Windows route cache and refresh the cache when the server room list arrives | The first dashboard render can show recent room context while resources, schedules, heatmap, suggestions, and notifications backfill |
 | Runtime smoke was hard to debug when it timed out | The smoke runner only failed at the end, so auth/widget/SQLite/sync stalls looked identical | Added progress events and preflight checks for existing `bubli.exe` | Failing reports now identify whether the issue is auth, widgets, local sync, or process state |
 | Installed-build local sync looked partially failed even when the explicit scan/watch probe passed | Background managed-folder loop status can retain a transient failure after file analysis while the targeted QA probe succeeds | Keep explicit local folder scan/watch/sync evidence separate from background loop status | Latest real installed QA passes when explicit scan/watch/sync evidence proves zero scoped failures, even if the background loop still reports a transient failed status |
 
@@ -110,6 +112,8 @@ Windows QA and smoke diagnostics:
   - Added an existing-process guard for `bubli.exe` to catch Windows single-instance mutex conflicts before smoke launch.
 - `src/app/(workspace)/app/agent/page.tsx`
   - Windows deadline fallback now seeds project-room options from the Windows route cache while slower agent data backfills.
+- `src/features/dashboard/components/workspace-dashboard.tsx`
+  - Windows dashboard now seeds project-room widgets from the Windows route cache while the broader dashboard batch backfills.
 - `scripts/qa-tauri-real-oauth-manual.mjs`
   - Added installed launch-readiness timing to the redacted real OAuth QA summary.
   - The validator now requires finite timing anchors on passing installed QA reports.

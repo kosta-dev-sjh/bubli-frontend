@@ -36,6 +36,7 @@ import type { MessageKey, TranslateVars } from "@/lib/i18n";
 import { projectRoomRoute } from "@/lib/project-room-routes";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
+import { readWindowsProjectRoomsCache, writeWindowsProjectRoomsCache } from "@/lib/tauri/windows-route-cache";
 import {
   shouldUseWorkspacePreviewData,
   workspacePreviewDashboard,
@@ -1066,6 +1067,11 @@ export function WorkspaceDashboard() {
         agentApi.listPersonalSuggestions({ status: "DRAFT" }),
         notificationApi.list({ size: 20, status: "UNREAD" }),
       ]);
+      const cachedRooms = await readWindowsProjectRoomsCache().catch(() => null);
+      if (cachedRooms) {
+        setRooms(cachedRooms);
+        setRoomsLoaded(true);
+      }
       const workPromise = dashboardApi.getWork();
       const initialTimeoutMs = await readWindowsDashboardInitialTimeoutMs();
       const initialData = await withDashboardInitialDeadline(workPromise, initialTimeoutMs);
@@ -1096,7 +1102,12 @@ export function WorkspaceDashboard() {
         notificationResult,
       ] = await batchPromise;
 
-      setRooms(roomResult.status === "fulfilled" ? roomResult.value.items : []);
+      if (roomResult.status === "fulfilled") {
+        setRooms(roomResult.value.items);
+        void writeWindowsProjectRoomsCache(roomResult.value.items);
+      } else if (!cachedRooms) {
+        setRooms([]);
+      }
       setRoomsLoaded(true);
       setPersonalTasks(personalTaskResult.status === "fulfilled" ? personalTaskResult.value.items : []);
       setDashboardFeedTasks(feedTaskResult.status === "fulfilled" ? feedTaskResult.value.items : []);
