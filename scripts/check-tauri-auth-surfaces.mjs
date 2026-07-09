@@ -283,6 +283,11 @@ assertContains(
   "Windows Tauri dashboard must switch out of the loading state after a bounded initial wait and finish the slower server summary in the background.",
 );
 assertContains(
+  workspaceDashboard,
+  /readWindowsProjectRoomsCache[\s\S]*writeWindowsProjectRoomsCache[\s\S]*const cachedRooms = await readWindowsProjectRoomsCache\(\)\.catch\(\(\) => null\)[\s\S]*setRooms\(cachedRooms\)[\s\S]*setRoomsLoaded\(true\)[\s\S]*setRooms\(roomResult\.value\.items\)[\s\S]*writeWindowsProjectRoomsCache\(roomResult\.value\.items\)[\s\S]*else if \(!cachedRooms\)[\s\S]*setRooms\(\[\]\)/,
+  "Windows Tauri dashboard must seed project-room widgets from the Windows route cache while the broader dashboard batch backfills.",
+);
+assertContains(
   memoDashboardCard,
   /readWindowsMemoInitialTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*withMemoInitialDeadline[\s\S]*const memosRequest = roomId \? memoApi\.listRoom\(roomId, \{ size: MEMO_PAGE_SIZE \}\) : memoApi\.listPersonal\(\{ size: MEMO_PAGE_SIZE \}\)[\s\S]*const initialPage = await withMemoInitialDeadline\(memosRequest, initialTimeoutMs\)[\s\S]*setState\(\(current\) => \(current\.kind === "ready" \? current : \{ kind: "ready", memos: \[\] \}\)\)[\s\S]*memosRequest\.then\(applyMemoPage\)/,
   "Windows Tauri memo dashboard card must not hold the dashboard on memo server latency; it should deadline-bound the first load and backfill memos.",
