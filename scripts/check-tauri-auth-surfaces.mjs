@@ -1997,6 +1997,11 @@ assertContains(
 );
 assertContains(
   widgetPage,
+  /isWidgetRingingBack[\s\S]*widgetDisplayApi[\s\S]*\.listNotifications\(10, 0, "UNREAD"\)[\s\S]*VOICE_CALL_DECLINED/,
+  "Desktop widget voice-call decline polling must request unread notifications instead of repeatedly scanning broad notification history.",
+);
+assertContains(
+  widgetPage,
   /startupOptimization\.profile === "windows"[\s\S]*\? buildEmptyDisplayBubbles\(t, requestedRoomId\)[\s\S]*: withWidgetDisplayLoadState\(buildEmptyDisplayBubbles\(t, requestedRoomId\), "loading"\)[\s\S]*const deferInitialWindowsItemStateSync = isWindowsStartupProfile && !hadLoadedDisplay[\s\S]*deferInitialWindowsItemStateSync[\s\S]*\? \[\][\s\S]*listItemStates\(nextDisplayItemIds\)[\s\S]*displayLoadedOnceRef\.current = true[\s\S]*deferInitialWindowsItemStateSync && nextDisplayItemIds\.length > 0[\s\S]*listItemStates\(nextDisplayItemIds\)/,
   "Desktop widget Windows profile must show the first frame without the blocking loading copy and defer item-state sync until after first display.",
 );
