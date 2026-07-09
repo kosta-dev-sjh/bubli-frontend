@@ -1085,9 +1085,10 @@ export function AppShell({ children }: AppShellProps) {
 
   useEffect(() => {
     if (state.kind !== "ready" || !selectedRoom) return;
+    if (roomFromPath || roomFromQuery) return;
     if (getActiveProjectRoomId() === selectedRoom.id && getActiveProjectRoomLabel() === selectedRoom.name) return;
     setActiveProjectRoomId(selectedRoom.id, selectedRoom.name);
-  }, [selectedRoom, state.kind]);
+  }, [roomFromPath, roomFromQuery, selectedRoom, state.kind]);
 
   // 브라우저/WKWebView 자동재생 정책: 사용자 제스처가 한 번이라도 있어야 이후 알림음 재생이 허용된다.
   // 최초 클릭/키입력/터치 시 한 번만 사전 로드해 두면, 실제 알림 시점에 소리가 막히지 않는다.
