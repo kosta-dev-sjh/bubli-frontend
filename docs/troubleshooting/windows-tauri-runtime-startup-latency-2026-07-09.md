@@ -22,7 +22,7 @@ The issue should not be described only as "performance optimization." The more a
 
 | Symptom | Impact | Status |
 | --- | --- | --- |
-| Windows first app transition is slower than macOS | User waits after login or after app surface starts | Partially mitigated, still needs installed-build timing |
+| Windows first app transition is slower than macOS | User waits after login or after app surface starts | Partially mitigated, installed-build readiness timing now recorded |
 | Widget bar/menu and widget windows feel delayed | Widgets appear later or restore while data is still loading | Partially mitigated |
 | Notification UI showed excessive counts and old/read items | Notification panel/widget looked wrong and carried unnecessary payload | Patched in frontend, backend filter patch prepared |
 | Runtime smoke timed out after 240 seconds with no step detail | Hard to know whether auth, widgets, SQLite, sync, or process launch was stuck | Diagnostics added |
@@ -50,6 +50,7 @@ The issue should not be described only as "performance optimization." The more a
 | Windows-compatible script arguments | Smoke scripts were adjusted away from Unix-style inline env assumptions where needed |
 | Runtime smoke progress reporting | The Tauri smoke runner now reports progress steps before the final report |
 | Runtime preflight guard | The preflight now checks for existing Bubli processes before launching Windows runtime smoke |
+| Installed readiness timing | Real OAuth installed QA now records timing from backend auth validation to auth gate, widget bar, bubble restore item seeding, sync-loop start, and launch completion |
 
 ## Practical Troubleshooting Record
 
@@ -58,7 +59,7 @@ This is the working engineering version of the Windows/macOS runtime-difference 
 | Observation | Working cause | Action taken | Current evidence |
 | --- | --- | --- | --- |
 | macOS transitions felt faster than the Windows installed build | macOS WKWebView and Windows Edge WebView2 have different startup/window creation costs, so the same early workload is more expensive on Windows | Treated this as Tauri cross-platform runtime adaptation, not just generic frontend optimization | Full runtime smoke now reports phase-level progress instead of a single timeout |
-| Windows first authenticated screen waited before becoming usable | WebView initialization, auth session restoration, app-shell data fetches, dashboard data, widget context, and notification requests could compete during the first render window | Reordered startup expectations around auth readiness first, then widget bar/menu readiness, then heavier widget data hydration | Real installed OAuth QA reached `/app/`, `/api/me`, widget context, and widget summary successfully |
+| Windows first authenticated screen waited before becoming usable | WebView initialization, auth session restoration, app-shell data fetches, dashboard data, widget context, and notification requests could compete during the first render window | Reordered startup expectations around auth readiness first, then widget bar/menu readiness, then heavier widget data hydration | Real installed OAuth QA reached `/app/`, `/api/me`, widget context, and widget summary successfully; latest installed readiness timing is recorded below |
 | Several widget windows appeared or restored in a confusing way on Windows | Windows startup was paying for too many widget WebViews and restore paths at once; QA also expected every widget bubble to be visible immediately | Updated the intended Windows startup model: bar/menu first, standalone bubbles as restore items until explicitly opened | Installed QA now passes by proving restore readiness, room context consistency, and stop cleanup instead of requiring every bubble window to be visible at startup |
 | Notification panel showed old/read items and very high counts | Notification surfaces fetched broad notification history and filtered too late in the client | Added unread status filtering on frontend calls and backend notification API support | Backend `/api/notifications?status=UNREAD` companion patch merged; frontend unread surfaces no longer need broad history first |
 | Runtime smoke was hard to debug when it timed out | The smoke runner only failed at the end, so auth/widget/SQLite/sync stalls looked identical | Added progress events and preflight checks for existing `bubli.exe` | Failing reports now identify whether the issue is auth, widgets, local sync, or process state |
@@ -69,8 +70,9 @@ The important distinction for future reports:
 - **Implemented**: startup contention was reduced by sequencing, deferred widget loading, unread notification filtering, and better runtime diagnostics.
 - **Automatically verified**: Windows runtime smoke and contract checks have passed on the code path they cover.
 - **Installed-build verified for auth/widget/local sync**: latest real OAuth installed QA reached the authenticated app and verified backend widget APIs, restore-ready widgets, local SQLite, local folder scan/watch/sync, activity capture, widget usage sync, Tauri mirror session restore, and stop cleanup.
-- **Not complete yet**: cold/warm installed-build startup timing still needs to be measured before claiming a numeric speed improvement.
-- **Do not claim** a percentage speed improvement until cold/warm installed-build timing is measured.
+- **Installed-build readiness timing added**: the QA report now records authenticated-surface readiness anchors so future Windows runs can be compared without guessing from perceived UI delay.
+- **Not complete yet**: cold/warm installed-build startup timing before/after comparison still needs to be measured before claiming a percentage speed improvement.
+- **Do not claim** a percentage speed improvement until cold/warm installed-build timing is measured under the same backend/user/data conditions.
 
 ## Frontend Changes In This Track
 
@@ -101,6 +103,11 @@ Windows QA and smoke diagnostics:
   - Added progress posts for runtime detection, auth setup, SQLite checks, widget window checks, activity capture, usage sync, folder scan/watch, and post-login cleanup.
 - `scripts/check-tauri-runtime-preflight.mjs`
   - Added an existing-process guard for `bubli.exe` to catch Windows single-instance mutex conflicts before smoke launch.
+- `scripts/qa-tauri-real-oauth-manual.mjs`
+  - Added installed launch-readiness timing to the redacted real OAuth QA summary.
+  - The validator now requires finite timing anchors on passing installed QA reports.
+- `scripts/check-tauri-auth-surfaces.mjs`
+  - Added contract coverage so launch-readiness timing cannot be removed from real OAuth QA evidence by accident.
 
 ## Backend Changes In The Companion Patch
 
@@ -146,6 +153,19 @@ Observed full-smoke timings from the passing run:
 | Post-login authenticated launcher | 529 ms |
 | Launcher widget state readback | 10 ms |
 
+Latest installed real OAuth readiness timing:
+
+| Metric | Duration |
+| --- | ---: |
+| Auth validation to auth gate enabled | 130 ms |
+| Auth validation to widget bar visible | 253 ms |
+| Auth validation to bubble restore items seeded | 366 ms |
+| Auth validation to sync loops started | 366 ms |
+| Launch start to completed | 366 ms |
+| Full QA run duration | 81,111 ms |
+
+This timing is from the QA-instrumented installed Tauri session. It measures authenticated app readiness after backend auth validation, not first native window paint and not a synthetic browser-only page load.
+
 Verified on the backend companion worktree:
 
 ```powershell
@@ -180,11 +200,19 @@ Verified by real installed OAuth QA:
 
 Installed real OAuth QA evidence:
 
-- Report: `.codex-runtime-logs/tauri-real-oauth-qa-2026-07-08T19-26-04-554Z.json`
-- Summary: `.codex-runtime-logs/tauri-real-oauth-qa-2026-07-08T19-26-04-554Z.md`
+- Report: `.codex-runtime-logs/tauri-real-oauth-qa-2026-07-09T03-17-07-879Z.json`
+- Summary: `.codex-runtime-logs/tauri-real-oauth-qa-2026-07-09T03-17-07-879Z.md`
 - Runtime mode: `installed-release`
 - Backend base URL: `https://bubli.n-e.kr`
 - Status: passed
+
+Transient installed QA failure observed before the passing run:
+
+- Report: `.codex-runtime-logs/tauri-real-oauth-qa-2026-07-09T03-10-40-603Z.json`
+- Symptom: `/api/me`, widget context, widget summary, and local sync fetch failed.
+- External check immediately after the run returned `502 Bad Gateway` from `https://bubli.n-e.kr/api/me`.
+- Follow-up checks returned the expected unauthenticated `401` and OAuth authorize `200`, then the next installed QA run passed.
+- Current interpretation: treat that run as an external/live-backend instability signal, not as proof of a Windows runtime regression.
 
 Latest public Windows installer refresh:
 
