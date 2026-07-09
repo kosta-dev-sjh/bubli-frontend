@@ -19,6 +19,7 @@ import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
 import { isBackendWidgetBubbleType, widgetApi } from "@/features/widget/api/widgetApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { getStoredAuthSession } from "@/lib/auth/auth-session";
 import { notifyUserUpdated } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { Locale, MessageKey, TranslateVars } from "@/lib/i18n";
@@ -50,6 +51,7 @@ import {
 } from "@/lib/local/managed-folder-client";
 import { listenManagedFolderWatchEvents } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { isWindowsTauriRuntime } from "@/lib/tauri/platform";
 import { readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
 import { readWindowsProjectRoomsCache, writeWindowsProjectRoomsCache } from "@/lib/tauri/windows-route-cache";
 import { DesktopAppDownload } from "@/features/download/components/desktop-app-download";
@@ -405,10 +407,14 @@ export default function SettingsPage() {
     setMessage(null);
 
     try {
-      const user = await authApi.getMe();
       const settingsHydrationTimeoutMs = await readWindowsSettingsHydrationTimeoutMs();
       const boundSettingsHydration = <T,>(task: Promise<T>, fallback: T) =>
         withSettingsHydrationTimeout(task, settingsHydrationTimeoutMs, fallback);
+      const cachedUser = isWindowsTauriRuntime() ? getStoredAuthSession()?.user ?? null : null;
+      const userRequest = authApi.getMe();
+      const user = cachedUser
+        ? await boundSettingsHydration<AuthUser>(userRequest, cachedUser)
+        : await userRequest;
       const cachedRooms = await readWindowsProjectRoomsCache().catch(() => null);
       const [notifications, privacy, storage, activityLogs, widgetBubbles, localFolders, googleConnection, preferences, roomPage] = await Promise.allSettled([
         settingsApi.getNotificationPreferences(),
@@ -448,6 +454,20 @@ export default function SettingsPage() {
         },
         user,
       });
+
+      if (settingsHydrationTimeoutMs > 0 && user === cachedUser) {
+        void userRequest.then(
+          (latestUser) => {
+            setNameDraft(latestUser.name);
+            setState((current) => (current.kind === "ready" ? { ...current, user: latestUser } : current));
+          },
+          (error: unknown) => {
+            if (error instanceof ApiClientError && error.status === 401) {
+              setState({ kind: "auth" });
+            }
+          },
+        );
+      }
 
       if (
         settingsHydrationTimeoutMs > 0 &&
