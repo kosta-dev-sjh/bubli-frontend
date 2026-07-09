@@ -22,6 +22,7 @@ const files = {
   appAgent: "src/app/(workspace)/app/agent/page.tsx",
   projectRoomsPage: "src/app/(workspace)/app/project-rooms/page.tsx",
   projectRoomWorkRoute: "src/app/(workspace)/app/project-rooms/[roomId]/work/page.tsx",
+  projectRoomWorkBoard: "src/features/project-room/components/project-room-work-board.tsx",
   projectRoomSettingsPanel: "src/features/project-room/components/project-room-settings-panel.tsx",
   wbsGanttPanel: "src/features/wbs/components/wbs-gantt-panel.tsx",
   workspaceDashboard: "src/features/dashboard/components/workspace-dashboard.tsx",
@@ -223,6 +224,7 @@ const appChat = read(files.appChat);
 const appAgent = read(files.appAgent);
 const projectRoomsPage = read(files.projectRoomsPage);
 const projectRoomWorkRoute = read(files.projectRoomWorkRoute);
+const projectRoomWorkBoard = read(files.projectRoomWorkBoard);
 const projectRoomSettingsPanel = read(files.projectRoomSettingsPanel);
 const wbsGanttPanel = read(files.wbsGanttPanel);
 const workspaceDashboard = read(files.workspaceDashboard);
@@ -368,6 +370,11 @@ assertContains(
   projectRoomWorkRoute,
   /getStoredAuthSession[\s\S]*readWindowsProjectRoomsCache[\s\S]*readWindowsWorkRouteTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*withWorkRouteDeadline[\s\S]*readCachedWindowsWorkRoom[\s\S]*const cachedUser = isWindowsTauriRuntime\(\) \? getStoredAuthSession\(\)\?\.user \?\? null : null[\s\S]*const cachedRoom = await readCachedWindowsWorkRoom\(roomId\)[\s\S]*const currentUserRequest = authApi\.getMe\(\)[\s\S]*const roomRequest = projectRoomApi\.get\(roomId\)[\s\S]*const boardRequest = wbsApi\.getBoard\(roomId\)[\s\S]*withWorkRouteDeadline<AuthUser>\(currentUserRequest, routeTimeoutMs, cachedUser\)[\s\S]*withWorkRouteDeadline<ProjectRoomResponse>\(roomRequest, routeTimeoutMs, cachedRoom\)[\s\S]*withWorkRouteDeadline\(membersPromise, routeTimeoutMs\)[\s\S]*Promise\.allSettled\(\[currentUserRequest, roomRequest\]\)[\s\S]*membersPromise\.then/,
   "Project room work route must not block Windows board entry on user, room, or member-list hydration; cached session/room context should render first and slower server details should backfill.",
+);
+assertContains(
+  projectRoomWorkBoard,
+  /isWindowsTauriRuntime[\s\S]*readWindowsWorkCandidateTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*withWindowsWorkCandidateDeadline[\s\S]*const wbsRequest = fetchCandidateSuggestions\("wbs"\)[\s\S]*const taskRequest = fetchCandidateSuggestions\("tasks"\)[\s\S]*withWindowsWorkCandidateDeadline\(wbsRequest, timeoutMs, \[\]\)[\s\S]*withWindowsWorkCandidateDeadline\(taskRequest, timeoutMs, \[\]\)[\s\S]*Promise\.allSettled\(\[wbsRequest, taskRequest\]\)[\s\S]*setCandidateSuggestions/,
+  "Project room work board must not block Windows board interaction on initial AI candidate suggestions; candidate lists should be deadline-bound and backfilled.",
 );
 assertContains(
   wbsGanttPanel,

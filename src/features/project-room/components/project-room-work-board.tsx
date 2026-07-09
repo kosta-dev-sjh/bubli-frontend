@@ -22,6 +22,8 @@ import {
 import { notifyDataChanged } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey, TranslateVars } from "@/lib/i18n";
+import { isWindowsTauriRuntime } from "@/lib/tauri/platform";
+import { readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
 import { shouldUseWorkspacePreviewData, workspacePreviewRoomSuggestions } from "@/lib/workspace-preview-data";
 import type { AgentSuggestionResponse, AgentSuggestionReviewAction, AgentSuggestionType } from "@/types/api/agent";
 import type { ProjectRoomMemberResponse } from "@/types/api/projectRoom";
@@ -202,6 +204,30 @@ const candidateSuggestionTypes: Record<CandidateGenerationKind, AgentSuggestionT
   tasks: ["TASK", "TODO"],
   wbs: ["WBS"],
 };
+const WINDOWS_WORK_CANDIDATE_TIMEOUT_FALLBACK_MS = 650;
+
+async function readWindowsWorkCandidateTimeoutMs() {
+  if (!isWindowsTauriRuntime()) return 0;
+  const config = await readTauriStartupOptimizationConfig();
+  return config.displayRequestTimeoutMs || WINDOWS_WORK_CANDIDATE_TIMEOUT_FALLBACK_MS;
+}
+
+function withWindowsWorkCandidateDeadline<T>(request: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+  if (timeoutMs <= 0) return request;
+  return new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => resolve(fallback), timeoutMs);
+    request.then(
+      (value) => {
+        window.clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (error: unknown) => {
+        window.clearTimeout(timeoutId);
+        reject(error);
+      },
+    );
+  });
+}
 
 function candidateKindLabel(t: TranslateFn, kind: CandidateGenerationKind) {
   return kind === "wbs" ? t("room.workBoard.candidateWbs") : t("room.workBoard.candidateKanban");
@@ -419,16 +445,30 @@ function ProjectRoomWorkBoardContent({
     let isCancelled = false;
 
     async function loadInitialCandidateSuggestions() {
+      const wbsRequest = fetchCandidateSuggestions("wbs");
+      const taskRequest = fetchCandidateSuggestions("tasks");
+
       try {
+        const timeoutMs = await readWindowsWorkCandidateTimeoutMs();
         const [wbsSuggestions, taskSuggestions] = await Promise.all([
-          fetchCandidateSuggestions("wbs"),
-          fetchCandidateSuggestions("tasks"),
+          withWindowsWorkCandidateDeadline(wbsRequest, timeoutMs, []),
+          withWindowsWorkCandidateDeadline(taskRequest, timeoutMs, []),
         ]);
 
         if (!isCancelled) {
           setCandidateSuggestions({
             tasks: taskSuggestions,
             wbs: wbsSuggestions,
+          });
+        }
+
+        if (timeoutMs > 0) {
+          void Promise.allSettled([wbsRequest, taskRequest]).then(([latestWbs, latestTasks]) => {
+            if (isCancelled) return;
+            setCandidateSuggestions((current) => ({
+              tasks: latestTasks.status === "fulfilled" ? latestTasks.value : current.tasks,
+              wbs: latestWbs.status === "fulfilled" ? latestWbs.value : current.wbs,
+            }));
           });
         }
       } catch (error) {
