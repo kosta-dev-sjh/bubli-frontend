@@ -445,6 +445,8 @@ function CalendarPageContent() {
   const [saving, setSaving] = useState(false);
   const [draftNotice, setDraftNotice] = useState<string | null>(null);
   const [googleConnection, setGoogleConnection] = useState<GoogleConnectionState>({ kind: "loading" });
+  const stateRef = useRef(state);
+  const googleConnectionRef = useRef(googleConnection);
   const [googleNotice, setGoogleNotice] = useState<string | null>(null);
   const [syncAction, setSyncAction] = useState<SyncAction | null>(null);
   const [lastSync, setLastSync] = useState<LastSyncSummary | null>(null);
@@ -465,8 +467,19 @@ function CalendarPageContent() {
     return { end: end.toISOString(), size: 80, start: start.toISOString() };
   }, [currentMonth]);
 
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  useEffect(() => {
+    googleConnectionRef.current = googleConnection;
+  }, [googleConnection]);
+
   const loadEvents = useCallback(async (options?: { quiet?: boolean }) => {
     // quiet 재조회(포커스 복귀 재검증)는 기존 격자를 유지해 화면 깜빡임을 막는다.
+    const previousState = stateRef.current;
+    const previousGoogleConnection = googleConnectionRef.current;
+    const canPreserveQuietState = options?.quiet && previousState.kind === "ready";
     if (!options?.quiet) {
       setState({ kind: "loading" });
       setGoogleConnection({ kind: "loading" });
@@ -491,16 +504,21 @@ function CalendarPageContent() {
       }
 
       setState({
-        events: scheduleResult.status === "fulfilled" ? scheduleResult.value.items : [],
+        events: scheduleResult.status === "fulfilled" ? scheduleResult.value.items : canPreserveQuietState ? previousState.events : [],
         kind: "ready",
-        roomEvents: roomEventResult.status === "fulfilled" && roomEventResult.value ? roomEventResult.value.items : [],
+        roomEvents:
+          roomEventResult.status === "fulfilled" && roomEventResult.value
+            ? roomEventResult.value.items
+            : canPreserveQuietState && selectedRoomId
+              ? previousState.roomEvents
+              : [],
         // 로컬(/api/schedules) 실패만 표시 — 배너 문구는 렌더 시점의 구글 연동 상태에 따라 나눈다.
         scheduleLoadFailed: scheduleResult.status === "rejected",
       });
       if (googleConnectionResult.status === "fulfilled" && googleConnectionResult.value?.status === "ACTIVE") {
         setGoogleConnection({ kind: "connected", value: googleConnectionResult.value });
       } else if (googleConnectionResult.status === "fulfilled" && googleConnectionResult.value === null && windowsHydrationTimeoutMs > 0) {
-        setGoogleConnection({ kind: "disconnected" });
+        setGoogleConnection(previousGoogleConnection.kind === "connected" ? previousGoogleConnection : { kind: "disconnected" });
         void calendarApi
           .getGoogleConnection()
           .then((connection) => {
@@ -520,6 +538,11 @@ function CalendarPageContent() {
         const events = buildPreviewEvents(selectedRoomId);
         setState({ events, kind: "ready", roomEvents: buildPreviewRoomEvents(selectedRoomId, events) });
         setGoogleConnection({ kind: "disconnected" });
+        return;
+      }
+      if (canPreserveQuietState) {
+        setState({ ...previousState, scheduleLoadFailed: true });
+        setGoogleConnection(previousGoogleConnection.kind === "connected" ? previousGoogleConnection : { kind: "error" });
         return;
       }
       setState({ kind: "offline" });
