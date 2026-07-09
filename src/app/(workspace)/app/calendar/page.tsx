@@ -29,6 +29,7 @@ import { useI18n } from "@/lib/i18n";
 import type { Locale, MessageKey, TranslateVars } from "@/lib/i18n";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
+import { readWindowsProjectRoomsCache, writeWindowsProjectRoomsCache } from "@/lib/tauri/windows-route-cache";
 import { useActiveProjectRoom } from "@/lib/use-active-project-room";
 import { shouldUseWorkspacePreviewData, workspacePreviewSchedules } from "@/lib/workspace-preview-data";
 import type {
@@ -639,6 +640,15 @@ function CalendarPageContent() {
         }
         return;
       }
+      const cachedRooms = await readWindowsProjectRoomsCache().catch(() => null);
+      if (cachedRooms && !cancelled) {
+        const cachedNames = new Set<string>();
+        for (const room of cachedRooms) {
+          const name = room.name?.trim().toLowerCase();
+          if (name) cachedNames.add(name);
+        }
+        setRoomCalendarNames(cachedNames);
+      }
       const [roomsResult, roomCalendarResult] = await Promise.allSettled([
         projectRoomApi.list(),
         // 룸 캘린더 매핑은 단건 조회만 있어(배치 API 없음) 지금 보고 있는 룸만 id로 확정한다.
@@ -647,7 +657,13 @@ function CalendarPageContent() {
       if (cancelled) return;
       const names = new Set<string>();
       if (roomsResult.status === "fulfilled") {
+        void writeWindowsProjectRoomsCache(roomsResult.value.items);
         for (const room of roomsResult.value.items) {
+          const name = room.name?.trim().toLowerCase();
+          if (name) names.add(name);
+        }
+      } else if (cachedRooms) {
+        for (const room of cachedRooms) {
           const name = room.name?.trim().toLowerCase();
           if (name) names.add(name);
         }

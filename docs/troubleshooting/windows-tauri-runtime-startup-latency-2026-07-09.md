@@ -50,10 +50,29 @@ The issue should not be described only as "performance optimization." The more a
 | Unread-only widget polling | Widget notification surfaces and voice-call decline polling now request unread notifications instead of repeatedly scanning broad notification history |
 | Windows route cache reuse | Agent page now reuses cached project-room options when Windows initial AI hydration exceeds the startup deadline |
 | Dashboard route cache reuse | Dashboard project-room widgets now reuse cached room options while the broader Windows dashboard batch backfills |
+| Settings/calendar route cache reuse | Settings room selectors and calendar room-name grouping now reuse cached project-room options while slower server room-list calls backfill |
 | Windows-compatible script arguments | Smoke scripts were adjusted away from Unix-style inline env assumptions where needed |
 | Runtime smoke progress reporting | The Tauri smoke runner now reports progress steps before the final report |
 | Runtime preflight guard | The preflight now checks for existing Bubli processes before launching Windows runtime smoke |
 | Installed readiness timing | Real OAuth installed QA now records timing from backend auth validation to auth gate, widget bar, bubble restore item seeding, sync-loop start, and launch completion |
+
+## Runtime Adaptation Strategy
+
+This work should be tracked as Windows runtime adaptation, not only as a generic speed optimization. The same React and API workload can feel acceptable in a macOS WKWebView session but slower in a Windows Tauri build because Edge WebView2 startup, native window creation, transparent widget windows, and local IPC setup have different costs.
+
+The current strategy is:
+
+| Step | Intent | Applied direction |
+| --- | --- | --- |
+| Separate first-use readiness from full data hydration | Make the app usable before every widget and dashboard request finishes | Authenticated app shell, widget bar/menu, and restore metadata become the first readiness anchors |
+| Reduce first-render request fan-out | Prevent WebView initialization from competing with broad notification, room, dashboard, and widget payloads | Unread-only notification calls, Windows deadline fallbacks, and route-cache seeding reduce early blocking work |
+| Treat widgets as staged surfaces | Avoid paying for every standalone widget WebView as if it must be fully visible at startup | Bar/menu first; standalone bubble windows are restored as items and opened/hydrated when needed |
+| Use stale-but-valid local context during the deadline window | Keep Windows screens from looking empty while server data backfills | Agent and dashboard project-room selectors reuse Windows route cache until fresh server data arrives |
+| Add timing anchors before claiming speed gains | Replace subjective "slow/fast" reports with comparable checkpoints | Installed real OAuth QA records auth gate, widget bar, bubble restore items, sync loops, and launch completion timing |
+
+The practical target is not to make Windows execute the exact same startup sequence as macOS. The target is to respect the Windows WebView2/Tauri cost model: show the authenticated shell and primary controls first, then hydrate heavier project-room, notification, dashboard, widget, and local-sync data in controlled follow-up stages.
+
+Current measured installed-readiness anchors are useful for regression checks, but they are not yet a before/after percentage benchmark. A percentage improvement should only be reported after cold and warm installed-build runs are measured with the same backend, account, and data volume.
 
 ## Practical Troubleshooting Record
 
@@ -68,6 +87,7 @@ This is the working engineering version of the Windows/macOS runtime-difference 
 | Widget voice-call ringback could keep polling broad notification history | The decline detector used notification polling without a status filter | Changed the widget call-decline polling request to `status=UNREAD` and added an auth-surface contract guard | Remaining widget notification list calls are now unread-scoped |
 | Agent page could drop to an empty room selector after the Windows initial hydration deadline | The page deadline unblocked rendering, but fallback data used an empty room list unless the previous agent state was already ready | Seed fallback project-room options from the Windows route cache and refresh that cache when full server data arrives | The route can leave loading faster while retaining recent room options until full AI data backfills |
 | Dashboard room widgets waited for the full auxiliary batch before room options appeared | The dashboard summary was deadline-bound, but project-room options still came from the broader batch result | Seed dashboard room options from the Windows route cache and refresh the cache when the server room list arrives | The first dashboard render can show recent room context while resources, schedules, heatmap, suggestions, and notifications backfill |
+| Settings and calendar still repeated project-room list calls during Windows route transitions | These surfaces were not the first patched routes, but they still depended on the same project-room list response for selectors and calendar grouping | Reuse the Windows project-room route cache as immediate context, then refresh the cache when the server room list succeeds | Settings and calendar no longer have to show empty project-room context just because the room-list request misses the Windows hydration deadline |
 | Runtime smoke was hard to debug when it timed out | The smoke runner only failed at the end, so auth/widget/SQLite/sync stalls looked identical | Added progress events and preflight checks for existing `bubli.exe` | Failing reports now identify whether the issue is auth, widgets, local sync, or process state |
 | Installed-build local sync looked partially failed even when the explicit scan/watch probe passed | Background managed-folder loop status can retain a transient failure after file analysis while the targeted QA probe succeeds | Keep explicit local folder scan/watch/sync evidence separate from background loop status | Latest real installed QA passes when explicit scan/watch/sync evidence proves zero scoped failures, even if the background loop still reports a transient failed status |
 
@@ -114,6 +134,10 @@ Windows QA and smoke diagnostics:
   - Windows deadline fallback now seeds project-room options from the Windows route cache while slower agent data backfills.
 - `src/features/dashboard/components/workspace-dashboard.tsx`
   - Windows dashboard now seeds project-room widgets from the Windows route cache while the broader dashboard batch backfills.
+- `src/app/(workspace)/app/settings/page.tsx`
+  - Windows settings now keeps cached project-room options when the room-list request is deadline-bound or delayed, then refreshes the cache after the server response.
+- `src/app/(workspace)/app/calendar/page.tsx`
+  - Windows calendar now uses cached project-room names for room calendar grouping while the server project-room list backfills, then refreshes the cache on success.
 - `scripts/qa-tauri-real-oauth-manual.mjs`
   - Added installed launch-readiness timing to the redacted real OAuth QA summary.
   - The validator now requires finite timing anchors on passing installed QA reports.
