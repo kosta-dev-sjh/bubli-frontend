@@ -299,8 +299,8 @@ assertContains(
 );
 assertContains(
   appChat,
-  /isWindowsTauriRuntime[\s\S]*const messagesRequest = chatApi\.getMessages\(chatRoomId, \{ size: 40 \}\)[\s\S]*if \(isWindowsTauriRuntime\(\)\) \{[\s\S]*readCachedRoomMessages\(chatRoomId, 40\)[\s\S]*setMessagesState\(\{ kind: "ready", messages: withAgentCommandMessages\(t, cachedMessages, currentUser(?:, knownSenderNamesById)?\) \}\)[\s\S]*const page = await messagesRequest[\s\S]*syncCachedRoomMessages\(chatRoomId, sortedMessages, 0\)/,
-  "Windows Tauri chat messages must show cached SQLite messages before waiting on the server, then backfill with the latest server page.",
+  /const displayMessages = useMemo\([\s\S]*withAgentCommandMessages\(t, withoutSyntheticAgentCommands\(messagesState\.messages\), currentUser, knownSenderNamesById\)[\s\S]*const messagesRequest = chatApi\.getMessages\(chatRoomId, \{ size: 40 \}\)[\s\S]*if \(isWindowsTauriRuntime\(\)\) \{[\s\S]*readCachedRoomMessages\(chatRoomId, 40\)[\s\S]*setMessagesState\(\{ kind: "ready", messages: cachedMessages \}\)[\s\S]*const page = await messagesRequest[\s\S]*syncCachedRoomMessages\(chatRoomId, sortedMessages, 0\)[\s\S]*setMessagesState\(\{ kind: "ready", messages: sortedMessages \}\)/,
+  "Windows Tauri chat messages must show cached SQLite messages before waiting on the server, then backfill with the latest server page while keeping display-only agent command expansion out of message state.",
 );
 assertContains(
   appChat,
