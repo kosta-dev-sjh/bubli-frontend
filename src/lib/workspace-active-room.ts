@@ -129,6 +129,8 @@ export function setActiveProjectRoomId(roomId: string, roomLabel?: string | null
   if (!cleanRoomId) return;
 
   const nextRoomLabel = roomLabel?.trim() || (activeProjectRoomId === cleanRoomId ? activeProjectRoomLabel : null);
+  if (activeProjectRoomId === cleanRoomId && activeProjectRoomLabel === nextRoomLabel) return;
+
   activeProjectRoomId = cleanRoomId;
   activeProjectRoomLabel = nextRoomLabel;
   publishActiveProjectRoom(cleanRoomId, activeProjectRoomLabel);
