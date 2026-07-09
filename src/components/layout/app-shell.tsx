@@ -51,7 +51,7 @@ import { listenWidgetRoomContextChanged } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { isWindowsTauriRuntime } from "@/lib/tauri/platform";
 import { readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
-import { writeWindowsChatRoomsCache, writeWindowsProjectRoomsCache } from "@/lib/tauri/windows-route-cache";
+import { readWindowsProjectRoomsCache, writeWindowsChatRoomsCache, writeWindowsProjectRoomsCache } from "@/lib/tauri/windows-route-cache";
 import {
   ACTIVE_PROJECT_ROOM_CHANGE_EVENT,
   getActiveProjectRoomId,
@@ -395,10 +395,21 @@ export function AppShell({ children }: AppShellProps) {
           );
         }
 
+        const cachedShellRooms = await readWindowsProjectRoomsCache().catch(() => null);
+        if (cachedShellRooms?.length) {
+          const activeRoomId = getActiveProjectRoomId();
+          const activeCachedRoom = activeRoomId ? cachedShellRooms.find((room) => room.id === activeRoomId) : null;
+          if (activeCachedRoom) {
+            seedActiveProjectRoomId(activeCachedRoom.id, activeCachedRoom.name);
+            setSelectedRoomId(activeCachedRoom.id);
+            setSelectedRoomLabel(activeCachedRoom.name);
+          }
+        }
+
         setState((current) =>
           current.kind === "ready"
             ? { ...current, user }
-            : { kind: "ready", notifications: [], rooms: roomsRef.current, user },
+            : { kind: "ready", notifications: [], rooms: roomsRef.current.length > 0 ? roomsRef.current : cachedShellRooms ?? [], user },
         );
 
         const applyWorkspaceHydration = async (

@@ -1801,8 +1801,13 @@ assertContains(
 );
 assertContains(
   appShell,
-  /const userRequest = authApi\.getMe\(\);[\s\S]*user = await boundWindowsWorkspaceHydration\(userRequest, workspaceHydrationTimeoutMs, restoredSession\.user\)[\s\S]*isWindowsTauriRuntime\(\) && workspaceHydrationTimeoutMs > 0 && user === restoredSession\.user[\s\S]*userRequest\.then\([\s\S]*setState\(\(current\) => \(current\.kind === "ready" \? \{ \.\.\.current, user: latestUser \} : current\)\)[\s\S]*error instanceof ApiClientError && error\.status === 401[\s\S]*redirectToLoginWhenTauri\(\)[\s\S]*setState\(\(current\) =>[\s\S]*\{ kind: "ready", notifications: \[\], rooms: roomsRef\.current, user \}[\s\S]*projectRoomApi\.list\(\),[\s\S]*widgetApi\.getContext\(\),/,
+  /const userRequest = authApi\.getMe\(\);[\s\S]*user = await boundWindowsWorkspaceHydration\(userRequest, workspaceHydrationTimeoutMs, restoredSession\.user\)[\s\S]*isWindowsTauriRuntime\(\) && workspaceHydrationTimeoutMs > 0 && user === restoredSession\.user[\s\S]*userRequest\.then\([\s\S]*setState\(\(current\) => \(current\.kind === "ready" \? \{ \.\.\.current, user: latestUser \} : current\)\)[\s\S]*error instanceof ApiClientError && error\.status === 401[\s\S]*redirectToLoginWhenTauri\(\)[\s\S]*setState\(\(current\) =>[\s\S]*rooms: roomsRef\.current\.length > 0 \? roomsRef\.current : cachedShellRooms \?\? \[\][\s\S]*projectRoomApi\.list\(\),[\s\S]*widgetApi\.getContext\(\),/,
   "Windows AppShell may use the restored session user as a bounded startup fallback, but /api/me must continue as a backfill validator that updates the shell or redirects on 401 before slower room/widget context hydration completes.",
+);
+assertContains(
+  appShell,
+  /readWindowsProjectRoomsCache[\s\S]*writeWindowsProjectRoomsCache[\s\S]*const cachedShellRooms = await readWindowsProjectRoomsCache\(\)\.catch\(\(\) => null\)[\s\S]*activeCachedRoom[\s\S]*seedActiveProjectRoomId\(activeCachedRoom\.id, activeCachedRoom\.name\)[\s\S]*rooms: roomsRef\.current\.length > 0 \? roomsRef\.current : cachedShellRooms \?\? \[\][\s\S]*queueWorkspaceHydration\(\)/,
+  "Windows AppShell shell state must reuse the project-room route cache so the topbar and switcher can render recent room context while room/widget hydration backfills.",
 );
 assertContains(
   appShell,
