@@ -50,6 +50,7 @@ const files = {
   managedFolderAutoSync: "src/lib/local/managed-folder-auto-sync.ts",
   widgetUsageAutoSync: "src/lib/widget/widget-usage-auto-sync.ts",
   firstRunController: "src/features/onboarding/components/first-run-controller.tsx",
+  friendApi: "src/features/communication/api/friendApi.ts",
   runtimeSmokeRunner: "src/lib/tauri/tauri-runtime-smoke-runner.tsx",
   tauriCapability: "src-tauri/capabilities/default.json",
   tauriConf: "src-tauri/tauri.conf.json",
@@ -189,6 +190,7 @@ const authWidgetQa = read(files.authWidgetQa);
 const managedFolderAutoSync = read(files.managedFolderAutoSync);
 const widgetUsageAutoSync = read(files.widgetUsageAutoSync);
 const firstRunController = read(files.firstRunController);
+const friendApi = read(files.friendApi);
 const runtimeSmokeRunner = read(files.runtimeSmokeRunner);
 const tauriCapability = read(files.tauriCapability);
 const tauriConf = read(files.tauriConf);
@@ -316,6 +318,11 @@ assertContains(
   appChat,
   /readWindowsChatAuxTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*withWindowsChatAuxDeadline[\s\S]*windowsChatAuxDelayMs[\s\S]*const friendsRequest = friendApi\.listFriends\(\)[\s\S]*const requestsRequest = friendApi\.listRequests\(\)[\s\S]*withWindowsChatAuxDeadline\(friendsRequest[\s\S]*withWindowsChatAuxDeadline\(requestsRequest[\s\S]*Promise\.allSettled\(\[friendsRequest, requestsRequest\]\)[\s\S]*const userRequest = authApi\.getMe\(\)[\s\S]*withWindowsChatAuxDeadline<AuthUser \| null>\(userRequest[\s\S]*WINDOWS_CHAT_AUX_POLL_INTERVAL_MS/,
   "Windows Tauri chat auxiliary social/profile/invitation requests must be delayed, deadline-bound, and backfilled so route transitions are not blocked by secondary server calls.",
+);
+assertContains(
+  friendApi,
+  /getStoredAuthSession[\s\S]*isWindowsTauriRuntime[\s\S]*async function resolveCurrentUserIdForFriendRequest\(\)[\s\S]*isWindowsTauriRuntime\(\)[\s\S]*getStoredAuthSession\(\)\?\.user\?\.id[\s\S]*authApi\.getMe\(\)[\s\S]*resolveCurrentUserIdForFriendRequest\(\)[\s\S]*apiRequest<FriendRequestApiResponse\[\]>\("\/api\/friend-requests"\)/,
+  "Windows Tauri friend-request mapping must reuse the mirrored session user id instead of adding a duplicate /api/me call to chat auxiliary hydration.",
 );
 assertContains(
   projectRoomsPage,
