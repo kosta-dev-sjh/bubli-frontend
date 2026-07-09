@@ -1837,9 +1837,13 @@ function DesktopWidgetSurface() {
   // 채팅(chat) 창에 소통 위젯과 한 몸으로 그린다(따로 떠 있는 별개 창처럼 보이지 않도록). 그래서
   // 바 창이 받은 값을 브로드캐스트로 채팅 창에도 반영하고, 채팅 창의 수락/거절도 다시 바 창에
   // 반영해 통화음·타임아웃 안전망이 같이 멈추도록 양방향으로 동기화한다.
+  // 프로젝트룸 보이스콜은 chatRoomId가 아니라 roomId로 구분한다(백엔드 VOICE_CALL_ROOM 알림
+  // 기준) — 수락 시 voiceApi.createRoom({ roomId })로 같은 방에 들어가야, chatRoomId로 엉뚱한
+  // 채팅 전용 보이스룸을 새로 만들어버리는 일이 없다.
   const [incomingVoiceCall, setIncomingVoiceCall] = useState<{
     callerName: string;
-    chatRoomId: string;
+    chatRoomId?: string;
+    roomId?: string;
     notificationId: string;
   } | null>(null);
   const incomingVoiceCallRef = useRef(incomingVoiceCall);
@@ -4171,12 +4175,16 @@ function DesktopWidgetSurface() {
         () => undefined,
       );
 
-      if (notification.sourceType === "VOICE_CALL" && notification.sourceId) {
-        const call = {
-          callerName: notification.title,
-          chatRoomId: notification.sourceId,
-          notificationId: notification.id,
-        };
+      if (
+        (notification.sourceType === "VOICE_CALL" || notification.sourceType === "VOICE_CALL_ROOM") &&
+        notification.sourceId
+      ) {
+        // 프로젝트룸 보이스콜은 백엔드가 VOICE_CALL_ROOM으로 따로 보낸다(sourceId=roomId) —
+        // 예전엔 이 알림 자체가 없어서 프로젝트룸 통화는 수신 팝업이 아예 안 떴다.
+        const call =
+          notification.sourceType === "VOICE_CALL_ROOM"
+            ? { callerName: notification.title, notificationId: notification.id, roomId: notification.sourceId }
+            : { callerName: notification.title, notificationId: notification.id, chatRoomId: notification.sourceId };
         setIncomingVoiceCall(call);
         void emitWidgetIncomingCallChanged(call).catch(() => undefined);
         // 수신 팝업은 소통 위젯(채팅 창)에 겹쳐 그린다 — 따로 뜬 창처럼 보이지 않도록 전화가
@@ -4209,9 +4217,13 @@ function DesktopWidgetSurface() {
       // 어느 창에서 통화를 시작했든 항상 동작한다(이미 dismissIncomingVoiceCall/타임아웃 거절에서
       // 쓰던 것과 같은, 창 상태에 의존하지 않는 방식).
       if (notification.sourceType === "VOICE_CALL_DECLINED" && notification.sourceId) {
-        const declinedChatRoomId = notification.sourceId;
+        const declinedSourceId = notification.sourceId;
+        // 거절 알림의 sourceId가 chatRoomId인지 roomId인지는 알림 자체만으론 구분이 안 된다
+        // (VOICE_CALL_DECLINED가 두 경우 공통이라) — chat 스코프로 먼저 찾아보고 없으면
+        // room 스코프로 재시도한다. 거절은 드문 이벤트라 낭비되는 요청 한 번은 무시할 만하다.
         void widgetCommunicationApi
-          .getOpenVoiceRoomByChatRoomId(declinedChatRoomId)
+          .getOpenVoiceRoomByChatRoomId(declinedSourceId)
+          .catch(() => widgetCommunicationApi.getOpenVoiceRoomByRoomId(declinedSourceId))
           .then((room) => {
             if (room.status !== "OPEN" || room.createdByUserId !== currentUserIdRef.current) return;
             void widgetCommunicationApi.endVoiceRoom(room.id).catch(() => undefined);
@@ -4238,7 +4250,9 @@ function DesktopWidgetSurface() {
       // 발신자가 내가 받기 전에 전화를 취소함 — 수신 전화 팝업을 계속 띄워둘 이유가 없다.
       if (notification.sourceType === "VOICE_CALL_CANCELED" && notification.sourceId) {
         setIncomingVoiceCall((current) => {
-          if (current?.chatRoomId !== notification.sourceId) return current;
+          const matchesCurrentCall =
+            current && (current.chatRoomId === notification.sourceId || current.roomId === notification.sourceId);
+          if (!matchesCurrentCall) return current;
           void emitWidgetIncomingCallChanged(null).catch(() => undefined);
           return null;
         });
@@ -4280,11 +4294,14 @@ function DesktopWidgetSurface() {
   // createVoiceRoom("있으면 join, 없으면 create")으로 방 id를 구하면, 타이밍 등으로 기존 방을
   // 못 찾을 때 새 방을 만들어버려(그리고 "통화를 시작했습니다" 알림까지 잘못 나가) 거절 신호
   // 자체가 새어나갔다. 부작용 없는 조회 전용 엔드포인트로 방 id만 가져온다.
-  const notifyIncomingVoiceCallDeclined = useCallback((call: { chatRoomId: string }) => {
-    void widgetCommunicationApi
-      .getOpenVoiceRoomByChatRoomId(call.chatRoomId)
-      .then((room) => widgetCommunicationApi.declineVoiceRoom(room.id))
-      .catch(() => undefined);
+  const notifyIncomingVoiceCallDeclined = useCallback((call: { chatRoomId?: string; roomId?: string }) => {
+    const lookup = call.roomId
+      ? widgetCommunicationApi.getOpenVoiceRoomByRoomId(call.roomId)
+      : call.chatRoomId
+        ? widgetCommunicationApi.getOpenVoiceRoomByChatRoomId(call.chatRoomId)
+        : null;
+    if (!lookup) return;
+    void lookup.then((room) => widgetCommunicationApi.declineVoiceRoom(room.id)).catch(() => undefined);
   }, []);
 
   // 전화처럼 일정 시간 응답이 없으면 자동으로 닫는다. 팝업 UI는 채팅 창에도 그리지만, 안전망
@@ -4363,7 +4380,9 @@ function DesktopWidgetSurface() {
   // 주기적으로 이 방을 다시 조회해서 매번 새 객체로 갱신하는데(같은 방이어도 참조가 바뀐다),
   // 그때마다 이 이펙트가 통째로 재시작되면서 setInterval이 한 주기(3초)도 못 채우고 계속
   // 리셋돼 안전망이 사실상 전혀 동작하지 않았다. 안정적인 값(chatRoomId)만 의존성으로 둔다.
-  const outgoingChatRoomId = activeVoiceRoom?.chatRoomId;
+  // 프로젝트룸 보이스콜은 chatRoomId가 없다 — roomId를 대신 쓴다(둘 다 없으면 아직 응답이
+  // 안 온 것이므로 폴링을 시작하지 않는다).
+  const outgoingChatRoomId = activeVoiceRoom?.chatRoomId ?? activeVoiceRoom?.roomId;
   useEffect(() => {
     if (!isBubbleBar || !isWidgetRingingBack || !activeVoiceRoomId || !outgoingChatRoomId) return;
     const voiceRoomId = activeVoiceRoomId;
@@ -4575,7 +4594,7 @@ function DesktopWidgetSurface() {
     const call = incomingVoiceCall;
     setVoiceCallResponding(true);
     try {
-      const voiceRoom = await widgetCommunicationApi.createVoiceRoom({ chatRoomId: call.chatRoomId });
+      const voiceRoom = await widgetCommunicationApi.createVoiceRoom({ chatRoomId: call.chatRoomId, roomId: call.roomId });
       setActiveVoiceRoomId(voiceRoom.id);
       void emitWidgetVoiceCallStateChanged(voiceRoom.id).catch(() => undefined);
       setVoiceConnectionLabel("Voice room opened");
@@ -4587,7 +4606,7 @@ function DesktopWidgetSurface() {
           .openWidgetWindow({
             bubbleType: "chat",
             mode: "DEFAULT",
-            selectedRoomId: call.chatRoomId,
+            selectedRoomId: call.roomId ?? call.chatRoomId,
             windowId: "chat",
           })
           .catch(() => undefined);

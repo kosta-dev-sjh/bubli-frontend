@@ -257,9 +257,11 @@ export function AppShell({ children }: AppShellProps) {
   const roomsRef = useRef<ProjectRoomResponse[]>([]);
 
   // 1:1/그룹 보이스 통화 시작 시 수신되는 실시간 "전화 옴" 알림 — 수락/이따 참여/거절.
+  // 프로젝트룸 보이스콜은 chatRoomId가 아니라 roomId로 구분한다(백엔드 VOICE_CALL_ROOM 알림 기준).
   const [incomingVoiceCall, setIncomingVoiceCall] = useState<{
     callerName: string;
-    chatRoomId: string;
+    chatRoomId?: string;
+    roomId?: string;
     notificationId: string;
   } | null>(null);
   const [voiceCallResponding, setVoiceCallResponding] = useState(false);
@@ -656,12 +658,16 @@ export function AppShell({ children }: AppShellProps) {
         playNotificationSound();
       }
 
-      if (notification.sourceType === "VOICE_CALL" && notification.sourceId) {
-        const call = {
-          callerName: notification.title,
-          chatRoomId: notification.sourceId,
-          notificationId: notification.id,
-        };
+      if (
+        (notification.sourceType === "VOICE_CALL" || notification.sourceType === "VOICE_CALL_ROOM") &&
+        notification.sourceId
+      ) {
+        // 프로젝트룸 보이스콜은 백엔드가 VOICE_CALL_ROOM으로 따로 보낸다(sourceId=roomId) —
+        // 예전엔 이 알림 자체가 없어서 프로젝트룸 통화는 수신 팝업이 아예 안 떴다.
+        const call =
+          notification.sourceType === "VOICE_CALL_ROOM"
+            ? { callerName: notification.title, notificationId: notification.id, roomId: notification.sourceId }
+            : { callerName: notification.title, notificationId: notification.id, chatRoomId: notification.sourceId };
         // 데스크톱 앱에서는 위젯 바 창이 로그인 시 항상 함께 뜨고, 최소화/숨김 상태에서도
         // 웹뷰 자체는 계속 살아있어(위젯 유지 정책) 수신 전화 팝업을 그대로 띄운다. 예전엔
         // getWidgetWindowState의 windowVisible로 판단했는데, 바가 최소화돼 있으면 "꺼져있다"고
@@ -687,7 +693,7 @@ export function AppShell({ children }: AppShellProps) {
         if (
           activeVoice.kind === "ready" &&
           activeVoice.room.status === "OPEN" &&
-          activeVoice.room.chatRoomId === notification.sourceId &&
+          (activeVoice.room.chatRoomId === notification.sourceId || activeVoice.room.roomId === notification.sourceId) &&
           activeVoice.room.createdByUserId === readyUserId
         ) {
           const voiceRoomId = activeVoice.room.id;
@@ -707,7 +713,11 @@ export function AppShell({ children }: AppShellProps) {
 
       // 발신자가 내가 받기 전에 전화를 취소함 — 수신 전화 팝업을 계속 띄워둘 이유가 없다.
       if (notification.sourceType === "VOICE_CALL_CANCELED" && notification.sourceId) {
-        setIncomingVoiceCall((current) => (current?.chatRoomId === notification.sourceId ? null : current));
+        setIncomingVoiceCall((current) =>
+          current && (current.chatRoomId === notification.sourceId || current.roomId === notification.sourceId)
+            ? null
+            : current,
+        );
         void notificationApi.markRead(notification.id).catch(() => undefined);
       }
 
@@ -749,7 +759,7 @@ export function AppShell({ children }: AppShellProps) {
         const osNotification = new Notification(display.title || notification.title, {
           body: display.body ?? undefined,
           icon: "/brand/icon-public-180.png",
-          requireInteraction: notification.sourceType === "VOICE_CALL",
+          requireInteraction: notification.sourceType === "VOICE_CALL" || notification.sourceType === "VOICE_CALL_ROOM",
         });
         // 보이스 전화처럼 다른 작업 중에도 바로 봐야 하는 알림은 클릭하면 탭을 앞으로 가져온다.
         // 브라우저 보안상 스크립트가 임의로 창에 포커스를 뺏을 수는 없어서, 사용자가 OS 알림을
@@ -768,11 +778,14 @@ export function AppShell({ children }: AppShellProps) {
   // createRoom("있으면 join, 없으면 create")으로 방 id를 구하면, 타이밍 등으로 기존 방을 못 찾을 때
   // 새 방을 만들어버려(그리고 "통화를 시작했습니다" 알림까지 잘못 나가) 거절 신호 자체가 새어나갔다.
   // 부작용 없는 조회 전용 엔드포인트로 방 id만 가져온다.
-  const notifyIncomingVoiceCallDeclined = useCallback((call: { chatRoomId: string }) => {
-    void voiceApi
-      .getOpenRoomByChatRoomId(call.chatRoomId)
-      .then((room) => voiceApi.decline(room.id))
-      .catch(() => undefined);
+  const notifyIncomingVoiceCallDeclined = useCallback((call: { chatRoomId?: string; roomId?: string }) => {
+    const lookup = call.roomId
+      ? voiceApi.getOpenRoomByRoomId(call.roomId)
+      : call.chatRoomId
+        ? voiceApi.getOpenRoomByChatRoomId(call.chatRoomId)
+        : null;
+    if (!lookup) return;
+    void lookup.then((room) => voiceApi.decline(room.id)).catch(() => undefined);
   }, []);
 
   // 전화처럼 일정 시간 응답이 없으면 자동으로 닫는다 — 채팅방의 "보이스 참여" 버튼으로는 계속 참여 가능.
@@ -843,7 +856,8 @@ export function AppShell({ children }: AppShellProps) {
   // 채우고 계속 리셋돼 안전망이 사실상 전혀 동작하지 않았다. 방을 식별하는 안정적인 값(id)만
   // 의존성으로 두고, 실제 방 정보는 이펙트가 시작될 때 한 번만 읽는다(같은 방인 동안은 안 바뀜).
   const outgoingVoiceRoomId = persistVoice?.room.id;
-  const outgoingChatRoomId = persistVoice?.room.chatRoomId;
+  // 프로젝트룸 보이스콜은 chatRoomId가 없다 — roomId를 대신 쓴다.
+  const outgoingChatRoomId = persistVoice?.room.chatRoomId ?? persistVoice?.room.roomId;
   useEffect(() => {
     if (!isCallerRingingBack || !outgoingVoiceRoomId || !outgoingChatRoomId) return;
     const voiceRoomId = outgoingVoiceRoomId;
@@ -906,12 +920,14 @@ export function AppShell({ children }: AppShellProps) {
     }
     setVoiceCallResponding(true);
     try {
-      const room = await voiceApi.createRoom({ chatRoomId: call.chatRoomId });
+      const room = await voiceApi.createRoom({ chatRoomId: call.chatRoomId, roomId: call.roomId });
       // DB상 참여 상태는 실제 오디오 연결 성패와 무관하게 즉시 반영한다 —
       // LiveKit 연결이 실패해도 채팅방의 "보이스 참여" 버튼으로 재시도할 수 있어야 하므로.
+      // selectedChatRoomId는 1:1/그룹 전용 개념이라 프로젝트룸 통화는 null로 둔다 — 룸 컨텍스트는
+      // 아래 router.push의 URL(roomId 쿼리)로 전달된다.
       voiceStore.update({
         expanded: true,
-        selectedChatRoomId: call.chatRoomId,
+        selectedChatRoomId: call.chatRoomId ?? null,
         voice: { kind: "ready", room },
       });
       // 오디오 연결(ICE/DTLS 협상)은 몇 초 걸릴 수 있어 기다리지 않고 먼저 화면을 옮긴다 —
@@ -929,7 +945,7 @@ export function AppShell({ children }: AppShellProps) {
       setVoiceCallResponding(false);
       void notificationApi.markRead(call.notificationId).catch(() => undefined);
       setIncomingVoiceCall(null);
-      router.push("/app/chat?mode=direct");
+      router.push(call.roomId ? `/app/chat?roomId=${call.roomId}` : "/app/chat?mode=direct");
     }
   }, [incomingVoiceCall, router, showVoiceFloat, voiceCallResponding]);
 

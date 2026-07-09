@@ -130,6 +130,7 @@ type NotificationSourceType = NotificationResponse["sourceType"];
 const NOTIFICATION_INBOX_EXCLUDED_SOURCE_TYPES = new Set<NotificationSourceType>([
   "MESSAGE",
   "VOICE_CALL",
+  "VOICE_CALL_ROOM",
   "VOICE_CALL_CANCELED",
   "VOICE_CALL_DECLINED",
 ]);
