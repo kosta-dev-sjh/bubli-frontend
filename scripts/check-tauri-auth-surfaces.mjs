@@ -320,6 +320,11 @@ assertContains(
   "Windows Tauri chat auxiliary social/profile/invitation requests must be delayed, deadline-bound, and backfilled so route transitions are not blocked by secondary server calls.",
 );
 assertContains(
+  appChat,
+  /getStoredAuthSession[\s\S]*const cachedUser = isWindowsTauriRuntime\(\) \? getStoredAuthSession\(\)\?\.user \?\? null : null[\s\S]*setProfileState\(\{ kind: "ready", user: cachedUser \}\)[\s\S]*const userRequest = authApi\.getMe\(\)[\s\S]*withWindowsChatAuxDeadline<AuthUser \| null>\(userRequest, windowsTimeoutMs, cachedUser\)[\s\S]*userRequest[\s\S]*then\(\(latestUser\) => setProfileState\(\{ kind: "ready", user: latestUser \}\)\)/,
+  "Windows Tauri chat profile must show the mirrored session user immediately while /api/me validates and backfills in the background.",
+);
+assertContains(
   friendApi,
   /getStoredAuthSession[\s\S]*isWindowsTauriRuntime[\s\S]*async function resolveCurrentUserIdForFriendRequest\(\)[\s\S]*isWindowsTauriRuntime\(\)[\s\S]*getStoredAuthSession\(\)\?\.user\?\.id[\s\S]*authApi\.getMe\(\)[\s\S]*resolveCurrentUserIdForFriendRequest\(\)[\s\S]*apiRequest<FriendRequestApiResponse\[\]>\("\/api\/friend-requests"\)/,
   "Windows Tauri friend-request mapping must reuse the mirrored session user id instead of adding a duplicate /api/me call to chat auxiliary hydration.",

@@ -24,7 +24,7 @@ import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { projectRoomApi } from "@/features/project-room/api/projectRoomApi";
 import { getApiBaseUrl } from "@/lib/api/client";
 import { ApiClientError } from "@/lib/api/errors";
-import { getAuthAccessToken } from "@/lib/auth/auth-session";
+import { getAuthAccessToken, getStoredAuthSession } from "@/lib/auth/auth-session";
 import { notifyDataChanged, useDataRefresh } from "@/lib/data-changed";
 import { projectRoomRoute } from "@/lib/project-room-routes";
 import {
@@ -1247,14 +1247,20 @@ function ChatPageContent() {
     setProfileState({ kind: "loading" });
 
     try {
+      const cachedUser = isWindowsTauriRuntime() ? getStoredAuthSession()?.user ?? null : null;
+      if (cachedUser) {
+        setProfileState({ kind: "ready", user: cachedUser });
+      }
       const userRequest = authApi.getMe();
       const windowsTimeoutMs = await readWindowsChatAuxTimeoutMs();
-      const user = await withWindowsChatAuxDeadline<AuthUser | null>(userRequest, windowsTimeoutMs, null);
-      if (!user) {
-        setProfileState({ kind: "offline" });
+      const user = await withWindowsChatAuxDeadline<AuthUser | null>(userRequest, windowsTimeoutMs, cachedUser);
+      if (windowsTimeoutMs > 0) {
         void userRequest
           .then((latestUser) => setProfileState({ kind: "ready", user: latestUser }))
           .catch(() => undefined);
+      }
+      if (!user) {
+        setProfileState({ kind: "offline" });
         return;
       }
       setProfileState({ kind: "ready", user });
