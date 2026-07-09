@@ -978,15 +978,28 @@ function ChatPageContent() {
     }
 
     let cancelled = false;
-    void projectRoomApi
-      .getMembers(selectedProjectRoomId)
-      .then((page) => {
+    void (async () => {
+      const membersRequest = projectRoomApi.getMembers(selectedProjectRoomId);
+      try {
+        const windowsTimeoutMs = await readWindowsChatAuxTimeoutMs();
+        const page = await withWindowsChatAuxDeadline<Awaited<typeof membersRequest> | null>(membersRequest, windowsTimeoutMs, null);
         if (cancelled) return;
-        setProjectRoomMembers(page.items.filter((member) => member.status === "ACTIVE"));
-      })
-      .catch(() => {
+
+        if (page) {
+          setProjectRoomMembers(page.items.filter((member) => member.status === "ACTIVE"));
+          return;
+        }
+
+        setProjectRoomMembers([]);
+        void membersRequest
+          .then((latest) => {
+            if (!cancelled) setProjectRoomMembers(latest.items.filter((member) => member.status === "ACTIVE"));
+          })
+          .catch(() => undefined);
+      } catch {
         if (!cancelled) setProjectRoomMembers([]);
-      });
+      }
+    })();
 
     return () => {
       cancelled = true;
