@@ -1799,8 +1799,8 @@ assertContains(
 );
 assertContains(
   appShell,
-  /user = await authApi\.getMe\(\);[\s\S]*setState\(\(current\) =>[\s\S]*\{ kind: "ready", notifications: \[\], rooms: roomsRef\.current, user \}[\s\S]*projectRoomApi\.list\(\),[\s\S]*widgetApi\.getContext\(\),/,
-  "AppShell must open the authenticated Tauri shell immediately after /api/me before slower room and widget context hydration.",
+  /const userRequest = authApi\.getMe\(\);[\s\S]*user = await boundWindowsWorkspaceHydration\(userRequest, workspaceHydrationTimeoutMs, restoredSession\.user\)[\s\S]*isWindowsTauriRuntime\(\) && workspaceHydrationTimeoutMs > 0 && user === restoredSession\.user[\s\S]*userRequest\.then\([\s\S]*setState\(\(current\) => \(current\.kind === "ready" \? \{ \.\.\.current, user: latestUser \} : current\)\)[\s\S]*error instanceof ApiClientError && error\.status === 401[\s\S]*redirectToLoginWhenTauri\(\)[\s\S]*setState\(\(current\) =>[\s\S]*\{ kind: "ready", notifications: \[\], rooms: roomsRef\.current, user \}[\s\S]*projectRoomApi\.list\(\),[\s\S]*widgetApi\.getContext\(\),/,
+  "Windows AppShell may use the restored session user as a bounded startup fallback, but /api/me must continue as a backfill validator that updates the shell or redirects on 401 before slower room/widget context hydration completes.",
 );
 assertContains(
   appShell,
@@ -1809,8 +1809,8 @@ assertContains(
 );
 assertNotContains(
   appShell,
-  /if \(isTauriRuntime\(\)\) \{[\s\S]*restoredSession\.user[\s\S]*\{ kind: "ready", notifications: \[\], rooms: roomsRef\.current, user: restoredSession\.user \}[\s\S]*user = await authApi\.getMe\(\);/,
-  "Hybrid Tauri app must not paint the member shell from a restored OAuth session before /api/me validates it.",
+  /if \(isTauriRuntime\(\)\) \{[\s\S]*\{ kind: "ready", notifications: \[\], rooms: roomsRef\.current, user: restoredSession\.user \}[\s\S]*authApi\.getMe\(\)/,
+  "Hybrid Tauri app must not unconditionally paint the member shell from a restored OAuth session; only the Windows startup timeout fallback may do that with /api/me backfill validation.",
 );
 assertContains(
   appShell,

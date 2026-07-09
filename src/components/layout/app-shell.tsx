@@ -357,9 +357,11 @@ export function AppShell({ children }: AppShellProps) {
           return;
         }
 
+        const workspaceHydrationTimeoutMs = await readWindowsWorkspaceHydrationTimeoutMs();
+        const userRequest = authApi.getMe();
         let user: AuthUser;
         try {
-          user = await authApi.getMe();
+          user = await boundWindowsWorkspaceHydration(userRequest, workspaceHydrationTimeoutMs, restoredSession.user);
         } catch (error) {
           if (!isCurrentRun()) return;
 
@@ -376,6 +378,22 @@ export function AppShell({ children }: AppShellProps) {
           return;
         }
         if (!isCurrentRun()) return;
+
+        if (isWindowsTauriRuntime() && workspaceHydrationTimeoutMs > 0 && user === restoredSession.user) {
+          void userRequest.then(
+            (latestUser) => {
+              if (!isCurrentRun()) return;
+              setState((current) => (current.kind === "ready" ? { ...current, user: latestUser } : current));
+            },
+            (error: unknown) => {
+              if (!isCurrentRun()) return;
+              if (error instanceof ApiClientError && error.status === 401) {
+                setAuthOrDesktopRedirectState();
+                redirectToLoginWhenTauri();
+              }
+            },
+          );
+        }
 
         setState((current) =>
           current.kind === "ready"
@@ -447,7 +465,6 @@ export function AppShell({ children }: AppShellProps) {
           );
         };
 
-        const workspaceHydrationTimeoutMs = await readWindowsWorkspaceHydrationTimeoutMs();
         const [roomPageResult, widgetContextResult] = await Promise.allSettled([
           boundWindowsWorkspaceHydration(projectRoomApi.list(), workspaceHydrationTimeoutMs, null),
           boundWindowsWorkspaceHydration(widgetApi.getContext(), workspaceHydrationTimeoutMs, null),
