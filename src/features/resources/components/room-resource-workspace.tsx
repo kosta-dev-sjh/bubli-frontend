@@ -150,7 +150,9 @@ export function RoomResourceWorkspace({ roomId }: { roomId: string }) {
   }, [roomId, t]);
 
   const refreshResources = useCallback(() => {
-    setState({ kind: "loading" });
+    if (!isWindowsTauriRuntime()) {
+      setState({ kind: "loading" });
+    }
     void loadResources();
   }, [loadResources]);
 
