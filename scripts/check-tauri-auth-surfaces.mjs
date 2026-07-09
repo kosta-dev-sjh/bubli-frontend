@@ -2098,6 +2098,11 @@ assertContains(
 );
 assertContains(
   widgetPage,
+  /readWindowsProjectRoomsCache[\s\S]*writeWindowsProjectRoomsCache[\s\S]*const projectRoomsValue = projectRoomsResult\.status === "fulfilled" \? projectRoomsResult\.value : null[\s\S]*writeWindowsProjectRoomsCache\(projectRoomsValue\.items\)[\s\S]*setWidgetRoomOptions[\s\S]*loadProjectRooms && isWindowsStartupProfile[\s\S]*const cachedRooms = await readWindowsProjectRoomsCache\(\)\.catch\(\(\) => null\)[\s\S]*cachedRooms[\s\S]*setWidgetRoomOptions/,
+  "Desktop widget Windows profile must reuse the project-room route cache for room options when the widget project-room list is delayed.",
+);
+assertContains(
+  widgetPage,
   /const deferBarAgentCollections =[\s\S]*startupOptimization\.deferBarAgentCollectionsOnInitialDisplay[\s\S]*!displayLoadedOnceRef\.current[\s\S]*const loadSuggestions = shouldLoadBubbleData\("agent"\) && !deferBarAgentCollections[\s\S]*const loadGeneratedDocuments = shouldLoadBubbleData\("agent"\) && !deferBarAgentCollections[\s\S]*startupOptimization\.deferBarAgentCollectionsOnInitialDisplay/,
   "Desktop widget must let the Windows startup profile skip duplicate bar agent collection requests on the initial full bar display.",
 );
