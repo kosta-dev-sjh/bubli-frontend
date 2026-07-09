@@ -293,6 +293,11 @@ assertContains(
   "Windows Tauri agent page must switch out of loading after a bounded initial wait and finish slower agent collections in the background.",
 );
 assertContains(
+  appAgent,
+  /readWindowsProjectRoomsCache[\s\S]*writeWindowsProjectRoomsCache[\s\S]*void writeWindowsProjectRoomsCache\(data\.rooms\)[\s\S]*const cachedRooms = \(await readWindowsProjectRoomsCache\(\)\.catch\(\(\) => null\)\) \?\? \[\][\s\S]*current\.kind === "ready" \? current\.rooms : cachedRooms/,
+  "Windows Tauri agent page must seed project-room options from the Windows route cache while slower agent data backfills.",
+);
+assertContains(
   appChat,
   /isWindowsTauriRuntime[\s\S]*const messagesRequest = chatApi\.getMessages\(chatRoomId, \{ size: 40 \}\)[\s\S]*if \(isWindowsTauriRuntime\(\)\) \{[\s\S]*readCachedRoomMessages\(chatRoomId, 40\)[\s\S]*setMessagesState\(\{ kind: "ready", messages: withAgentCommandMessages\(t, cachedMessages, currentUser(?:, knownSenderNamesById)?\) \}\)[\s\S]*const page = await messagesRequest[\s\S]*syncCachedRoomMessages\(chatRoomId, sortedMessages, 0\)/,
   "Windows Tauri chat messages must show cached SQLite messages before waiting on the server, then backfill with the latest server page.",

@@ -33,6 +33,7 @@ import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
+import { readWindowsProjectRoomsCache, writeWindowsProjectRoomsCache } from "@/lib/tauri/windows-route-cache";
 import { useActiveProjectRoom } from "@/lib/use-active-project-room";
 import { setActiveProjectRoomId } from "@/lib/workspace-active-room";
 import {
@@ -489,6 +490,7 @@ function AgentPageContent() {
       );
 
       const applyLoadedData = (data: AgentLoadData) => {
+        void writeWindowsProjectRoomsCache(data.rooms);
         const selectedRoom = data.selectedRoomId ? data.rooms.find((room) => room.id === data.selectedRoomId) : null;
         if (selectedRoom) {
           setActiveProjectRoomId(selectedRoom.id, selectedRoom.name);
@@ -501,8 +503,9 @@ function AgentPageContent() {
       if (initialData) {
         applyLoadedData(initialData);
       } else {
+        const cachedRooms = (await readWindowsProjectRoomsCache().catch(() => null)) ?? [];
         setState((current) => {
-          const rooms = current.kind === "ready" ? current.rooms : [];
+          const rooms = current.kind === "ready" ? current.rooms : cachedRooms;
           return { ...emptyAgentLoadData(roomId, rooms), kind: "ready" };
         });
         void loadData.then(applyLoadedData).catch((error: unknown) => {
