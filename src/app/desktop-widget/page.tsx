@@ -4361,7 +4361,7 @@ function DesktopWidgetSurface() {
     const callStartedAt = activeVoiceRoom?.createdAt ? new Date(activeVoiceRoom.createdAt).getTime() : 0;
     const interval = window.setInterval(() => {
       void widgetDisplayApi
-        .listNotifications(10)
+        .listNotifications(10, 0, "UNREAD")
         .then((page) => {
           const declined = page.items.find(
             (item) =>

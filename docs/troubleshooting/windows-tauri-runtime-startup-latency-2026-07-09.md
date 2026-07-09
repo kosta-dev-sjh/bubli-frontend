@@ -47,6 +47,7 @@ The issue should not be described only as "performance optimization." The more a
 | Deferred loading | Widget bar project-room and room/detail loading were deferred in earlier Windows patches |
 | Lazy loading | Widget surfaces are expected to show a lightweight shell first, then hydrate heavier data after startup |
 | Server-side notification filtering | Notification list calls now support `status=UNREAD` so unread-only surfaces do not fetch read items first |
+| Unread-only widget polling | Widget notification surfaces and voice-call decline polling now request unread notifications instead of repeatedly scanning broad notification history |
 | Windows-compatible script arguments | Smoke scripts were adjusted away from Unix-style inline env assumptions where needed |
 | Runtime smoke progress reporting | The Tauri smoke runner now reports progress steps before the final report |
 | Runtime preflight guard | The preflight now checks for existing Bubli processes before launching Windows runtime smoke |
@@ -62,6 +63,7 @@ This is the working engineering version of the Windows/macOS runtime-difference 
 | Windows first authenticated screen waited before becoming usable | WebView initialization, auth session restoration, app-shell data fetches, dashboard data, widget context, and notification requests could compete during the first render window | Reordered startup expectations around auth readiness first, then widget bar/menu readiness, then heavier widget data hydration | Real installed OAuth QA reached `/app/`, `/api/me`, widget context, and widget summary successfully; latest installed readiness timing is recorded below |
 | Several widget windows appeared or restored in a confusing way on Windows | Windows startup was paying for too many widget WebViews and restore paths at once; QA also expected every widget bubble to be visible immediately | Updated the intended Windows startup model: bar/menu first, standalone bubbles as restore items until explicitly opened | Installed QA now passes by proving restore readiness, room context consistency, and stop cleanup instead of requiring every bubble window to be visible at startup |
 | Notification panel showed old/read items and very high counts | Notification surfaces fetched broad notification history and filtered too late in the client | Added unread status filtering on frontend calls and backend notification API support | Backend `/api/notifications?status=UNREAD` companion patch merged; frontend unread surfaces no longer need broad history first |
+| Widget voice-call ringback could keep polling broad notification history | The decline detector used notification polling without a status filter | Changed the widget call-decline polling request to `status=UNREAD` and added an auth-surface contract guard | Remaining widget notification list calls are now unread-scoped |
 | Runtime smoke was hard to debug when it timed out | The smoke runner only failed at the end, so auth/widget/SQLite/sync stalls looked identical | Added progress events and preflight checks for existing `bubli.exe` | Failing reports now identify whether the issue is auth, widgets, local sync, or process state |
 | Installed-build local sync looked partially failed even when the explicit scan/watch probe passed | Background managed-folder loop status can retain a transient failure after file analysis while the targeted QA probe succeeds | Keep explicit local folder scan/watch/sync evidence separate from background loop status | Latest real installed QA passes when explicit scan/watch/sync evidence proves zero scoped failures, even if the background loop still reports a transient failed status |
 
@@ -90,6 +92,7 @@ Notification payload and display narrowing:
   - Widget display notification API accepts an optional status.
 - `src/app/desktop-widget/page.tsx`
   - Desktop notification widget scans unread notifications instead of broad notification history.
+  - Voice-call decline polling now scans unread notifications only.
 
 Windows QA and smoke diagnostics:
 
