@@ -1050,7 +1050,7 @@ export function WorkspaceDashboard() {
   }, []);
   useHomeBoardPresetListener(applyPresetWidgetIds);
 
-  const fetchDashboard = useCallback(async () => {
+  const fetchDashboard = useCallback(async (options?: { keepCurrentOnWindowsRefresh?: boolean }) => {
     try {
       const { from, to } = getWeekRange(new Date());
       // 요약(getWork)이 끝나기를 기다렸다가 카드 9종을 부르던 직렬 대기를 없앤다 —
@@ -1078,7 +1078,12 @@ export function WorkspaceDashboard() {
       if (initialData) {
         setState(hasDashboardItems(initialData) ? { data: initialData, kind: "ready" } : { data: initialData, kind: "empty" });
       } else {
-        setState({ data: emptyDashboard, kind: "ready" });
+        setState((current) => {
+          if (options?.keepCurrentOnWindowsRefresh && isWindowsTauriRuntime() && (current.kind === "ready" || current.kind === "empty")) {
+            return current;
+          }
+          return { data: emptyDashboard, kind: "ready" };
+        });
         void workPromise
           .then((data) => {
             setState(hasDashboardItems(data) ? { data, kind: "ready" } : { data, kind: "empty" });
@@ -1237,7 +1242,7 @@ export function WorkspaceDashboard() {
     requestedWbsRoomsRef.current.clear();
     requestedResourceRoomsRef.current.clear();
     setRoomResources({});
-    void fetchDashboard();
+    void fetchDashboard({ keepCurrentOnWindowsRefresh: true });
   }, [fetchDashboard]);
 
   // memo 도메인은 제외 — 메모 카드는 자체 조회를 갖고 있어(MemoDashboardCard) 스스로 갱신한다.

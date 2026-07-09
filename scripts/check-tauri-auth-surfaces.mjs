@@ -285,8 +285,13 @@ assertContains(
 );
 assertContains(
   workspaceDashboard,
-  /readWindowsDashboardInitialTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*withDashboardInitialDeadline[\s\S]*dashboardApi\.getWork\(\)[\s\S]*setState\(\{ data: emptyDashboard, kind: "ready" \}\)[\s\S]*workPromise[\s\S]*setState\(hasDashboardItems\(data\)/,
+  /readWindowsDashboardInitialTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*withDashboardInitialDeadline[\s\S]*dashboardApi\.getWork\(\)[\s\S]*return \{ data: emptyDashboard, kind: "ready" \}[\s\S]*workPromise[\s\S]*setState\(hasDashboardItems\(data\)/,
   "Windows Tauri dashboard must switch out of the loading state after a bounded initial wait and finish the slower server summary in the background.",
+);
+assertContains(
+  workspaceDashboard,
+  /fetchDashboard = useCallback\(async \(options\?: \{ keepCurrentOnWindowsRefresh\?: boolean \}\)[\s\S]*options\?\.keepCurrentOnWindowsRefresh && isWindowsTauriRuntime\(\) && \(current\.kind === "ready" \|\| current\.kind === "empty"\)[\s\S]*return current[\s\S]*refreshDashboard[\s\S]*fetchDashboard\(\{ keepCurrentOnWindowsRefresh: true \}\)/,
+  "Windows Tauri dashboard refreshes must keep the current dashboard visible while slower dashboard data backfills.",
 );
 assertContains(
   workspaceDashboard,
