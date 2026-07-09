@@ -1846,8 +1846,13 @@ assertContains(
 );
 assertContains(
   settingsPage,
+  /getStoredAuthSession[\s\S]*isWindowsTauriRuntime[\s\S]*const cachedUser = isWindowsTauriRuntime\(\) \? getStoredAuthSession\(\)\?\.user \?\? null : null[\s\S]*const userRequest = authApi\.getMe\(\)[\s\S]*boundSettingsHydration<AuthUser>\(userRequest, cachedUser\)[\s\S]*userRequest\.then\([\s\S]*setNameDraft\(latestUser\.name\)[\s\S]*user: latestUser[\s\S]*error instanceof ApiClientError && error\.status === 401[\s\S]*setState\(\{ kind: "auth" \}\)/,
+  "Windows Settings page must use the mirrored session user as a bounded fallback, then backfill /api/me.",
+);
+assertContains(
+  settingsPage,
   /withSettingsHydrationTimeout[\s\S]*window\.setTimeout\(\(\) => resolve\(fallback\), timeoutMs\)[\s\S]*readWindowsSettingsHydrationTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*startupConfig\?\.profile !== "windows"[\s\S]*startupConfig\.settingsTimeoutMs[\s\S]*settingsHydrationTimeoutMs = await readWindowsSettingsHydrationTimeoutMs\(\)[\s\S]*boundSettingsHydration\(widgetApi\.getBubbles\(\), null\)[\s\S]*boundSettingsHydration\(listPersonalManagedFolders\(\), null\)[\s\S]*boundSettingsHydration\(calendarApi\.getGoogleConnection\(\), null\)[\s\S]*boundSettingsHydration\(projectRoomApi\.list\(\), null\)[\s\S]*Promise\.allSettled\(\[[\s\S]*widgetApi\.getBubbles\(\)[\s\S]*listPersonalManagedFolders\(\)[\s\S]*calendarApi\.getGoogleConnection\(\)[\s\S]*projectRoomApi\.list\(\)[\s\S]*setState\(\(current\) =>/,
-  "Windows Settings page must bound Tauri/secondary settings hydration and refresh delayed values after the page becomes ready.",
+  "Windows Settings page must use the mirrored session user as a bounded fallback, then backfill /api/me and secondary settings values after the page becomes ready.",
 );
 assertContains(
   appShell,
