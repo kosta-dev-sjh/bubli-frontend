@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 
 import { authApi } from "@/features/auth/api/authApi";
+import { ApiClientError } from "@/lib/api/errors";
 import {
   AUTH_SESSION_CHANGE_EVENT,
   getStoredAuthSession,
   restoreStoredAuthSessionFromTauri,
 } from "@/lib/auth/auth-session";
+import { isWindowsTauriRuntime } from "@/lib/tauri/platform";
 import type { AuthUser } from "@/types/api/auth";
 
 type LiveAuthState = {
@@ -67,6 +69,19 @@ export function useLiveAuthState(): LiveAuthState {
       const session = await restoreSessionForLiveAuth();
       if (!session) {
         commit({ status: "unauthenticated", user: null });
+        return;
+      }
+
+      if (isWindowsTauriRuntime()) {
+        commit({ status: "authenticated", user: session.user });
+        void authApi.getMe().then(
+          (me) => commit({ status: "authenticated", user: me }),
+          (error: unknown) => {
+            if (error instanceof ApiClientError && error.status === 401) {
+              commit({ status: "unauthenticated", user: null });
+            }
+          },
+        );
         return;
       }
 
