@@ -1,7 +1,7 @@
 {
   "file": "/downloads/windows/Bubli-Windows-latest.exe",
-  "sha256": "54867649965D83EB880B602613FEB1CE04142A40F03A5ADB6D47A39C6FCBBD07",
-  "sizeBytes": 22222129,
+  "sha256": "CB1FEB3BE5FC17E7BAE7D8663D50B36E366FBA5BF01C4BA0C21C0BD3EBCE1071",
+  "sizeBytes": 22234138,
   "source": "src-tauri/target/release/bundle/nsis/Bubli_0.1.5_x64-setup.exe",
-  "updatedAt": "2026-07-08T19:44:30.400Z"
+  "updatedAt": "2026-07-09T06:56:40.966Z"
 }
