@@ -30,6 +30,7 @@ const files = {
   apiClient: "src/lib/api/client.ts",
   authApi: "src/features/auth/api/authApi.ts",
   authPanel: "src/features/auth/components/auth-panel.tsx",
+  authLiveHook: "src/features/auth/hooks/use-live-auth-user.ts",
   authSession: "src/lib/auth/auth-session.ts",
   activityAutoCapture: "src/lib/local/activity-auto-capture.ts",
   activityClient: "src/lib/local/activity-client.ts",
@@ -232,6 +233,7 @@ const memoDashboardCard = read(files.memoDashboardCard);
 const apiClient = read(files.apiClient);
 const authApi = read(files.authApi);
 const authPanel = read(files.authPanel);
+const authLiveHook = read(files.authLiveHook);
 const authSession = read(files.authSession);
 const activityAutoCapture = read(files.activityAutoCapture);
 const activityClient = read(files.activityClient);
@@ -1902,6 +1904,11 @@ assertContains(
   authPanel,
   /getStoredAuthSession,[\s\S]*restoreStoredAuthSessionFromTauri,[\s\S]*async function openStoredTauriSession\(\)[\s\S]*getStoredAuthSession\(\) \?\? \(await restoreStoredAuthSessionFromTauri\(\)\)[\s\S]*router\.replace\(TAURI_MEMBER_APP_ROUTE\)/,
   "Tauri login must immediately route an existing mirrored session back to the packaged app instead of waiting for a login-page getMe check.",
+);
+assertContains(
+  authLiveHook,
+  /ApiClientError[\s\S]*isWindowsTauriRuntime[\s\S]*if \(isWindowsTauriRuntime\(\)\) \{[\s\S]*commit\(\{ status: "authenticated", user: session\.user \}\)[\s\S]*authApi\.getMe\(\)\.then\([\s\S]*commit\(\{ status: "authenticated", user: me \}\)[\s\S]*error instanceof ApiClientError && error\.status === 401[\s\S]*commit\(\{ status: "unauthenticated", user: null \}\)/,
+  "Windows live auth must expose the mirrored session user immediately while /api/me validates and backfills or clears the session on 401.",
 );
 assertNotContains(
   authPanel,
