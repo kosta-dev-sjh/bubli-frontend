@@ -51,6 +51,7 @@ The issue should not be described only as "performance optimization." The more a
 | Windows route cache reuse | Agent page now reuses cached project-room options when Windows initial AI hydration exceeds the startup deadline |
 | Dashboard route cache reuse | Dashboard project-room widgets now reuse cached room options while the broader Windows dashboard batch backfills |
 | Settings/calendar route cache reuse | Settings room selectors and calendar room-name grouping now reuse cached project-room options while slower server room-list calls backfill |
+| Windows friend-request identity reuse | Friend-request direction mapping now reuses the mirrored Windows Tauri session user id instead of adding another `/api/me` call to chat auxiliary hydration |
 | Windows-compatible script arguments | Smoke scripts were adjusted away from Unix-style inline env assumptions where needed |
 | Runtime smoke progress reporting | The Tauri smoke runner now reports progress steps before the final report |
 | Runtime preflight guard | The preflight now checks for existing Bubli processes before launching Windows runtime smoke |
@@ -88,6 +89,7 @@ This is the working engineering version of the Windows/macOS runtime-difference 
 | Agent page could drop to an empty room selector after the Windows initial hydration deadline | The page deadline unblocked rendering, but fallback data used an empty room list unless the previous agent state was already ready | Seed fallback project-room options from the Windows route cache and refresh that cache when full server data arrives | The route can leave loading faster while retaining recent room options until full AI data backfills |
 | Dashboard room widgets waited for the full auxiliary batch before room options appeared | The dashboard summary was deadline-bound, but project-room options still came from the broader batch result | Seed dashboard room options from the Windows route cache and refresh the cache when the server room list arrives | The first dashboard render can show recent room context while resources, schedules, heatmap, suggestions, and notifications backfill |
 | Settings and calendar still repeated project-room list calls during Windows route transitions | These surfaces were not the first patched routes, but they still depended on the same project-room list response for selectors and calendar grouping | Reuse the Windows project-room route cache as immediate context, then refresh the cache when the server room list succeeds | Settings and calendar no longer have to show empty project-room context just because the room-list request misses the Windows hydration deadline |
+| Chat auxiliary hydration still added an extra `/api/me` through friend-request mapping | Chat already fetches the current user separately, but `friendApi.listRequests()` also fetched `/api/me` only to compute sent/received direction | On Windows Tauri, use the mirrored auth session `user.id` for friend-request direction and fall back to `/api/me` only when that id is missing | Windows chat social/request hydration has one fewer backend call in the normal mirrored-session path |
 | Runtime smoke was hard to debug when it timed out | The smoke runner only failed at the end, so auth/widget/SQLite/sync stalls looked identical | Added progress events and preflight checks for existing `bubli.exe` | Failing reports now identify whether the issue is auth, widgets, local sync, or process state |
 | Installed-build local sync looked partially failed even when the explicit scan/watch probe passed | Background managed-folder loop status can retain a transient failure after file analysis while the targeted QA probe succeeds | Keep explicit local folder scan/watch/sync evidence separate from background loop status | Latest real installed QA passes when explicit scan/watch/sync evidence proves zero scoped failures, even if the background loop still reports a transient failed status |
 
@@ -138,6 +140,8 @@ Windows QA and smoke diagnostics:
   - Windows settings now keeps cached project-room options when the room-list request is deadline-bound or delayed, then refreshes the cache after the server response.
 - `src/app/(workspace)/app/calendar/page.tsx`
   - Windows calendar now uses cached project-room names for room calendar grouping while the server project-room list backfills, then refreshes the cache on success.
+- `src/features/communication/api/friendApi.ts`
+  - Windows Tauri friend-request mapping now uses the mirrored local session user id before falling back to `/api/me`, reducing duplicate identity calls during chat auxiliary hydration.
 - `scripts/qa-tauri-real-oauth-manual.mjs`
   - Added installed launch-readiness timing to the redacted real OAuth QA summary.
   - The validator now requires finite timing anchors on passing installed QA reports.

@@ -1,6 +1,8 @@
 import { authApi } from "@/features/auth/api/authApi";
 import { apiRequest } from "@/lib/api/client";
 import { ApiClientError } from "@/lib/api/errors";
+import { getStoredAuthSession } from "@/lib/auth/auth-session";
+import { isWindowsTauriRuntime } from "@/lib/tauri/platform";
 import type {
   FriendApiResponse,
   FriendRequestApiResponse,
@@ -49,6 +51,15 @@ function toFriendRequest(response: FriendRequestApiResponse, currentUserId: stri
   };
 }
 
+async function resolveCurrentUserIdForFriendRequest() {
+  if (isWindowsTauriRuntime()) {
+    const userId = getStoredAuthSession()?.user?.id;
+    if (userId) return userId;
+  }
+
+  return (await authApi.getMe()).id;
+}
+
 export const friendApi = {
   async listFriends() {
     const friends = await apiRequest<FriendApiResponse[]>("/api/friends");
@@ -69,42 +80,42 @@ export const friendApi = {
   },
 
   async listRequests() {
-    const [me, requests] = await Promise.all([
-      authApi.getMe(),
+    const [currentUserId, requests] = await Promise.all([
+      resolveCurrentUserIdForFriendRequest(),
       apiRequest<FriendRequestApiResponse[]>("/api/friend-requests"),
     ]);
-    return requests.map((request) => toFriendRequest(request, me.id));
+    return requests.map((request) => toFriendRequest(request, currentUserId));
   },
 
   async sendRequest(body: FriendRequestCreateRequest) {
-    const [me, request] = await Promise.all([
-      authApi.getMe(),
+    const [currentUserId, request] = await Promise.all([
+      resolveCurrentUserIdForFriendRequest(),
       apiRequest<FriendRequestApiResponse>("/api/friend-requests", {
         body,
         method: "POST",
       }),
     ]);
-    return toFriendRequest(request, me.id);
+    return toFriendRequest(request, currentUserId);
   },
 
   async acceptRequest(requestId: string) {
-    const [me, request] = await Promise.all([
-      authApi.getMe(),
+    const [currentUserId, request] = await Promise.all([
+      resolveCurrentUserIdForFriendRequest(),
       apiRequest<FriendRequestApiResponse>(`/api/friend-requests/${requestId}/accept`, {
         method: "PATCH",
       }),
     ]);
-    return toFriendRequest(request, me.id);
+    return toFriendRequest(request, currentUserId);
   },
 
   async rejectRequest(requestId: string) {
-    const [me, request] = await Promise.all([
-      authApi.getMe(),
+    const [currentUserId, request] = await Promise.all([
+      resolveCurrentUserIdForFriendRequest(),
       apiRequest<FriendRequestApiResponse>(`/api/friend-requests/${requestId}/reject`, {
         method: "PATCH",
       }),
     ]);
-    return toFriendRequest(request, me.id);
+    return toFriendRequest(request, currentUserId);
   },
 
   deleteFriend(friendUserId: string) {
