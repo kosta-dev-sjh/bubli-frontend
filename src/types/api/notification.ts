@@ -12,6 +12,7 @@ export type NotificationResponse = {
     | "RESOURCE"
     | "AGENT"
     | "VOICE_CALL"
+    | "VOICE_CALL_ROOM"
     | "VOICE_CALL_DECLINED"
     | "VOICE_CALL_CANCELED"
     | "FRIEND_REQUEST"

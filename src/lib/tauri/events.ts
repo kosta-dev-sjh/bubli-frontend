@@ -67,7 +67,7 @@ export type WidgetVoiceCallStateChangedPayload = {
 export type WidgetIncomingCallChangedPayload = {
   // 수신 전화 팝업을 채팅(chat) 창에서 그리기 위해 바(bar) 창이 받은 알림을 그대로 넘긴다.
   // 수락/거절로 채팅 창이 지우면 바 창의 통화음·타임아웃도 같이 멈춰야 하므로 양방향으로 쓴다.
-  call: { callerName: string; chatRoomId: string; notificationId: string } | null;
+  call: { callerName: string; chatRoomId?: string; roomId?: string; notificationId: string } | null;
   emitterId: string;
   occurredAt: number;
 };

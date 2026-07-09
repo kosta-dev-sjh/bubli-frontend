@@ -161,6 +161,10 @@ export const widgetCommunicationApi = {
     return widgetCommunicationRequest<VoiceRoomResponse>(`/api/voice/rooms?chatRoomId=${encodeURIComponent(chatRoomId)}`);
   },
 
+  getOpenVoiceRoomByRoomId(roomId: string) {
+    return widgetCommunicationRequest<VoiceRoomResponse>(`/api/voice/rooms?roomId=${encodeURIComponent(roomId)}`);
+  },
+
   getVoiceToken(voiceRoomId: string) {
     return widgetCommunicationRequest<VoiceTokenResponse>(`/api/voice/rooms/${voiceRoomId}/token`, {
       method: "POST",
