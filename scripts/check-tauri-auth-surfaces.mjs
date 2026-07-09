@@ -305,6 +305,11 @@ assertContains(
   "Windows Tauri agent page must seed project-room options from the Windows route cache while slower agent data backfills.",
 );
 assertContains(
+  appAgent,
+  /keepCurrentOnWindowsRefresh[\s\S]*isWindowsTauriRuntime\(\)[\s\S]*return \{ \.\.\.current, selectedRoomId: roomId \}[\s\S]*refreshAgent[\s\S]*load\(roomId, \{ keepCurrentOnWindowsRefresh: true \}\)/,
+  "Windows Tauri agent refreshes must keep current agent content visible while slower agent collections backfill.",
+);
+assertContains(
   appChat,
   /const displayMessages = useMemo\([\s\S]*withAgentCommandMessages\(t, withoutSyntheticAgentCommands\(messagesState\.messages\), currentUser, knownSenderNamesById\)[\s\S]*const messagesRequest = chatApi\.getMessages\(chatRoomId, \{ size: 40 \}\)[\s\S]*if \(isWindowsTauriRuntime\(\)\) \{[\s\S]*readCachedRoomMessages\(chatRoomId, 40\)[\s\S]*setMessagesState\(\{ kind: "ready", messages: cachedMessages \}\)[\s\S]*const page = await messagesRequest[\s\S]*syncCachedRoomMessages\(chatRoomId, sortedMessages, 0\)[\s\S]*setMessagesState\(\{ kind: "ready", messages: sortedMessages \}\)/,
   "Windows Tauri chat messages must show cached SQLite messages before waiting on the server, then backfill with the latest server page while keeping display-only agent command expansion out of message state.",

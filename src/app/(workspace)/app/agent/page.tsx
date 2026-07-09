@@ -407,12 +407,15 @@ function AgentPageContent() {
     [locale, t],
   );
 
-  const load = useCallback(async (roomId: string | null) => {
+  const load = useCallback(async (roomId: string | null, options?: { keepCurrentOnWindowsRefresh?: boolean }) => {
     setNotice(null);
     setSelectedDocument(null);
     setExpandedId(null);
     setState((current) => {
       if (current.kind === "ready") {
+        if (options?.keepCurrentOnWindowsRefresh && isWindowsTauriRuntime()) {
+          return { ...current, selectedRoomId: roomId };
+        }
         return {
           ...current,
           confirmedRequirements: [],
@@ -559,7 +562,7 @@ function AgentPageContent() {
 
   const refreshAgent = useCallback(() => {
     const roomId = state.kind === "ready" ? state.selectedRoomId : searchParams.get("roomId") ?? activeRoomId;
-    void load(roomId);
+    void load(roomId, { keepCurrentOnWindowsRefresh: true });
   }, [activeRoomId, load, searchParams, state]);
 
   useDataRefresh({ domains: ["agent"], ignoreSource: AGENT_PAGE_EVENT_SOURCE, onRefresh: refreshAgent });
