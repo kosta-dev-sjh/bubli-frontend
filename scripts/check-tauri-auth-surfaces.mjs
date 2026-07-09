@@ -330,6 +330,11 @@ assertContains(
 );
 assertContains(
   appChat,
+  /const membersRequest = projectRoomApi\.getMembers\(selectedProjectRoomId\)[\s\S]*const windowsTimeoutMs = await readWindowsChatAuxTimeoutMs\(\)[\s\S]*withWindowsChatAuxDeadline<Awaited<typeof membersRequest> \| null>\(membersRequest, windowsTimeoutMs, null\)[\s\S]*setProjectRoomMembers\(\[\]\)[\s\S]*membersRequest[\s\S]*then\(\(latest\) => \{[\s\S]*setProjectRoomMembers\(latest\.items\.filter\(\(member\) => member\.status === "ACTIVE"\)\)/,
+  "Windows Tauri project-room chat member hydration must be deadline-bound and backfilled so room switching is not held by the member-list call.",
+);
+assertContains(
+  appChat,
   /getStoredAuthSession[\s\S]*const cachedUser = isWindowsTauriRuntime\(\) \? getStoredAuthSession\(\)\?\.user \?\? null : null[\s\S]*setProfileState\(\{ kind: "ready", user: cachedUser \}\)[\s\S]*const userRequest = authApi\.getMe\(\)[\s\S]*withWindowsChatAuxDeadline<AuthUser \| null>\(userRequest, windowsTimeoutMs, cachedUser\)[\s\S]*userRequest[\s\S]*then\(\(latestUser\) => setProfileState\(\{ kind: "ready", user: latestUser \}\)\)/,
   "Windows Tauri chat profile must show the mirrored session user immediately while /api/me validates and backfills in the background.",
 );
