@@ -54,6 +54,7 @@ The issue should not be described only as "performance optimization." The more a
 | Windows friend-request identity reuse | Friend-request direction mapping now reuses the mirrored Windows Tauri session user id instead of adding another `/api/me` call to chat auxiliary hydration |
 | Windows chat profile session reuse | Chat profile surfaces now show the mirrored Windows Tauri session user immediately while `/api/me` validates and backfills |
 | Windows resource refresh stability | Personal and room resource refreshes now keep the current list visible on Windows Tauri while slower server data backfills |
+| Windows agent refresh stability | Agent refreshes now keep the current AI content visible on Windows Tauri while slower agent collections backfill |
 | Windows-compatible script arguments | Smoke scripts were adjusted away from Unix-style inline env assumptions where needed |
 | Runtime smoke progress reporting | The Tauri smoke runner now reports progress steps before the final report |
 | Runtime preflight guard | The preflight now checks for existing Bubli processes before launching Windows runtime smoke |
@@ -94,6 +95,7 @@ This is the working engineering version of the Windows/macOS runtime-difference 
 | Chat auxiliary hydration still added an extra `/api/me` through friend-request mapping | Chat already fetches the current user separately, but `friendApi.listRequests()` also fetched `/api/me` only to compute sent/received direction | On Windows Tauri, use the mirrored auth session `user.id` for friend-request direction and fall back to `/api/me` only when that id is missing | Windows chat social/request hydration has one fewer backend call in the normal mirrored-session path |
 | Chat profile could briefly show offline while `/api/me` was deadline-bound | The profile panel treated a timed-out user request as offline even though the Windows Tauri app already had a mirrored authenticated session | Use the mirrored session user as the first Windows profile state and keep `/api/me` as background validation/backfill | Chat profile controls can render immediately from the validated local session path instead of waiting for a secondary identity request |
 | Resource lists could repaint to loading during Windows refreshes | Personal and room resource workspaces had initial deadline/backfill, but explicit refresh still cleared the current list before the server returned | Keep the loading repaint for non-Windows, but on Windows Tauri keep the current resource list visible while `loadResources()` backfills | Manual refresh and data-change refreshes feel stable instead of flashing back to a loading panel |
+| Agent page could repaint to empty AI sections during Windows refreshes | The Windows initial deadline unblocked the first render, but data-change refreshes still cleared ready-state AI lists before slower server collections returned | Keep the current ready agent state during Windows refreshes and only update the selected room while `loadData` backfills | Agent content stays visible instead of flashing empty while suggestions, generated documents, summaries, and requirement data reload |
 | Runtime smoke was hard to debug when it timed out | The smoke runner only failed at the end, so auth/widget/SQLite/sync stalls looked identical | Added progress events and preflight checks for existing `bubli.exe` | Failing reports now identify whether the issue is auth, widgets, local sync, or process state |
 | Installed-build local sync looked partially failed even when the explicit scan/watch probe passed | Background managed-folder loop status can retain a transient failure after file analysis while the targeted QA probe succeeds | Keep explicit local folder scan/watch/sync evidence separate from background loop status | Latest real installed QA passes when explicit scan/watch/sync evidence proves zero scoped failures, even if the background loop still reports a transient failed status |
 
@@ -138,6 +140,7 @@ Windows QA and smoke diagnostics:
   - Added an existing-process guard for `bubli.exe` to catch Windows single-instance mutex conflicts before smoke launch.
 - `src/app/(workspace)/app/agent/page.tsx`
   - Windows deadline fallback now seeds project-room options from the Windows route cache while slower agent data backfills.
+  - Windows agent refresh now keeps the current content visible while slower agent collections backfill.
 - `src/features/dashboard/components/workspace-dashboard.tsx`
   - Windows dashboard now seeds project-room widgets from the Windows route cache while the broader dashboard batch backfills.
 - `src/app/(workspace)/app/settings/page.tsx`
