@@ -145,7 +145,7 @@ export function TopbarNotificationsPanel({
               ) : (
                 <div className={styles.notificationBody}>{bodyContent}</div>
               )}
-              <div className={styles.notificationActions}>
+              <div className={cn(styles.notificationActions, styles.notificationInlineActions)}>
                 {item.status === "UNREAD" ? (
                   <Button
                     aria-label={t("layout.notifications.markReadAria", { title: display.title })}

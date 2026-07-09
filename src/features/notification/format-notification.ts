@@ -94,6 +94,13 @@ const TECHNICAL_KEYS = [
 ];
 
 const RESPONSE_KEYS_PATTERN = [...PREVIEW_TEXT_KEYS, ...PREVIEW_CONTAINER_KEYS, ...TECHNICAL_KEYS].join("|");
+const RESOURCE_TITLE_KEYS = ["resourceTitle", "resourceName", "filename", "fileName", "originalName"] as const;
+const RESOURCE_TITLE_HINT_KEYS = ["label", "name", "title"] as const;
+const RESOURCE_TITLE_KEY_PATTERN = new RegExp(
+  `(?:^|[,{\n]\\s*)["']?(${[...RESOURCE_TITLE_KEYS, ...RESOURCE_TITLE_HINT_KEYS].join("|")})["']?\\s*[:=]\\s*([\\s\\S]*?)(?=,\\s*["']?(?:${RESPONSE_KEYS_PATTERN}|${RESOURCE_TITLE_KEYS.join("|")}|${RESOURCE_TITLE_HINT_KEYS.join("|")})["']?\\s*[:=]|[}\\]\n]|$)`,
+  "gi",
+);
+const RESOURCE_FILE_NAME_PATTERN = /(?:^|[\s"'([{=:])([^,;:{}"'`<>]+?\.(?:pdf|docx?|xlsx?|pptx?|txt|md|csv|hwp|hwpx|png|jpe?g|gif|webp|zip))(?:\s*[:：,;)\]}]|$)/i;
 
 // "jobType=", "agent-job-analyze-resource", "message=AI 작업..." 조각이 들어 있으면 원시 잡 응답으로 간주한다.
 const RAW_JOB_PATTERN = /\bjob(?:type|id)\s*[:=]|agent-job-[a-z0-9-]+|(?:^|[,{\s])message\s*[:=]\s*AI\s*작업/i;
@@ -102,10 +109,20 @@ const JOB_SLUG_PATTERN = /agent-job-([a-z0-9-]+)/i;
 const JOB_METADATA_FIELD_PATTERN =
   /(?:^|[,\s.;{])\s*["']?(?:jobtype|jobid|resourcetitle|resourcename|filename|message)["']?\s*[:=]\s*.*?(?=(?:[,\s.;]+["']?(?:jobtype|jobid|resourcetitle|resourcename|filename|message)["']?\s*[:=])|[}\]]|$)/gi;
 const JOB_METADATA_KEY_PATTERN = /\b(jobtype|jobid|resourcetitle|resourcename|filename|message)\s*[:=]/gi;
-const JOB_FAILED_PATTERN = /(실패|failed|failure|fail|失敗)/i;
+const JOB_FAILED_PATTERN = /(실패|오류|에러|failed|failure|fail|error|exception|失敗|エラー)/i;
 const RESPONSE_ENVELOPE_PATTERN = /(?:^|[{,]\s*)(?:success|code|message|data|payload|result|items)\s*[:=]/i;
 const JOB_BOILERPLATE_PATTERN =
   /(작업(?:\s*실행)?이\s*(완료|실패)|AI\s*작업|ai\s*(?:job|task)\s*(?:completed|finished|failed)|agent\s*job\s*execution\s*(?:completed|failed)|作業が(?:完了|失敗)|ジョブ.*(?:完了|失敗)|agent-job-|job(?:type|id)\s*[:=]|success\s*[:=]|message\s*[:=]|code\s*[:=])/i;
+const JOB_TEXT_HINTS: Array<[AgentJobType, RegExp]> = [
+  ["ANALYZE_RESOURCE", /(자료\s*분석|material\s*analysis|resource\s*analysis|analy[sz]e\s*resource|資料分析)/i],
+  ["GENERATE_WBS", /\bWBS\b/i],
+  ["GENERATE_TASKS", /(할\s*일|task\s*candidate|tasks?\s*(?:generated|ready)|タスク)/i],
+  ["GENERATE_REQUIREMENTS", /(요구사항|requirements?|要件)/i],
+  ["REVIEW_CONTRACT_DOCUMENTS", /(문서\s*검토|계약(?:서)?\s*검토|contract\s*review|document\s*review|契約|文書レビュー)/i],
+  ["GENERATE_QUESTIONS", /(질문|questions?|質問)/i],
+  ["DAILY_SUMMARY", /(하루\s*정리|daily\s*summary|一日のまとめ)/i],
+  ["DOCUMENT_DRAFT", /(문서\s*초안|document\s*draft|draft\s*document|文書の下書き)/i],
+];
 
 type JobMetadata = Partial<Record<"filename" | "jobid" | "jobtype" | "message" | "resourcename" | "resourcetitle", string>>;
 type NotificationSourceType = NotificationResponse["sourceType"];
@@ -176,6 +193,24 @@ function cleanPreviewText(value: string): string | null {
   return isReadablePreviewText(text) ? text : null;
 }
 
+function looksLikeResourceFileName(value: string): boolean {
+  return /\.(?:pdf|docx?|xlsx?|pptx?|txt|md|csv|hwp|hwpx|png|jpe?g|gif|webp|zip)\b/i.test(value);
+}
+
+function cleanResourceTitle(value: string): string | null {
+  const inlineFileName = value.match(RESOURCE_FILE_NAME_PATTERN)?.[1];
+  const text = (inlineFileName ?? value)
+    .replace(/^["'`]+|["'`]+$/g, "")
+    .replace(/\s+/g, " ")
+    .replace(/^[,.:;\s]+|[,;:\s]+$/g, "")
+    .trim();
+
+  if (!text || JOB_BOILERPLATE_PATTERN.test(text) || looksLikeResponseEnvelope(text)) return null;
+
+  const shortText = text.length > 150 ? `${text.slice(0, 147).trim()}...` : text;
+  return cleanPreviewText(shortText);
+}
+
 function pushPreviewLine(lines: string[], value: string) {
   const cleaned = cleanPreviewText(value);
   if (!cleaned || lines.includes(cleaned)) return;
@@ -244,6 +279,83 @@ function extractResponsePreview(value: string): string | null {
   return formatPreviewLines(lines);
 }
 
+function collectResourceTitleFromJson(node: unknown): string | null {
+  if (typeof node === "string") {
+    const fileName = node.match(RESOURCE_FILE_NAME_PATTERN)?.[1];
+    return fileName ? cleanResourceTitle(fileName) : null;
+  }
+
+  if (Array.isArray(node)) {
+    for (const entry of node) {
+      const title = collectResourceTitleFromJson(entry);
+      if (title) return title;
+    }
+    return null;
+  }
+
+  if (!node || typeof node !== "object") return null;
+
+  const record = node as Record<string, unknown>;
+
+  for (const key of RESOURCE_TITLE_KEYS) {
+    const value = record[key];
+    if (typeof value === "string") {
+      const title = cleanResourceTitle(value);
+      if (title) return title;
+    }
+  }
+
+  for (const key of RESOURCE_TITLE_HINT_KEYS) {
+    const value = record[key];
+    if (typeof value === "string" && looksLikeResourceFileName(value)) {
+      const title = cleanResourceTitle(value);
+      if (title) return title;
+    }
+  }
+
+  for (const key of PREVIEW_CONTAINER_KEYS) {
+    const title = collectResourceTitleFromJson(record[key]);
+    if (title) return title;
+  }
+
+  return null;
+}
+
+function collectResourceTitleFromKeyValue(value: string): string | null {
+  for (const match of value.matchAll(RESOURCE_TITLE_KEY_PATTERN)) {
+    const key = match[1] ?? "";
+    const rawValue = match[2] ?? "";
+    if (RESOURCE_TITLE_HINT_KEYS.includes(key as (typeof RESOURCE_TITLE_HINT_KEYS)[number]) && !looksLikeResourceFileName(rawValue)) {
+      continue;
+    }
+
+    const title = cleanResourceTitle(rawValue);
+    if (title) return title;
+  }
+
+  return null;
+}
+
+function extractResourceTitle(value: string): string | null {
+  const text = value.trim();
+  if (!text) return null;
+
+  if (looksLikeResponseEnvelope(text)) {
+    try {
+      const title = collectResourceTitleFromJson(JSON.parse(text));
+      if (title) return title;
+    } catch {
+      const title = collectResourceTitleFromKeyValue(text);
+      if (title) return title;
+    }
+  }
+
+  const keyValueTitle = collectResourceTitleFromKeyValue(text);
+  if (keyValueTitle) return keyValueTitle;
+
+  return cleanResourceTitle(text.match(RESOURCE_FILE_NAME_PATTERN)?.[1] ?? "");
+}
+
 function normalizeMetadataValue(value?: string): string {
   return (value ?? "")
     .replace(/^[\s,;:.]+/g, "")
@@ -276,6 +388,9 @@ function resolveJobType(value: string, metadata?: JobMetadata): AgentJobType | u
 
   const slugType = value.match(JOB_SLUG_PATTERN)?.[1]?.replace(/-/g, "_").toUpperCase();
   if (slugType && slugType in JOB_TITLE_KEY) return slugType as AgentJobType;
+
+  const hintedType = JOB_TEXT_HINTS.find(([, pattern]) => pattern.test(value))?.[0];
+  if (hintedType) return hintedType;
 
   return undefined;
 }
@@ -322,6 +437,42 @@ function extractChatRoomName(value: string): string | null {
 function targetBody(t: TranslateFn, key: MessageKey, value: string | null | undefined) {
   const cleaned = cleanPreviewText(value ?? "");
   return cleaned ? t(key, { name: cleaned }) : null;
+}
+
+function jobTargetBody(t: TranslateFn, jobType: AgentJobType | undefined, resourceTitle: string) {
+  if (!resourceTitle) return null;
+  return t(jobType === "ANALYZE_RESOURCE" ? "notification.job.analyzeResourceTarget" : "notification.job.resourceTarget", { title: resourceTitle });
+}
+
+function formatJobBody(
+  t: TranslateFn,
+  input: {
+    bodyCandidate: string;
+    failed: boolean;
+    jobType: AgentJobType | undefined;
+    resourceTitle: string;
+    responsePreview: string | null;
+  },
+) {
+  const target = jobTargetBody(t, input.jobType, input.resourceTitle);
+  if (input.failed) return target || t("notification.job.failedBody");
+  if (target) return target;
+  if (input.jobType === "ANALYZE_RESOURCE") return t("notification.job.doneBody");
+
+  const cleanedCandidate = isBoilerplateMessage(input.bodyCandidate) ? null : cleanPreviewText(input.bodyCandidate);
+  return input.responsePreview || cleanedCandidate || t("notification.job.doneBody");
+}
+
+function resolveJobResourceTitle(input: { metadata?: JobMetadata; providedResourceTitle: string; rawBody: string; rawTitle: string }) {
+  return (
+    input.providedResourceTitle ||
+    cleanResourceTitle(input.metadata?.resourcetitle ?? "") ||
+    cleanResourceTitle(input.metadata?.resourcename ?? "") ||
+    cleanResourceTitle(input.metadata?.filename ?? "") ||
+    extractResourceTitle(input.rawBody) ||
+    extractResourceTitle(input.rawTitle) ||
+    ""
+  );
 }
 
 function notificationSourceTitle(rawTitle: string, fallback: string): string {
@@ -392,51 +543,65 @@ export function formatNotificationContent(
   const responsePreview = extractResponsePreview(rawBody) || extractResponsePreview(rawTitle);
   const providedJobType = notification.jobType ?? undefined;
   const providedResourceTitle = normalizeMetadataValue(notification.resourceTitle ?? "");
+  const combined = `${rawTitle} ${rawBody}`;
 
   if (!hasRawJobMetadata(notification)) {
+    const inferredJobType = providedJobType ?? resolveJobType(combined);
+    const sourceResourceTitle = resolveJobResourceTitle({ providedResourceTitle, rawBody, rawTitle });
+    const canBeJobNotification = notification.sourceType === "AGENT" || notification.sourceType === "RESOURCE" || !notification.sourceType;
+    const looksLikeAgentJob =
+      Boolean(providedJobType) ||
+      JOB_BOILERPLATE_PATTERN.test(combined) ||
+      (canBeJobNotification && Boolean(inferredJobType)) ||
+      (notification.sourceType === "AGENT" &&
+        (JOB_FAILED_PATTERN.test(combined) || looksLikeResponseEnvelope(rawBody) || looksLikeResponseEnvelope(rawTitle)));
+
+    if (looksLikeAgentJob) {
+      const jobType = inferredJobType;
+      const failed = JOB_FAILED_PATTERN.test(combined);
+      return {
+        title: t(notificationTitleKey(jobType, failed)),
+        body: formatJobBody(t, {
+          bodyCandidate: rawBody || rawTitle,
+          failed,
+          jobType,
+          resourceTitle: sourceResourceTitle,
+          responsePreview,
+        }),
+      };
+    }
+
     const typed = formatNotificationBySourceType(t, notification, {
       rawBody,
       rawTitle,
-      resourceTitle: providedResourceTitle,
+      resourceTitle: sourceResourceTitle,
       responsePreview,
     });
     if (typed) return typed;
 
-    if (providedJobType) {
-      const failed = JOB_FAILED_PATTERN.test(`${rawTitle} ${rawBody}`);
-      return {
-        title: t(notificationTitleKey(providedJobType, failed)),
-        body:
-          providedResourceTitle && providedJobType === "ANALYZE_RESOURCE"
-            ? t("notification.job.analyzeResourceTarget", { title: providedResourceTitle })
-            : responsePreview || rawBody || null,
-      };
-    }
     return { title: rawTitle, body: responsePreview || rawBody || null };
   }
 
-  const combined = `${rawTitle} ${rawBody}`;
   const metadata = parseJobMetadata(combined);
   const jobType = providedJobType ?? resolveJobType(combined, metadata);
   const failed = JOB_FAILED_PATTERN.test(combined);
   const titleKey = notificationTitleKey(jobType, failed);
-  const resourceTitle = providedResourceTitle || metadata.resourcetitle || metadata.resourcename || metadata.filename || "";
+  const resourceTitle = resolveJobResourceTitle({ metadata, providedResourceTitle, rawBody, rawTitle });
   const message = normalizeMetadataValue(metadata.message);
 
   // 원문에 잡 메타데이터를 뺀 사람이 쓴 문장이 남아 있으면 본문으로 살리고,
   // 흔한 보일러플레이트("AI 작업이 완료...")만 남으면 일반 안내 문구로 대체한다.
   const remainder = stripRawJobMetadata(rawBody) || stripRawJobMetadata(rawTitle);
   const bodyCandidate = responsePreview || message || remainder;
-  const fallbackBodyKey = failed ? "notification.job.failedBody" : "notification.job.doneBody";
 
   return {
     title: t(titleKey),
-    body: responsePreview
-      ? responsePreview
-      : resourceTitle
-        ? t(jobType === "ANALYZE_RESOURCE" ? "notification.job.analyzeResourceTarget" : "notification.job.resourceTarget", { title: resourceTitle })
-        : isBoilerplateMessage(bodyCandidate)
-          ? t(fallbackBodyKey)
-          : bodyCandidate,
+    body: formatJobBody(t, {
+      bodyCandidate,
+      failed,
+      jobType,
+      resourceTitle,
+      responsePreview,
+    }),
   };
 }

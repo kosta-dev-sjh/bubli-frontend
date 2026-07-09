@@ -534,13 +534,29 @@ button.profileButton {
   font-weight: 720;
 }
 
-/* 알림 항목 우측 액션 묶음(읽음 처리 + 상세 + 보관) — 좁은 패널에서도 버튼이 잘리지 않게 세로로 쌓는다. */
+/* 알림 항목 우측 액션 묶음. 초대 수락 같은 단일 액션은 기존 우측 정렬을 유지한다. */
 .notificationActions {
   display: flex;
   flex: 0 0 auto;
   flex-direction: column;
   align-items: flex-end;
   gap: 2px;
+}
+
+/* 일반 알림의 읽음 처리 + 상세 + 삭제는 카드 하단에 한 줄 텍스트 액션으로 묶는다. */
+.notificationInlineActions {
+  flex: 1 0 100%;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 2px 6px;
+  margin-top: 2px;
+}
+
+.notificationInlineActions .notificationReadButton {
+  min-height: 28px;
+  padding: 0 6px;
+  font-size: 13px;
 }
 
 .notificationsEmpty {
