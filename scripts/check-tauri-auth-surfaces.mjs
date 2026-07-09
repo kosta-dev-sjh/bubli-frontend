@@ -366,8 +366,8 @@ assertContains(
 );
 assertContains(
   projectRoomWorkRoute,
-  /readWindowsWorkMembersTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*withWorkMembersDeadline[\s\S]*const membersPromise = projectRoomApi\.getMembers\(roomId\)[\s\S]*Promise\.all\(\[[\s\S]*authApi\.getMe\(\)[\s\S]*projectRoomApi\.get\(roomId\)[\s\S]*wbsApi\.getBoard\(roomId\)[\s\S]*const membersPage = await withWorkMembersDeadline\(membersPromise, membersTimeoutMs\)[\s\S]*applyReadyState\(membersPage\)[\s\S]*membersPromise\.then/,
-  "Project room work route must not block Windows board entry on member-list hydration; members should be deadline-bound and backfilled.",
+  /getStoredAuthSession[\s\S]*readWindowsProjectRoomsCache[\s\S]*readWindowsWorkRouteTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*withWorkRouteDeadline[\s\S]*readCachedWindowsWorkRoom[\s\S]*const cachedUser = isWindowsTauriRuntime\(\) \? getStoredAuthSession\(\)\?\.user \?\? null : null[\s\S]*const cachedRoom = await readCachedWindowsWorkRoom\(roomId\)[\s\S]*const currentUserRequest = authApi\.getMe\(\)[\s\S]*const roomRequest = projectRoomApi\.get\(roomId\)[\s\S]*const boardRequest = wbsApi\.getBoard\(roomId\)[\s\S]*withWorkRouteDeadline<AuthUser>\(currentUserRequest, routeTimeoutMs, cachedUser\)[\s\S]*withWorkRouteDeadline<ProjectRoomResponse>\(roomRequest, routeTimeoutMs, cachedRoom\)[\s\S]*withWorkRouteDeadline\(membersPromise, routeTimeoutMs\)[\s\S]*Promise\.allSettled\(\[currentUserRequest, roomRequest\]\)[\s\S]*membersPromise\.then/,
+  "Project room work route must not block Windows board entry on user, room, or member-list hydration; cached session/room context should render first and slower server details should backfill.",
 );
 assertContains(
   wbsGanttPanel,
