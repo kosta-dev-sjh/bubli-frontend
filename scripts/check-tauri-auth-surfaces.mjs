@@ -365,13 +365,18 @@ assertContains(
 );
 assertContains(
   appShell,
-  /writeWindowsChatRoomsCache[\s\S]*writeWindowsProjectRoomsCache[\s\S]*void writeWindowsProjectRoomsCache\(roomPage\.items\)[\s\S]*void writeWindowsProjectRoomsCache\(roomPage\.value\.items\)[\s\S]*chatApi[\s\S]*\.listRooms\(\)[\s\S]*writeWindowsChatRoomsCache\(page\.items\)/,
+  /writeWindowsChatRoomsCache[\s\S]*writeWindowsProjectRoomsCache[\s\S]*void writeWindowsProjectRoomsCache\(roomPage\.items\)[\s\S]*const rooms = roomPage\.value\.items[\s\S]*void writeWindowsProjectRoomsCache\(rooms\)[\s\S]*chatApi[\s\S]*\.listRooms\(\)[\s\S]*writeWindowsChatRoomsCache\(page\.items\)/,
   "AppShell must prewarm Windows route caches so first navigation does not wait on room-list server calls.",
 );
 assertContains(
   appShell,
   /isWindowsTauriRuntime[\s\S]*WINDOWS_SHELL_BACKGROUND_DELAY_MS[\s\S]*windowsShellBackgroundDelayMs[\s\S]*window\.setTimeout\(\(\) => \{[\s\S]*notificationApi\.list\(\{ status: "UNREAD" \}\)[\s\S]*projectRoomApi\.getMyInvitations\("PENDING"\)[\s\S]*window\.setTimeout\(\(\) => \{[\s\S]*chatApi[\s\S]*\.listRooms\(\)[\s\S]*windowsShellBackgroundDelayMs\(\)/,
   "Windows AppShell background notification/invitation/chat-cache requests must be delayed and request only unread notifications so they do not compete with first route rendering.",
+);
+assertContains(
+  appShell,
+  /const refreshShellLists = useCallback\(async \(\) => \{[\s\S]*const workspaceHydrationTimeoutMs = await readWindowsWorkspaceHydrationTimeoutMs\(\)[\s\S]*const roomRequest = projectRoomApi\.list\(\)[\s\S]*const notificationRequest = notificationApi\.list\(\{ status: "UNREAD" \}\)[\s\S]*const invitationRequest = projectRoomApi\.getMyInvitations\("PENDING"\)[\s\S]*boundWindowsWorkspaceHydration\(roomRequest, workspaceHydrationTimeoutMs, null\)[\s\S]*boundWindowsWorkspaceHydration\(notificationRequest, workspaceHydrationTimeoutMs, null\)[\s\S]*Promise\.allSettled\(\[roomRequest, notificationRequest, invitationRequest\]\)\.then/,
+  "Windows AppShell refreshes must deadline-bound shell list refreshes and backfill project rooms, unread notifications, and invitations instead of letting one slow request delay the shell update batch.",
 );
 assertContains(
   projectRoomWorkRoute,

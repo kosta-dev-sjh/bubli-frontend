@@ -580,21 +580,50 @@ export function AppShell({ children }: AppShellProps) {
   const refreshShellLists = useCallback(async () => {
     if (!shellReady) return;
 
+    const workspaceHydrationTimeoutMs = await readWindowsWorkspaceHydrationTimeoutMs();
+    const roomRequest = projectRoomApi.list();
+    const notificationRequest = notificationApi.list({ status: "UNREAD" });
+    const invitationRequest = projectRoomApi.getMyInvitations("PENDING");
     const [roomPage, notificationPage, invitationPage] = await Promise.allSettled([
-      projectRoomApi.list(),
-      notificationApi.list({ status: "UNREAD" }),
-      projectRoomApi.getMyInvitations("PENDING"),
+      boundWindowsWorkspaceHydration(roomRequest, workspaceHydrationTimeoutMs, null),
+      boundWindowsWorkspaceHydration(notificationRequest, workspaceHydrationTimeoutMs, null),
+      boundWindowsWorkspaceHydration(invitationRequest, workspaceHydrationTimeoutMs, null),
     ]);
 
-    if (roomPage.status === "fulfilled") {
-      void writeWindowsProjectRoomsCache(roomPage.value.items);
-      setState((current) => (current.kind === "ready" ? { ...current, rooms: roomPage.value.items } : current));
+    if (roomPage.status === "fulfilled" && roomPage.value) {
+      const rooms = roomPage.value.items;
+      void writeWindowsProjectRoomsCache(rooms);
+      setState((current) => (current.kind === "ready" ? { ...current, rooms } : current));
     }
-    if (notificationPage.status === "fulfilled") {
-      setState((current) => (current.kind === "ready" ? { ...current, notifications: notificationPage.value.items } : current));
+    if (notificationPage.status === "fulfilled" && notificationPage.value) {
+      const notifications = notificationPage.value.items;
+      setState((current) => (current.kind === "ready" ? { ...current, notifications } : current));
     }
-    if (invitationPage.status === "fulfilled") {
+    if (invitationPage.status === "fulfilled" && invitationPage.value) {
       setMyInvitations(invitationPage.value.items);
+    }
+    if (
+      workspaceHydrationTimeoutMs > 0 &&
+      ((roomPage.status === "fulfilled" && !roomPage.value) ||
+        (notificationPage.status === "fulfilled" && !notificationPage.value) ||
+        (invitationPage.status === "fulfilled" && !invitationPage.value))
+    ) {
+      void Promise.allSettled([roomRequest, notificationRequest, invitationRequest]).then(
+        ([latestRoomPage, latestNotificationPage, latestInvitationPage]) => {
+          if (latestRoomPage.status === "fulfilled") {
+            void writeWindowsProjectRoomsCache(latestRoomPage.value.items);
+            setState((current) => (current.kind === "ready" ? { ...current, rooms: latestRoomPage.value.items } : current));
+          }
+          if (latestNotificationPage.status === "fulfilled") {
+            setState((current) =>
+              current.kind === "ready" ? { ...current, notifications: latestNotificationPage.value.items } : current,
+            );
+          }
+          if (latestInvitationPage.status === "fulfilled") {
+            setMyInvitations(latestInvitationPage.value.items);
+          }
+        },
+      );
     }
   }, [shellReady]);
 
