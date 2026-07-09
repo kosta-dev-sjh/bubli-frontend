@@ -74,6 +74,7 @@ import {
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { sendTauriNotification } from "@/lib/tauri/notification";
 import { defaultTauriStartupOptimizationConfig, readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
+import { readWindowsProjectRoomsCache, writeWindowsProjectRoomsCache } from "@/lib/tauri/windows-route-cache";
 import { readCachedWidgetRoomNames, readWidgetSummary, writeCachedWidgetRoomNames, type WidgetRoomNameMap } from "@/lib/widget";
 import {
   readWidgetAgentReplyReadMarker,
@@ -2699,10 +2700,19 @@ function DesktopWidgetSurface() {
       setActiveVoiceRoom(voiceValue);
       const projectRoomsValue = projectRoomsResult.status === "fulfilled" ? projectRoomsResult.value : null;
       if (!cancelled && projectRoomsValue) {
+        void writeWindowsProjectRoomsCache(projectRoomsValue.items);
         const nextRoomOptions = projectRoomsValue.items
           .filter((room) => room.status === "ACTIVE")
           .map((room) => ({ id: room.id, name: room.name }));
         setWidgetRoomOptions((current) => keepIfDeepEqual(current, nextRoomOptions));
+      } else if (!cancelled && loadProjectRooms && isWindowsStartupProfile) {
+        const cachedRooms = await readWindowsProjectRoomsCache().catch(() => null);
+        if (!cancelled && cachedRooms) {
+          const nextRoomOptions = cachedRooms
+            .filter((room) => room.status === "ACTIVE")
+            .map((room) => ({ id: room.id, name: room.name }));
+          setWidgetRoomOptions((current) => keepIfDeepEqual(current, nextRoomOptions));
+        }
       }
       const suggestionsValue = suggestionsResult.status === "fulfilled" ? suggestionsResult.value : null;
       const personalSuggestionsValue = personalSuggestionsResult.status === "fulfilled" ? personalSuggestionsResult.value : null;
