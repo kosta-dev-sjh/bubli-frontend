@@ -734,7 +734,6 @@ function ChatPageContent() {
     roomId: null,
   });
   const activeChatRoomIdRef = useRef<string | null>(null);
-  const loadedMessagesRoomIdRef = useRef<string | null>(null);
   const currentUserRef = useRef<AuthUser | null>(null);
   const currentUser = profileState.kind === "ready" ? profileState.user : null;
   const knownSenderNamesById = useMemo(() => {
@@ -780,7 +779,6 @@ function ChatPageContent() {
   }, []);
 
   const appendMessage = useCallback((message: ChatMessageResponse) => {
-    loadedMessagesRoomIdRef.current = message.chatRoomId;
     setMessagesState((current) => {
       if (current.kind !== "ready") {
         return { kind: "ready", messages: [message] };
@@ -797,14 +795,13 @@ function ChatPageContent() {
     });
   }, []);
 
-  // 실시간 수신/재조회 메시지를 현재 스레드에 병합 — 중복 제거 후
-  // withAgentCommandMessages 변환과 roomSequence 정렬을 다시 적용한다.
+  // 실시간 수신/재조회 메시지를 현재 스레드의 원본 메시지에 병합한다.
+  // /bubli 합성 말풍선과 발신자 이름 보정은 렌더 직전 displayMessages에서만 적용한다.
   const mergeIncomingMessages = useCallback(
     (incoming: ChatMessageResponse[]) => {
       const scopedRoomId = activeChatRoomIdRef.current;
       const scoped = incoming.filter((message) => message.chatRoomId === scopedRoomId);
       if (scoped.length === 0) return;
-      loadedMessagesRoomIdRef.current = scopedRoomId;
 
       setMessagesState((current) => {
         const base = current.kind === "ready" ? current.messages : [];
@@ -814,11 +811,11 @@ function ChatPageContent() {
         if (fresh.length === 0) return current;
         return {
           kind: "ready",
-          messages: withAgentCommandMessages(t, [...withoutSyntheticAgentCommands(base), ...fresh], currentUser, knownSenderNamesById),
+          messages: [...withoutSyntheticAgentCommands(base), ...fresh].sort((a, b) => a.roomSequence - b.roomSequence),
         };
       });
     },
-    [currentUser, knownSenderNamesById, t],
+    [],
   );
 
   // 재연결 시 놓친 메시지 보정 — 최신 페이지를 다시 받아 병합한다(교체 아님).
@@ -985,19 +982,7 @@ function ChatPageContent() {
       .getMembers(selectedProjectRoomId)
       .then((page) => {
         if (cancelled) return;
-        const activeMembers = page.items.filter((member) => member.status === "ACTIVE");
-        const nextSenderNames = new Map(knownSenderNamesById);
-        for (const member of activeMembers) {
-          if (member.userId && member.name.trim()) nextSenderNames.set(member.userId, member.name);
-        }
-        setProjectRoomMembers(activeMembers);
-        setMessagesState((current) => {
-          if (current.kind !== "ready") return current;
-          return {
-            kind: "ready",
-            messages: withAgentCommandMessages(t, withoutSyntheticAgentCommands(current.messages), currentUser, nextSenderNames),
-          };
-        });
+        setProjectRoomMembers(page.items.filter((member) => member.status === "ACTIVE"));
       })
       .catch(() => {
         if (!cancelled) setProjectRoomMembers([]);
@@ -1006,7 +991,15 @@ function ChatPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, knownSenderNamesById, selectedProjectRoomId, t]);
+  }, [selectedProjectRoomId]);
+
+  const displayMessages = useMemo(
+    () =>
+      messagesState.kind === "ready"
+        ? withAgentCommandMessages(t, withoutSyntheticAgentCommands(messagesState.messages), currentUser, knownSenderNamesById)
+        : [],
+    [currentUser, knownSenderNamesById, messagesState, t],
+  );
   const agentAutocomplete = useAgentCommandAutocomplete({
     draft,
     enabled: selectedRoom?.chatType === "ROOM",
@@ -1139,12 +1132,6 @@ function ChatPageContent() {
         // 방 전환으로 더 이상 쓰지 않는 요청 결과는 조용히 버린다.
       });
     };
-    const keepCurrentThreadWhileRefreshing = () => {
-      setMessagesState((current) => {
-        if (loadedMessagesRoomIdRef.current === chatRoomId && current.kind === "ready") return current;
-        return { kind: "loading" };
-      });
-    };
 
     if (isWindowsTauriRuntime()) {
       const cachedMessages = await readCachedRoomMessages(chatRoomId, 40);
@@ -1153,13 +1140,12 @@ function ChatPageContent() {
         return;
       }
       if (cachedMessages.length > 0) {
-        loadedMessagesRoomIdRef.current = chatRoomId;
-        setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, cachedMessages, currentUser, knownSenderNamesById) });
+        setMessagesState({ kind: "ready", messages: cachedMessages });
       } else {
-        keepCurrentThreadWhileRefreshing();
+        setMessagesState({ kind: "loading" });
       }
     } else {
-      keepCurrentThreadWhileRefreshing();
+      setMessagesState({ kind: "loading" });
     }
 
     try {
@@ -1167,8 +1153,7 @@ function ChatPageContent() {
       if (activeChatRoomIdRef.current !== chatRoomId) return;
       const sortedMessages = [...page.items].sort((a, b) => a.roomSequence - b.roomSequence);
       void syncCachedRoomMessages(chatRoomId, sortedMessages, 0);
-      loadedMessagesRoomIdRef.current = chatRoomId;
-      setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, sortedMessages, currentUser, knownSenderNamesById) });
+      setMessagesState({ kind: "ready", messages: sortedMessages });
       const lastReadSequence = sortedMessages.at(-1)?.roomSequence;
       if (lastReadSequence !== undefined) {
         void chatApi.markRead(chatRoomId, lastReadSequence).catch(() => {
@@ -1178,20 +1163,18 @@ function ChatPageContent() {
     } catch {
       if (activeChatRoomIdRef.current !== chatRoomId) return;
       if (shouldUseWorkspacePreviewData()) {
-        loadedMessagesRoomIdRef.current = chatRoomId;
-        setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, workspacePreviewChatMessages(chatRoomId), currentUser, knownSenderNamesById) });
+        setMessagesState({ kind: "ready", messages: workspacePreviewChatMessages(chatRoomId) });
         return;
       }
       const cachedMessages = await readCachedRoomMessages(chatRoomId, 40);
       if (activeChatRoomIdRef.current !== chatRoomId) return;
       if (cachedMessages.length > 0) {
-        loadedMessagesRoomIdRef.current = chatRoomId;
-        setMessagesState({ kind: "ready", messages: withAgentCommandMessages(t, cachedMessages, currentUser, knownSenderNamesById) });
+        setMessagesState({ kind: "ready", messages: cachedMessages });
         return;
       }
       setMessagesState({ kind: "offline" });
     }
-  }, [currentUser, knownSenderNamesById, t]);
+  }, []);
 
   const loadSocial = useCallback(async () => {
     setSocialState({ kind: "loading" });
@@ -1579,7 +1562,6 @@ function ChatPageContent() {
       const timeoutId = window.setTimeout(() => {
         pinnedChatRoomIdRef.current = null;
         autoScrollSnapshotRef.current = { messageKey: null, roomId: null };
-        loadedMessagesRoomIdRef.current = null;
         setMessagesState({ kind: "idle" });
       }, 0);
       return () => window.clearTimeout(timeoutId);
@@ -1720,9 +1702,9 @@ function ChatPageContent() {
   // 하단 근처에 있을 때만 자동 스크롤 — 과거 메시지를 읽는 중이면 위치를 유지한다.
   useEffect(() => {
     if (messagesState.kind !== "ready") return;
-    const latestMessage = messagesState.messages.at(-1);
+    const latestMessage = displayMessages.at(-1);
     const messageKey = latestMessage
-      ? `${messagesState.messages.length}:${latestMessage.id}:${latestMessage.roomSequence}`
+      ? `${displayMessages.length}:${latestMessage.id}:${latestMessage.roomSequence}`
       : "empty";
     const previous = autoScrollSnapshotRef.current;
     const roomChanged = previous.roomId !== activeChatRoomId;
@@ -1733,7 +1715,7 @@ function ChatPageContent() {
     if (!viewport) return;
     if (!roomChanged && (!messageTailChanged || !pinnedToBottomRef.current)) return;
     viewport.scrollTop = viewport.scrollHeight;
-  }, [activeChatRoomId, messagesState]);
+  }, [activeChatRoomId, displayMessages, messagesState.kind]);
 
   const handleMessagesScroll = useCallback(() => {
     const viewport = messagesViewportRef.current;
@@ -2315,7 +2297,21 @@ function ChatPageContent() {
     } finally {
       setSending(false);
     }
-  }, [activeChatRoomId, appendMessage, draft, maybeSplashEmojiMessage, replyToMessage, selectedAttachment, selectedAgentRoomId, selectedRoom, stopTypingPublish, t]);
+  }, [
+    activeChatRoomId,
+    appendMessage,
+    currentUser?.id,
+    currentUser?.name,
+    draft,
+    maybeSplashEmojiMessage,
+    messagesState,
+    replyToMessage,
+    selectedAttachment,
+    selectedAgentRoomId,
+    selectedRoom,
+    stopTypingPublish,
+    t,
+  ]);
 
   const handleDownload = useCallback(async (resourceId: string, fallbackName?: string) => {
     setDownloadingResourceId(resourceId);
@@ -2588,15 +2584,16 @@ function ChatPageContent() {
             ) : null}
             {messagesState.kind === "loading" ? <span className="workspace-route__empty">{t("chat.messages.loading")}</span> : null}
             {messagesState.kind === "offline" ? <span className="workspace-route__empty">{t("chat.messages.offline")}</span> : null}
-            {messagesState.kind === "ready" && messagesState.messages.length === 0 ? (
+            {messagesState.kind === "ready" && displayMessages.length === 0 ? (
               <span className="workspace-route__empty">{t("chat.messages.empty")}</span>
             ) : null}
 
-            {messagesState.kind === "ready" && messagesState.messages.length > 0 ? (
+            {messagesState.kind === "ready" && displayMessages.length > 0 ? (
               <div className="workspace-route__messages" onScroll={handleMessagesScroll} ref={messagesViewportRef}>
-                {messagesState.messages.map((message) => {
+                {displayMessages.map((message) => {
                   const isAgent = message.messageType === "AGENT_RESPONSE" || message.sender.type === "AGENT";
                   const isMine = !isAgent && Boolean(currentUser?.id && message.sender.id === currentUser.id);
+                  const isSyntheticAgentCommand = message.id.startsWith("agent-command-");
                   const text = displayMessageText(t, message);
                   const citations = agentCitations(message);
                   const groundingMessages = agentGroundingMessages(message);
@@ -2656,7 +2653,7 @@ function ChatPageContent() {
                                       {t("chat.messages.menuReply")}
                                     </button>
                                   </li>
-                                  {isMine ? (
+                                  {isMine && !isSyntheticAgentCommand ? (
                                     <li role="none">
                                       <button
                                         className="workspace-route__message-menu-item workspace-route__message-menu-item--danger"
