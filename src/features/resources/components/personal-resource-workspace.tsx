@@ -166,7 +166,9 @@ export function PersonalResourceWorkspace() {
   }, [t]);
 
   const refreshResources = useCallback(() => {
-    setState({ kind: "loading" });
+    if (!isWindowsTauriRuntime()) {
+      setState({ kind: "loading" });
+    }
     void loadResources();
   }, [loadResources]);
 

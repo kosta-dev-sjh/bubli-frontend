@@ -433,9 +433,19 @@ assertContains(
   "Windows Tauri personal resources must switch out of loading after a bounded initial wait and finish slower resource collections in the background.",
 );
 assertContains(
+  personalResourceWorkspace,
+  /const refreshResources = useCallback\(\(\) => \{[\s\S]*if \(!isWindowsTauriRuntime\(\)\) \{[\s\S]*setState\(\{ kind: "loading" \}\)[\s\S]*void loadResources\(\)/,
+  "Windows Tauri personal resource refreshes must keep the current list visible while server data backfills.",
+);
+assertContains(
   roomResourceWorkspace,
   /readWindowsResourceInitialTimeoutMs[\s\S]*readTauriStartupOptimizationConfig\(\)[\s\S]*withResourceInitialDeadline[\s\S]*const loadData = Promise\.all\([\s\S]*resourcesApi\.listRoomResources\(roomId\)[\s\S]*agentApi\.listRoomGeneratedDocuments\(roomId\)[\s\S]*const initialData = await withResourceInitialDeadline\(loadData, initialTimeoutMs\)[\s\S]*loadData\.then\(applyLoadedData\)/,
   "Windows Tauri room resources must switch out of loading after a bounded initial wait and finish slower resource collections in the background.",
+);
+assertContains(
+  roomResourceWorkspace,
+  /const refreshResources = useCallback\(\(\) => \{[\s\S]*if \(!isWindowsTauriRuntime\(\)\) \{[\s\S]*setState\(\{ kind: "loading" \}\)[\s\S]*void loadResources\(\)/,
+  "Windows Tauri room resource refreshes must keep the current list visible while server data backfills.",
 );
 assertContains(
   resourceBoardCommon,
