@@ -324,6 +324,49 @@ Blocked or suspicious local verification:
 
 - Backend `test --tests "com.bubli.personal.notification.service.NotificationServiceTest"` failed locally with a Gradle test worker `ClassNotFoundException`, even though `compileTestJava` produced classes and `javap` could load the test class. Treat this as a local test-runner/classpath issue until CI or another clean environment proves otherwise.
 
+## Runtime Difference Troubleshooting Log
+
+This issue is being treated as a platform runtime adaptation problem, not as a generic "make it faster" UI polish task.
+
+Observed symptoms:
+
+- Windows installed Tauri build felt slower than macOS during initial app load and page/widget transitions.
+- The main window could become visible before authenticated data, widget context, calendar state, notifications, or secondary widget data were ready.
+- Slow secondary requests sometimes looked like empty data or disconnected state, even when the existing local UI state was still valid.
+- Duplicate or repeated widget-window startup was observed on Windows during restore/auto-launch paths.
+
+Working analysis:
+
+- Windows WebView2 startup has a higher visible initialization cost than the macOS WebKit runtime.
+- The frontend previously started app-shell hydration, widget restore/launch, notification hydration, project-room hydration, and several page-level API calls in the same early window.
+- On Windows, that API fan-out competes with WebView initialization and native window creation, so backend latency or one slow secondary request is more visible to the user.
+- Some refresh paths replaced current ready data with empty/loading/disconnected fallback values while a slower request was still in flight.
+
+Applied strategy so far:
+
+- Initialization sequencing: keep the authenticated shell and room context stable before launching/refreshing widget surfaces.
+- Deferred loading: defer non-critical widget and notification hydration so the first authenticated surface is not blocked by every secondary request.
+- Bounded hydration: use Windows startup optimization timeouts around secondary startup calls so slow optional data cannot block the primary local view indefinitely.
+- Stale-while-refresh UI state: preserve the last ready state during quiet refreshes when Windows bounded hydration returns a fallback, then backfill with the eventual server response.
+- Window lifecycle guarding: keep widget launch independent from room-tab churn and use cooldown/session-validated launch paths to avoid repeated auto-launch flicker.
+- Request fan-out reduction: reuse local Windows route/session/project-room caches where available instead of refetching the same context for every surface.
+
+Current code-level follow-up:
+
+- Calendar page quiet refresh now preserves the previous ready schedule, room-event, and Google connection state when Windows secondary hydration is slow or fails. This prevents a delayed room-event or Google connection check from visually turning a populated calendar into an empty/disconnected surface during normal refresh.
+- `check:tauri-auth-surfaces` now asserts that the Windows calendar fallback keeps the previous ready state instead of regressing to an empty state on bounded secondary-call timeout.
+
+Verification status:
+
+- Implemented in code: yes.
+- Automated contract added: yes.
+- Installed Windows build measured before/after: not yet.
+- Numeric percent improvement: not claimed. The correct metric still requires installed-build cold/warm timing, request count, and slowest request capture under the same account/data/backend conditions.
+
+Safe wording for status reports:
+
+> We are adapting the Windows Tauri runtime path by sequencing initialization, deferring non-critical loading, bounding optional hydration, and preserving ready UI state during slow refreshes. This reduces startup contention and visible empty-state flicker, but a numeric speed improvement is not claimed until measured on the installed Windows build.
+
 ## Measurement Rules
 
 Do not claim a numeric speed improvement until it is measured on the installed Windows build.

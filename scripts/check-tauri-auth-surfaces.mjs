@@ -1865,6 +1865,11 @@ assertContains(
   "Windows Calendar page must bound secondary room-event and Google-connection hydration so slow server calls do not block the local schedule view.",
 );
 assertContains(
+  calendarPage,
+  /const stateRef = useRef\(state\)[\s\S]*const googleConnectionRef = useRef\(googleConnection\)[\s\S]*stateRef\.current = state[\s\S]*googleConnectionRef\.current = googleConnection[\s\S]*const previousState = stateRef\.current[\s\S]*const previousGoogleConnection = googleConnectionRef\.current[\s\S]*const canPreserveQuietState = options\?\.quiet && previousState\.kind === "ready"[\s\S]*events: scheduleResult\.status === "fulfilled" \? scheduleResult\.value\.items : canPreserveQuietState \? previousState\.events : \[\][\s\S]*roomEvents:[\s\S]*canPreserveQuietState && selectedRoomId[\s\S]*previousState\.roomEvents[\s\S]*setGoogleConnection\(previousGoogleConnection\.kind === "connected" \? previousGoogleConnection : \{ kind: "disconnected" \}\)[\s\S]*if \(canPreserveQuietState\) \{[\s\S]*setState\(\{ \.\.\.previousState, scheduleLoadFailed: true \}\)[\s\S]*setGoogleConnection\(previousGoogleConnection\.kind === "connected" \? previousGoogleConnection : \{ kind: "error" \}\)/,
+  "Windows Calendar refresh must preserve the previous ready state during quiet hydration failures or bounded secondary-call timeouts.",
+);
+assertContains(
   settingsPage,
   /getStoredAuthSession[\s\S]*isWindowsTauriRuntime[\s\S]*const cachedUser = isWindowsTauriRuntime\(\) \? getStoredAuthSession\(\)\?\.user \?\? null : null[\s\S]*const userRequest = authApi\.getMe\(\)[\s\S]*boundSettingsHydration<AuthUser>\(userRequest, cachedUser\)[\s\S]*userRequest\.then\([\s\S]*setNameDraft\(latestUser\.name\)[\s\S]*user: latestUser[\s\S]*error instanceof ApiClientError && error\.status === 401[\s\S]*setState\(\{ kind: "auth" \}\)/,
   "Windows Settings page must use the mirrored session user as a bounded fallback, then backfill /api/me.",
