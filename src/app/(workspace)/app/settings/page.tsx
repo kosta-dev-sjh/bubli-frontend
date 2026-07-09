@@ -51,6 +51,7 @@ import {
 import { listenManagedFolderWatchEvents } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
+import { readWindowsProjectRoomsCache, writeWindowsProjectRoomsCache } from "@/lib/tauri/windows-route-cache";
 import { DesktopAppDownload } from "@/features/download/components/desktop-app-download";
 import {
   tauriCommands,
@@ -408,6 +409,7 @@ export default function SettingsPage() {
       const settingsHydrationTimeoutMs = await readWindowsSettingsHydrationTimeoutMs();
       const boundSettingsHydration = <T,>(task: Promise<T>, fallback: T) =>
         withSettingsHydrationTimeout(task, settingsHydrationTimeoutMs, fallback);
+      const cachedRooms = await readWindowsProjectRoomsCache().catch(() => null);
       const [notifications, privacy, storage, activityLogs, widgetBubbles, localFolders, googleConnection, preferences, roomPage] = await Promise.allSettled([
         settingsApi.getNotificationPreferences(),
         settingsApi.getPrivacyConsents(),
@@ -423,6 +425,9 @@ export default function SettingsPage() {
       ]);
       const folderResult = settledValue(localFolders, null);
       const roomPageResult = settledValue(roomPage, null);
+      if (roomPageResult) {
+        void writeWindowsProjectRoomsCache(roomPageResult.items);
+      }
 
       setNameDraft(user.name);
       setState({
@@ -437,7 +442,7 @@ export default function SettingsPage() {
           notifications: settledValue(notifications, null),
           preferences: settledValue(preferences, null),
           privacy: settledValue(privacy, null),
-          rooms: roomPageResult?.items ?? [],
+          rooms: roomPageResult?.items ?? cachedRooms ?? [],
           storage: settledValue(storage, null),
           widgetBubbles: settledValue(widgetBubbles, null),
         },
@@ -458,10 +463,13 @@ export default function SettingsPage() {
           calendarApi.getGoogleConnection(),
           projectRoomApi.list(),
         ]).then(([widgetBubblesRetry, localFoldersRetry, googleConnectionRetry, roomPageRetry]) => {
+          const retryRoomPage = settledValue(roomPageRetry, null);
+          if (retryRoomPage) {
+            void writeWindowsProjectRoomsCache(retryRoomPage.items);
+          }
           setState((current) => {
             if (current.kind !== "ready") return current;
             const retryFolderResult = settledValue(localFoldersRetry, null);
-            const retryRoomPage = settledValue(roomPageRetry, null);
             return {
               ...current,
               settings: {

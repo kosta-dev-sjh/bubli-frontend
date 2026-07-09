@@ -323,6 +323,16 @@ assertContains(
   "Windows Tauri project room lists must render the recent successful room list before waiting on the server, then replace it with the latest server list.",
 );
 assertContains(
+  settingsPage,
+  /readWindowsProjectRoomsCache[\s\S]*writeWindowsProjectRoomsCache[\s\S]*const cachedRooms = await readWindowsProjectRoomsCache\(\)\.catch\(\(\) => null\)[\s\S]*rooms: roomPageResult\?\.items \?\? cachedRooms \?\? \[\][\s\S]*void writeWindowsProjectRoomsCache\(retryRoomPage\.items\)/,
+  "Windows Tauri settings must keep recent project-room options while slower settings hydration and room-list backfill finish.",
+);
+assertContains(
+  calendarPage,
+  /readWindowsProjectRoomsCache[\s\S]*writeWindowsProjectRoomsCache[\s\S]*const cachedRooms = await readWindowsProjectRoomsCache\(\)\.catch\(\(\) => null\)[\s\S]*setRoomCalendarNames\(cachedNames\)[\s\S]*projectRoomApi\.list\(\)[\s\S]*void writeWindowsProjectRoomsCache\(roomsResult\.value\.items\)[\s\S]*else if \(cachedRooms\)/,
+  "Windows Tauri calendar must reuse cached project-room names for calendar grouping while the server room list backfills.",
+);
+assertContains(
   windowsRouteCache,
   /WINDOWS_CHAT_ROOMS_CACHE_KEY[\s\S]*WINDOWS_PROJECT_ROOMS_CACHE_KEY[\s\S]*isWindowsTauriRuntime\(\)[\s\S]*tauriCommands\.readWidgetPref[\s\S]*isWindowsTauriRuntime\(\)[\s\S]*tauriCommands\.storeWidgetPref[\s\S]*readWindowsChatRoomsCache[\s\S]*writeWindowsChatRoomsCache[\s\S]*readWindowsProjectRoomsCache[\s\S]*writeWindowsProjectRoomsCache/,
   "Windows route caches must use Tauri SQLite widget preferences instead of browser localStorage.",
