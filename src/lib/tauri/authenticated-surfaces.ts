@@ -13,6 +13,7 @@ import {
   readTauriStartupOptimizationConfig,
   type TauriStartupOptimizationConfig,
 } from "@/lib/tauri/startup-optimization";
+import { readWindowsProjectRoomsCache, writeWindowsProjectRoomsCache } from "@/lib/tauri/windows-route-cache";
 import { readWidgetSummary } from "@/lib/widget";
 import { startWidgetUsageAutoSync, stopWidgetUsageAutoSync } from "@/lib/widget/widget-usage-auto-sync";
 import {
@@ -344,11 +345,32 @@ async function resolveLaunchSelectedRoomId() {
     return restored.roomId;
   }
 
+  const cachedRooms = await readWindowsProjectRoomsCache().catch(() => null);
+  const cachedFirstRoom = startupConfig.profile === "windows" ? cachedRooms?.[0] : null;
+  if (cachedFirstRoom?.id) {
+    seedActiveProjectRoomId(cachedFirstRoom.id, cachedFirstRoom.name);
+    void windowsStartupBound(
+      startupConfig,
+      tauriCommands.storeActiveProjectRoom({ roomId: cachedFirstRoom.id, roomLabel: cachedFirstRoom.name }),
+      "Tauri cached first room cache write timed out",
+    ).catch(() => undefined);
+    void windowsStartupBound(
+      startupConfig,
+      widgetApi.updateContext({ selectedRoomId: cachedFirstRoom.id }),
+      "Tauri cached first room context sync timed out",
+    ).catch(() => undefined);
+    void projectRoomApi.list().then((page) => writeWindowsProjectRoomsCache(page.items)).catch(() => undefined);
+    return cachedFirstRoom.id;
+  }
+
   const roomPage = await windowsStartupBound(
     startupConfig,
     projectRoomApi.list(),
     "Tauri project room fallback lookup timed out",
   ).catch(() => null);
+  if (roomPage?.items) {
+    void writeWindowsProjectRoomsCache(roomPage.items);
+  }
   const firstRoom = roomPage?.items[0];
   if (firstRoom?.id) {
     seedActiveProjectRoomId(firstRoom.id, firstRoom.name);

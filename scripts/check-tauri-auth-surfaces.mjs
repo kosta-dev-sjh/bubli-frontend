@@ -1599,8 +1599,8 @@ assertContains(
 );
 assertContains(
   surfaces,
-  /function windowsStartupBound[\s\S]*startupConfig\.profile !== "windows"[\s\S]*startupConfig\.settingsTimeoutMs[\s\S]*withTimeout\(promise, startupConfig\.settingsTimeoutMs[\s\S]*async function resolveLaunchSelectedRoomId\(\)[\s\S]*const startupConfig = await readTauriStartupOptimizationConfig\(\)[\s\S]*windowsStartupBound\([\s\S]*widgetApi\.getContext\(\)[\s\S]*windowsStartupBound\([\s\S]*projectRoomApi\.list\(\)[\s\S]*windowsStartupBound\([\s\S]*widgetApi\.updateContext/,
-  "Windows login startup must bound slow room-context and project-room fallback API calls without changing non-Windows profiles.",
+  /readWindowsProjectRoomsCache[\s\S]*writeWindowsProjectRoomsCache[\s\S]*function windowsStartupBound[\s\S]*startupConfig\.profile !== "windows"[\s\S]*startupConfig\.settingsTimeoutMs[\s\S]*withTimeout\(promise, startupConfig\.settingsTimeoutMs[\s\S]*async function resolveLaunchSelectedRoomId\(\)[\s\S]*const startupConfig = await readTauriStartupOptimizationConfig\(\)[\s\S]*windowsStartupBound\([\s\S]*widgetApi\.getContext\(\)[\s\S]*const cachedRooms = await readWindowsProjectRoomsCache\(\)\.catch\(\(\) => null\)[\s\S]*const cachedFirstRoom = startupConfig\.profile === "windows" \? cachedRooms\?\.\[0\] : null[\s\S]*widgetApi\.updateContext\(\{ selectedRoomId: cachedFirstRoom\.id \}\)[\s\S]*projectRoomApi\.list\(\)\.then\(\(page\) => writeWindowsProjectRoomsCache\(page\.items\)\)[\s\S]*windowsStartupBound\([\s\S]*projectRoomApi\.list\(\)[\s\S]*writeWindowsProjectRoomsCache\(roomPage\.items\)[\s\S]*windowsStartupBound\([\s\S]*widgetApi\.updateContext/,
+  "Windows login startup must resolve the selected project room from route cache before bounded server fallback calls, then backfill the cache without changing non-Windows profiles.",
 );
 assertContains(
   surfaces,
