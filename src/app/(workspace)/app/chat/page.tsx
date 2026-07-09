@@ -728,6 +728,11 @@ function ChatPageContent() {
   >({});
   // 사용자가 스크롤로 과거를 읽는 중이면 새 메시지가 와도 강제 스크롤하지 않는다.
   const pinnedToBottomRef = useRef(true);
+  const pinnedChatRoomIdRef = useRef<string | null>(null);
+  const autoScrollSnapshotRef = useRef<{ messageKey: string | null; roomId: string | null }>({
+    messageKey: null,
+    roomId: null,
+  });
   const activeChatRoomIdRef = useRef<string | null>(null);
   const loadedMessagesRoomIdRef = useRef<string | null>(null);
   const currentUserRef = useRef<AuthUser | null>(null);
@@ -1572,6 +1577,8 @@ function ChatPageContent() {
       // 현재 모드(1:1/그룹/프로젝트룸)에 열 대화방이 없으면 직전에 보던 다른 방의 메시지가
       // 화면에 남아있지 않도록 비워준다(그룹 탭에 방이 없을 때 이전 1:1/룸 대화가 보이던 원인).
       const timeoutId = window.setTimeout(() => {
+        pinnedChatRoomIdRef.current = null;
+        autoScrollSnapshotRef.current = { messageKey: null, roomId: null };
         loadedMessagesRoomIdRef.current = null;
         setMessagesState({ kind: "idle" });
       }, 0);
@@ -1591,7 +1598,10 @@ function ChatPageContent() {
     if (!activeChatRoomId) return;
 
     const chatRoomId = activeChatRoomId;
-    pinnedToBottomRef.current = true;
+    if (pinnedChatRoomIdRef.current !== chatRoomId) {
+      pinnedChatRoomIdRef.current = chatRoomId;
+      pinnedToBottomRef.current = true;
+    }
 
     const client = getChatRealtimeClient();
     const unsubscribeMessages = client.subscribe(websocketTopics.chatRoom(chatRoomId), (data) => {
@@ -1710,8 +1720,18 @@ function ChatPageContent() {
   // 하단 근처에 있을 때만 자동 스크롤 — 과거 메시지를 읽는 중이면 위치를 유지한다.
   useEffect(() => {
     if (messagesState.kind !== "ready") return;
+    const latestMessage = messagesState.messages.at(-1);
+    const messageKey = latestMessage
+      ? `${messagesState.messages.length}:${latestMessage.id}:${latestMessage.roomSequence}`
+      : "empty";
+    const previous = autoScrollSnapshotRef.current;
+    const roomChanged = previous.roomId !== activeChatRoomId;
+    const messageTailChanged = previous.messageKey !== messageKey;
+    autoScrollSnapshotRef.current = { messageKey, roomId: activeChatRoomId };
+
     const viewport = messagesViewportRef.current;
-    if (!viewport || !pinnedToBottomRef.current) return;
+    if (!viewport) return;
+    if (!roomChanged && (!messageTailChanged || !pinnedToBottomRef.current)) return;
     viewport.scrollTop = viewport.scrollHeight;
   }, [activeChatRoomId, messagesState]);
 
