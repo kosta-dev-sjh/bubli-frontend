@@ -55,6 +55,7 @@ The issue should not be described only as "performance optimization." The more a
 | Windows chat profile session reuse | Chat profile surfaces now show the mirrored Windows Tauri session user immediately while `/api/me` validates and backfills |
 | Windows resource refresh stability | Personal and room resource refreshes now keep the current list visible on Windows Tauri while slower server data backfills |
 | Windows agent refresh stability | Agent refreshes now keep the current AI content visible on Windows Tauri while slower agent collections backfill |
+| Windows work-board route hydration | Project room work routes now reuse the mirrored Windows session and cached project-room context while user, room, and member details backfill |
 | Windows-compatible script arguments | Smoke scripts were adjusted away from Unix-style inline env assumptions where needed |
 | Runtime smoke progress reporting | The Tauri smoke runner now reports progress steps before the final report |
 | Runtime preflight guard | The preflight now checks for existing Bubli processes before launching Windows runtime smoke |
@@ -96,6 +97,7 @@ This is the working engineering version of the Windows/macOS runtime-difference 
 | Chat profile could briefly show offline while `/api/me` was deadline-bound | The profile panel treated a timed-out user request as offline even though the Windows Tauri app already had a mirrored authenticated session | Use the mirrored session user as the first Windows profile state and keep `/api/me` as background validation/backfill | Chat profile controls can render immediately from the validated local session path instead of waiting for a secondary identity request |
 | Resource lists could repaint to loading during Windows refreshes | Personal and room resource workspaces had initial deadline/backfill, but explicit refresh still cleared the current list before the server returned | Keep the loading repaint for non-Windows, but on Windows Tauri keep the current resource list visible while `loadResources()` backfills | Manual refresh and data-change refreshes feel stable instead of flashing back to a loading panel |
 | Agent page could repaint to empty AI sections during Windows refreshes | The Windows initial deadline unblocked the first render, but data-change refreshes still cleared ready-state AI lists before slower server collections returned | Keep the current ready agent state during Windows refreshes and only update the selected room while `loadData` backfills | Agent content stays visible instead of flashing empty while suggestions, generated documents, summaries, and requirement data reload |
+| Project room work-board entry still waited on secondary user, room, and member hydration | The board itself is the primary work surface, but Windows route entry also waited on `/api/me`, room detail, and member list before rendering ready state | Use the mirrored Windows auth session and cached project-room route context as deadline fallbacks, then backfill latest user, room, and members from the server | The WBS/TODO board can enter ready state after the board response without being held by slower secondary identity/room/member calls |
 | Runtime smoke was hard to debug when it timed out | The smoke runner only failed at the end, so auth/widget/SQLite/sync stalls looked identical | Added progress events and preflight checks for existing `bubli.exe` | Failing reports now identify whether the issue is auth, widgets, local sync, or process state |
 | Installed-build local sync looked partially failed even when the explicit scan/watch probe passed | Background managed-folder loop status can retain a transient failure after file analysis while the targeted QA probe succeeds | Keep explicit local folder scan/watch/sync evidence separate from background loop status | Latest real installed QA passes when explicit scan/watch/sync evidence proves zero scoped failures, even if the background loop still reports a transient failed status |
 
@@ -155,6 +157,8 @@ Windows QA and smoke diagnostics:
   - Windows personal resource refresh now keeps the current list visible while the resource and generated-document requests backfill.
 - `src/features/resources/components/room-resource-workspace.tsx`
   - Windows room resource refresh now keeps the current list visible while the room resource and generated-document requests backfill.
+- `src/app/(workspace)/app/project-rooms/[roomId]/work/page.tsx`
+  - Windows project-room work routes now use the mirrored auth session and cached room context as deadline fallbacks while user, room, and member details backfill.
 - `scripts/qa-tauri-real-oauth-manual.mjs`
   - Added installed launch-readiness timing to the redacted real OAuth QA summary.
   - The validator now requires finite timing anchors on passing installed QA reports.

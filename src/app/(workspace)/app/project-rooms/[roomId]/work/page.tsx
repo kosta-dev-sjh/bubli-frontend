@@ -13,10 +13,12 @@ import { ProjectRoomSettingsPanel } from "@/features/project-room/components/pro
 import { ProjectRoomWorkBoard } from "@/features/project-room/components/project-room-work-board";
 import { wbsApi } from "@/features/wbs/api/wbsApi";
 import { ApiClientError } from "@/lib/api/errors";
+import { getStoredAuthSession } from "@/lib/auth/auth-session";
 import { useDataRefresh } from "@/lib/data-changed";
 import { useI18n } from "@/lib/i18n";
 import { isWindowsTauriRuntime } from "@/lib/tauri/platform";
 import { readTauriStartupOptimizationConfig } from "@/lib/tauri/startup-optimization";
+import { readWindowsProjectRoomsCache } from "@/lib/tauri/windows-route-cache";
 import { getActiveProjectRoomLabel, setActiveProjectRoomId } from "@/lib/workspace-active-room";
 import {
   shouldUseWorkspacePreviewData,
@@ -24,6 +26,7 @@ import {
   workspacePreviewRoomById,
   workspacePreviewWbsBoard,
 } from "@/lib/workspace-preview-data";
+import type { AuthUser } from "@/types/api/auth";
 import type { ProjectRoomMemberResponse, ProjectRoomResponse } from "@/types/api/projectRoom";
 import type { WbsBoardResponse } from "@/types/api/work";
 
@@ -44,16 +47,16 @@ type WorkMembersPage = { items: ProjectRoomMemberResponse[] } | null;
 
 const WINDOWS_WORK_MEMBERS_TIMEOUT_FALLBACK_MS = 650;
 
-async function readWindowsWorkMembersTimeoutMs() {
+async function readWindowsWorkRouteTimeoutMs() {
   if (!isWindowsTauriRuntime()) return 0;
   const config = await readTauriStartupOptimizationConfig();
   return config.displayRequestTimeoutMs || WINDOWS_WORK_MEMBERS_TIMEOUT_FALLBACK_MS;
 }
 
-function withWorkMembersDeadline<T>(request: Promise<T>, timeoutMs: number): Promise<T | null> {
+function withWorkRouteDeadline<T>(request: Promise<T>, timeoutMs: number, fallback: T | null = null): Promise<T | null> {
   if (timeoutMs <= 0) return request;
   return new Promise((resolve, reject) => {
-    const timeoutId = window.setTimeout(() => resolve(null), timeoutMs);
+    const timeoutId = window.setTimeout(() => resolve(fallback), timeoutMs);
     request.then(
       (value) => {
         window.clearTimeout(timeoutId);
@@ -65,6 +68,12 @@ function withWorkMembersDeadline<T>(request: Promise<T>, timeoutMs: number): Pro
       },
     );
   });
+}
+
+async function readCachedWindowsWorkRoom(roomId: string) {
+  if (!isWindowsTauriRuntime()) return null;
+  const rooms = await readWindowsProjectRoomsCache().catch(() => null);
+  return rooms?.find((room) => room.id === roomId) ?? null;
 }
 
 export default function ProjectRoomWorkPage() {
@@ -84,39 +93,73 @@ export function ProjectRoomWorkContent({ roomId }: { roomId: string }) {
     if (!options?.quiet) setState({ kind: "loading" });
 
     try {
+      const routeTimeoutMs = await readWindowsWorkRouteTimeoutMs();
+      const cachedUser = isWindowsTauriRuntime() ? getStoredAuthSession()?.user ?? null : null;
+      const cachedRoom = await readCachedWindowsWorkRoom(roomId);
+      const currentUserRequest = authApi.getMe();
+      const roomRequest = projectRoomApi.get(roomId);
+      const boardRequest = wbsApi.getBoard(roomId);
       const membersPromise = projectRoomApi.getMembers(roomId).catch((error: unknown): WorkMembersPage => {
         if (error instanceof ApiClientError && error.status === 401) {
           throw error;
         }
         return null;
       });
-      const [currentUser, room, board] = await Promise.all([
-        authApi.getMe(),
-        projectRoomApi.get(roomId),
-        wbsApi.getBoard(roomId),
+      const [currentUser, initialRoom, board] = await Promise.all([
+        withWorkRouteDeadline<AuthUser>(currentUserRequest, routeTimeoutMs, cachedUser),
+        withWorkRouteDeadline<ProjectRoomResponse>(roomRequest, routeTimeoutMs, cachedRoom),
+        boardRequest,
       ]);
-      const applyReadyState = (membersPage: WorkMembersPage) => {
+      const room = initialRoom ?? (await roomRequest);
+      const applyReadyState = (membersPage: WorkMembersPage, user: AuthUser | null, nextRoom: ProjectRoomResponse) => {
         const members = (membersPage?.items ?? []).map((member) => {
+          const userBubliId = user?.bubliId ?? null;
           const isCurrentUser =
-            member.userId === currentUser.id ||
-            (Boolean(member.bubliId) && member.bubliId?.toLowerCase() === currentUser.bubliId.toLowerCase());
+            member.userId === user?.id ||
+            (Boolean(member.bubliId) && Boolean(userBubliId) && member.bubliId?.toLowerCase() === userBubliId?.toLowerCase());
 
           return isCurrentUser
             ? {
                 ...member,
-                avatarUrl: member.avatarUrl || currentUser.avatarUrl || null,
-                bubliId: member.bubliId || currentUser.bubliId || null,
-                name: member.name || currentUser.name,
+                avatarUrl: member.avatarUrl || user?.avatarUrl || null,
+                bubliId: member.bubliId || user?.bubliId || null,
+                name: member.name || user?.name || member.name,
               }
             : member;
         });
-        setState({ board, currentUserId: currentUser.id, kind: "ready", members, room });
+        setState({ board, currentUserId: user?.id ?? null, kind: "ready", members, room: nextRoom });
       };
 
-      const membersTimeoutMs = await readWindowsWorkMembersTimeoutMs();
-      const membersPage = await withWorkMembersDeadline(membersPromise, membersTimeoutMs);
+      const membersPage = await withWorkRouteDeadline(membersPromise, routeTimeoutMs);
       setActiveProjectRoomId(room.id, room.name);
-      applyReadyState(membersPage);
+      applyReadyState(membersPage, currentUser, room);
+
+      if (isWindowsTauriRuntime() && (currentUser === cachedUser || room === cachedRoom)) {
+        void Promise.allSettled([currentUserRequest, roomRequest]).then(([latestUser, latestRoom]) => {
+          const rejectedAsUnauthorized =
+            (latestUser.status === "rejected" && latestUser.reason instanceof ApiClientError && latestUser.reason.status === 401) ||
+            (latestRoom.status === "rejected" && latestRoom.reason instanceof ApiClientError && latestRoom.reason.status === 401);
+          if (rejectedAsUnauthorized) {
+            setState({ kind: "auth" });
+            return;
+          }
+
+          setState((current): WorkReadyState | WorkPageState => {
+            if (current.kind !== "ready" || current.room.id !== room.id) return current;
+            const nextUser = latestUser.status === "fulfilled" ? latestUser.value : currentUser;
+            const nextRoom = latestRoom.status === "fulfilled" ? latestRoom.value : current.room;
+            if (nextRoom.id !== room.id) return current;
+            if (latestRoom.status === "fulfilled") {
+              setActiveProjectRoomId(nextRoom.id, nextRoom.name);
+            }
+            return {
+              ...current,
+              currentUserId: nextUser?.id ?? current.currentUserId,
+              room: nextRoom,
+            };
+          });
+        });
+      }
 
       if (!membersPage) {
         void membersPromise.then((resolvedMembersPage) => {
@@ -124,16 +167,19 @@ export function ProjectRoomWorkContent({ roomId }: { roomId: string }) {
           setState((current): WorkReadyState | WorkPageState => {
             if (current.kind !== "ready" || current.room.id !== room.id) return current;
             const members = resolvedMembersPage.items.map((member) => {
+              const currentUserBubliId = currentUser?.bubliId ?? null;
               const isCurrentUser =
-                member.userId === currentUser.id ||
-                (Boolean(member.bubliId) && member.bubliId?.toLowerCase() === currentUser.bubliId.toLowerCase());
+                member.userId === currentUser?.id ||
+                (Boolean(member.bubliId) &&
+                  Boolean(currentUserBubliId) &&
+                  member.bubliId?.toLowerCase() === currentUserBubliId?.toLowerCase());
 
               return isCurrentUser
                 ? {
                     ...member,
-                    avatarUrl: member.avatarUrl || currentUser.avatarUrl || null,
-                    bubliId: member.bubliId || currentUser.bubliId || null,
-                    name: member.name || currentUser.name,
+                    avatarUrl: member.avatarUrl || currentUser?.avatarUrl || null,
+                    bubliId: member.bubliId || currentUser?.bubliId || null,
+                    name: member.name || currentUser?.name || member.name,
                   }
                 : member;
             });
