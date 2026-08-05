@@ -74,22 +74,14 @@ function assertDevAccessTokenLoginAllowed() {
   }
 }
 
-async function storeLoginTokenWithSelectedLocale(token: AuthTokenResponse, clientType: AuthClientType) {
+async function syncLoginTokenWithSelectedLocale(token: AuthTokenResponse) {
   const selectedLocale = readExplicitStoredLocale();
-  const tokenToStore =
-    selectedLocale && token.user.locale !== selectedLocale
-      ? { ...token, user: { ...token.user, locale: selectedLocale } }
-      : token;
-
-  if (clientType === "TAURI") {
-    await setStoredAuthSessionAndWaitForTauriMirror({ ...tokenToStore, clientType });
-  } else {
-    setStoredAuthSession({ ...tokenToStore, clientType });
-  }
-
   if (!selectedLocale || token.user.locale === selectedLocale) {
-    return tokenToStore;
+    return token;
   }
+
+  const tokenWithSelectedLocale = { ...token, user: { ...token.user, locale: selectedLocale } };
+  updateStoredAuthSessionUser(tokenWithSelectedLocale.user);
 
   try {
     const savedUser = await apiRequest<AuthUser>("/api/me", {
@@ -97,9 +89,9 @@ async function storeLoginTokenWithSelectedLocale(token: AuthTokenResponse, clien
       method: "PATCH",
     });
     updateStoredAuthSessionUser(savedUser);
-    return { ...tokenToStore, user: savedUser };
+    return { ...tokenWithSelectedLocale, user: savedUser };
   } catch {
-    return tokenToStore;
+    return tokenWithSelectedLocale;
   }
 }
 
@@ -129,7 +121,12 @@ export const authApi = {
       skipAuth: true,
       skipAuthRefresh: true,
     });
-    return storeLoginTokenWithSelectedLocale(token, input.clientType);
+    if (input.clientType === "TAURI") {
+      await setStoredAuthSessionAndWaitForTauriMirror({ ...token, clientType: input.clientType });
+    } else {
+      setStoredAuthSession({ ...token, clientType: input.clientType });
+    }
+    return syncLoginTokenWithSelectedLocale(token);
   },
 
   async loginWithDevAccessToken(accessToken: string) {
@@ -154,7 +151,8 @@ export const authApi = {
       user,
     };
 
-    return storeLoginTokenWithSelectedLocale(token, getAuthClientType());
+    setStoredAuthSession({ ...token, clientType: getAuthClientType() });
+    return syncLoginTokenWithSelectedLocale(token);
   },
 
   async logout() {
