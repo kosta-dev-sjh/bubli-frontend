@@ -34,6 +34,7 @@ export const TAURI_EVENTS = {
   // 그 통화방을 알 수 있도록, 활성 보이스 통화방 id를 창 간에 브로드캐스트한다.
   widgetVoiceCallStateChanged: "bubli-widget-voice-call-state-changed",
   widgetVoiceActionRequested: "bubli-widget-voice-action-requested",
+  widgetVoiceActionCompleted: "bubli-widget-voice-action-completed",
   widgetIncomingCallChanged: "bubli-widget-incoming-call-changed",
 } as const;
 
@@ -80,6 +81,13 @@ export type WidgetVoiceActionRequestedPayload = {
   occurredAt: number;
   requestId: string;
   target: WidgetVoiceActionTarget;
+};
+
+export type WidgetVoiceActionCompletedPayload = {
+  emitterId: string;
+  occurredAt: number;
+  requestId: string;
+  status: "completed" | "failed";
 };
 
 export type WidgetIncomingCallChangedPayload = {
@@ -251,6 +259,28 @@ export async function emitWidgetVoiceActionRequested(
 
 export function listenWidgetVoiceActionRequested(handler: (payload: WidgetVoiceActionRequestedPayload) => void) {
   return listenTauriEvent<WidgetVoiceActionRequestedPayload>(TAURI_EVENTS.widgetVoiceActionRequested, (payload) => {
+    if (payload.emitterId === widgetDataChangedEmitterId) return;
+    handler(payload);
+  });
+}
+
+export async function emitWidgetVoiceActionCompleted(requestId: string, status: WidgetVoiceActionCompletedPayload["status"]) {
+  if (!isTauriRuntime()) return;
+
+  const { emit } = (await import("@tauri-apps/api/event")) as {
+    emit: (eventName: string, payload?: unknown) => Promise<void>;
+  };
+
+  await emit(TAURI_EVENTS.widgetVoiceActionCompleted, {
+    emitterId: widgetDataChangedEmitterId,
+    occurredAt: Date.now(),
+    requestId,
+    status,
+  } satisfies WidgetVoiceActionCompletedPayload);
+}
+
+export function listenWidgetVoiceActionCompleted(handler: (payload: WidgetVoiceActionCompletedPayload) => void) {
+  return listenTauriEvent<WidgetVoiceActionCompletedPayload>(TAURI_EVENTS.widgetVoiceActionCompleted, (payload) => {
     if (payload.emitterId === widgetDataChangedEmitterId) return;
     handler(payload);
   });

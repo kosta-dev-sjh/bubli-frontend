@@ -2095,13 +2095,23 @@ assertContains(
 );
 assertContains(
   widgetPage,
-  /const isWidgetVoiceOwnerWindow = !isWindowsStartupProfile \|\| \(!isWidgetChrome && currentWindowBubble === "chat"\);[\s\S]*const handoffWidgetVoiceAction = useCallback[\s\S]*emitWidgetVoiceActionRequested\(action, target, requestId\)[\s\S]*window\.setTimeout\(emitRequest, 700\)[\s\S]*const startWidgetVoice = useCallback[\s\S]*handoffWidgetVoiceAction\("start", bubble\)[\s\S]*const toggleWidgetVoiceMic = useCallback[\s\S]*handoffWidgetVoiceAction\("mic", bubble\)[\s\S]*const leaveWidgetVoice = useCallback[\s\S]*handoffWidgetVoiceAction\("leave", bubble\)[\s\S]*listenWidgetVoiceActionRequested[\s\S]*handledWidgetVoiceActionRequestIdsRef/,
-  "Windows widgets must hand voice actions to the chat WebView with retry de-duplication while macOS preserves its existing voice ownership.",
+  /const isWidgetVoiceOwnerWindow = !isWindowsStartupProfile \|\| \(!isWidgetChrome && currentWindowBubble === "chat"\);[\s\S]*const startWidgetVoice = useCallback[\s\S]*handoffWidgetVoiceAction\("start", bubble\)[\s\S]*const toggleWidgetVoiceMic = useCallback[\s\S]*handoffWidgetVoiceAction\("mic", bubble\)[\s\S]*const leaveWidgetVoice = useCallback[\s\S]*handoffWidgetVoiceAction\("leave", bubble\)/,
+  "Windows widgets must keep macOS voice ownership unchanged and hand start, microphone, and leave actions to the chat owner.",
+);
+assertContains(
+  widgetPage,
+  /const handoffWidgetVoiceAction = useCallback[\s\S]*WIDGET_VOICE_HANDOFF_TIMEOUT_MS[\s\S]*listenWidgetVoiceActionCompleted[\s\S]*completion\.status === "failed"[\s\S]*window\.setInterval\(emitRequest, WIDGET_VOICE_HANDOFF_RETRY_DELAY_MS\)/,
+  "Windows widget voice requests must wait for a typed acknowledgement and retry only until the bounded handoff timeout.",
+);
+assertContains(
+  widgetPage,
+  /widgetVoiceActionHandlersRef[\s\S]*if \(!isWindowsStartupProfile \|\| !isWidgetVoiceOwnerWindow \|\| !widgetSessionReady\) return;[\s\S]*inFlightWidgetVoiceActionRequestIdsRef[\s\S]*emitWidgetVoiceActionCompleted/,
+  "Only a session-ready Windows chat owner may process widget voice actions and acknowledge them after handling.",
 );
 assertContains(
   tauriEvents,
-  /widgetVoiceActionRequested: "bubli-widget-voice-action-requested"[\s\S]*export type WidgetVoiceActionRequestedPayload[\s\S]*emitWidgetVoiceActionRequested[\s\S]*listenWidgetVoiceActionRequested/,
-  "Tauri widget voice handoff must use a typed cross-window event channel.",
+  /widgetVoiceActionRequested: "bubli-widget-voice-action-requested"[\s\S]*widgetVoiceActionCompleted: "bubli-widget-voice-action-completed"[\s\S]*export type WidgetVoiceActionRequestedPayload[\s\S]*export type WidgetVoiceActionCompletedPayload[\s\S]*status: "completed" \| "failed";[\s\S]*emitWidgetVoiceActionRequested[\s\S]*listenWidgetVoiceActionRequested[\s\S]*emitWidgetVoiceActionCompleted[\s\S]*listenWidgetVoiceActionCompleted/,
+  "Tauri widget voice handoff must use typed request and successful-or-failed completion event channels.",
 );
 assertContains(
   widgetPage,
