@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { siteConfig } from "@/config/site";
 import { useLiveAuthUser } from "@/features/auth/hooks/use-live-auth-user";
+import { saveAuthUserLocale } from "@/features/auth/lib/user-locale";
 import { LOCALES, useI18n } from "@/lib/i18n";
 import type { Locale, MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -25,6 +26,7 @@ export function LandingNav() {
   const authUser = useLiveAuthUser();
   const [activeSection, setActiveSection] = useState("hero");
   const [scrolled, setScrolled] = useState(false);
+  const [savingLocale, setSavingLocale] = useState<Locale | null>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -59,6 +61,23 @@ export function LandingNav() {
     return () => observer.disconnect();
   }, []);
 
+  async function handleLocaleChange(nextLocale: Locale) {
+    if (nextLocale === locale || savingLocale) return;
+
+    const previousLocale = locale;
+    setLocale(nextLocale);
+    if (!authUser) return;
+
+    setSavingLocale(nextLocale);
+    try {
+      await saveAuthUserLocale(authUser, nextLocale);
+    } catch {
+      setLocale(previousLocale);
+    } finally {
+      setSavingLocale(null);
+    }
+  }
+
   return (
     <header className={cn("landing-nav", scrolled && "landing-nav--scrolled")}>
       <div className="landing-nav__inner">
@@ -78,9 +97,10 @@ export function LandingNav() {
               <button
                 aria-pressed={locale === option}
                 className={cn("landing-nav__locale-btn", locale === option && "is-active")}
+                disabled={savingLocale !== null}
                 key={option}
                 lang={option}
-                onClick={() => setLocale(option)}
+                onClick={() => void handleLocaleChange(option)}
                 type="button"
               >
                 {localeLabels[option]}

@@ -76,6 +76,19 @@ export function readStoredLocale(): Locale {
   return readBrowserPreferredLocale();
 }
 
+export function readExplicitStoredLocale(): Locale | null {
+  if (!canUseStorage()) {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(LOCALE_STORAGE_KEY);
+    return isLocale(raw) ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
 export function writeStoredLocale(locale: Locale) {
   if (!canUseStorage()) {
     return;

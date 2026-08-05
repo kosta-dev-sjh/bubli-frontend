@@ -17,6 +17,7 @@ import {
 } from "@/components/layout/workspace-topbar";
 import { siteConfig } from "@/config/site";
 import { authApi } from "@/features/auth/api/authApi";
+import { saveAuthUserLocale } from "@/features/auth/lib/user-locale";
 import { agentApi } from "@/features/agent/api/agentApi";
 import { chatApi } from "@/features/communication/api/chatApi";
 import { voiceApi } from "@/features/communication/api/voiceApi";
@@ -37,7 +38,7 @@ import { notifyDataChanged, readUserUpdatedDetail, useDataRefresh, USER_UPDATED_
 import { playNotificationSound, primeNotificationSound } from "@/lib/sound/notification-sound";
 import { startCallRingtone, stopCallRingtone } from "@/lib/sound/call-sound";
 import { useI18n } from "@/lib/i18n";
-import type { TranslateVars, MessageKey } from "@/lib/i18n";
+import type { Locale, TranslateVars, MessageKey } from "@/lib/i18n";
 import {
   AUTH_SESSION_CHANGE_EVENT, getStoredAuthSession, restoreStoredAuthSessionFromTauri, clearStoredAuthSession,
 } from "@/lib/auth/auth-session";
@@ -1277,6 +1278,11 @@ export function AppShell({ children }: AppShellProps) {
     setTopbarMenu((current) => (current === menu ? null : menu));
   }
 
+  async function handleTopbarLocaleChange(nextLocale: Locale) {
+    if (state.kind !== "ready") return;
+    await saveAuthUserLocale(state.user, nextLocale);
+  }
+
   function handleMarkNotificationRead(notificationId: string) {
     // 낙관적으로 상태를 갱신해 배지 수를 바로 줄이고, 서버 반영 실패는 다음 로드에서 복구된다.
     setState((current) =>
@@ -1633,7 +1639,13 @@ export function AppShell({ children }: AppShellProps) {
           onOpenProjectSwitcher={() => setProjectSwitcherOpen((current) => !current)}
           profileMenu={
             topbarMenu === "profile" ? (
-              <TopbarProfileMenu id={TOPBAR_PROFILE_MENU_ID} onClose={closeTopbarMenus} onLogout={handleLogout} user={topbarUser} />
+              <TopbarProfileMenu
+                id={TOPBAR_PROFILE_MENU_ID}
+                onClose={closeTopbarMenus}
+                onLocaleChange={handleTopbarLocaleChange}
+                onLogout={handleLogout}
+                user={topbarUser}
+              />
             ) : null
           }
           profileOpen={topbarMenu === "profile"}

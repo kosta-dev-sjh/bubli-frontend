@@ -6,7 +6,9 @@ import {
   getAuthRefreshToken,
   setStoredAuthSession,
   setStoredAuthSessionAndWaitForTauriMirror,
+  updateStoredAuthSessionUser,
 } from "@/lib/auth/auth-session";
+import { readExplicitStoredLocale } from "@/lib/i18n";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import type {
   AuthClientType,
@@ -72,6 +74,35 @@ function assertDevAccessTokenLoginAllowed() {
   }
 }
 
+async function storeLoginTokenWithSelectedLocale(token: AuthTokenResponse, clientType: AuthClientType) {
+  const selectedLocale = readExplicitStoredLocale();
+  const tokenToStore =
+    selectedLocale && token.user.locale !== selectedLocale
+      ? { ...token, user: { ...token.user, locale: selectedLocale } }
+      : token;
+
+  if (clientType === "TAURI") {
+    await setStoredAuthSessionAndWaitForTauriMirror({ ...tokenToStore, clientType });
+  } else {
+    setStoredAuthSession({ ...tokenToStore, clientType });
+  }
+
+  if (!selectedLocale || token.user.locale === selectedLocale) {
+    return tokenToStore;
+  }
+
+  try {
+    const savedUser = await apiRequest<AuthUser>("/api/me", {
+      body: { locale: selectedLocale },
+      method: "PATCH",
+    });
+    updateStoredAuthSessionUser(savedUser);
+    return { ...tokenToStore, user: savedUser };
+  } catch {
+    return tokenToStore;
+  }
+}
+
 export const authApi = {
   async getGoogleAuthorizationUrl(input: GetGoogleAuthorizationInput = {}) {
     const params = new URLSearchParams();
@@ -98,12 +129,7 @@ export const authApi = {
       skipAuth: true,
       skipAuthRefresh: true,
     });
-    if (input.clientType === "TAURI") {
-      await setStoredAuthSessionAndWaitForTauriMirror({ ...token, clientType: input.clientType });
-    } else {
-      setStoredAuthSession({ ...token, clientType: input.clientType });
-    }
-    return token;
+    return storeLoginTokenWithSelectedLocale(token, input.clientType);
   },
 
   async loginWithDevAccessToken(accessToken: string) {
@@ -128,8 +154,7 @@ export const authApi = {
       user,
     };
 
-    setStoredAuthSession({ ...token, clientType: getAuthClientType() });
-    return token;
+    return storeLoginTokenWithSelectedLocale(token, getAuthClientType());
   },
 
   async logout() {

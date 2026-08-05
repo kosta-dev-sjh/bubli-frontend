@@ -25,14 +25,16 @@ export type TopbarProfileMenuUser = {
 
 export type TopbarProfileMenuProps = {
   id?: string;
+  onLocaleChange?: (locale: Locale) => Promise<void> | void;
   onClose: () => void;
   onLogout: () => Promise<void> | void;
   user: TopbarProfileMenuUser;
 };
 
-export function TopbarProfileMenu({ id, onClose, onLogout, user }: TopbarProfileMenuProps) {
+export function TopbarProfileMenu({ id, onClose, onLocaleChange, onLogout, user }: TopbarProfileMenuProps) {
   const { locale, setLocale, t } = useI18n();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [savingLocale, setSavingLocale] = useState<Locale | null>(null);
 
   async function handleLogout() {
     if (isLoggingOut) return;
@@ -42,6 +44,22 @@ export function TopbarProfileMenu({ id, onClose, onLogout, user }: TopbarProfile
       await onLogout();
     } finally {
       setIsLoggingOut(false);
+    }
+  }
+
+  async function handleLocaleChange(nextLocale: Locale) {
+    if (nextLocale === locale || savingLocale) return;
+
+    const previousLocale = locale;
+    setLocale(nextLocale);
+    setSavingLocale(nextLocale);
+
+    try {
+      await onLocaleChange?.(nextLocale);
+    } catch {
+      setLocale(previousLocale);
+    } finally {
+      setSavingLocale(null);
     }
   }
 
@@ -62,9 +80,10 @@ export function TopbarProfileMenu({ id, onClose, onLogout, user }: TopbarProfile
             aria-pressed={locale === option}
             className={styles.menuLocaleButton}
             data-active={locale === option ? "true" : undefined}
+            disabled={savingLocale !== null}
             key={option}
             lang={option}
-            onClick={() => setLocale(option)}
+            onClick={() => void handleLocaleChange(option)}
             type="button"
           >
             {localeLabels[option]}

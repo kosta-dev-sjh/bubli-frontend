@@ -342,6 +342,28 @@ export function setStoredAuthSession(session: AuthSessionInput) {
   emitAuthSessionChange();
 }
 
+export function updateStoredAuthSessionUser(user: StoredAuthSession["user"]) {
+  if (!canUseStorage()) {
+    return;
+  }
+
+  const current = getStoredAuthSession();
+  if (!current) {
+    return;
+  }
+
+  const next: StoredAuthSession = {
+    ...current,
+    user,
+    savedAt: new Date().toISOString(),
+    savedAtMs: Date.now(),
+  };
+
+  window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify(next));
+  void mirrorAuthSessionToTauri(next);
+  emitAuthSessionChange();
+}
+
 export async function setStoredAuthSessionAndWaitForTauriMirror(session: AuthSessionInput) {
   if (!canUseStorage()) {
     return null;

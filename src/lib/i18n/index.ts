@@ -9,6 +9,7 @@ export {
   LOCALE_CHANGE_EVENT,
   isLocale,
   normalizeLocale,
+  readExplicitStoredLocale,
   readStoredLocale,
   writeStoredLocale,
 } from "./locale";

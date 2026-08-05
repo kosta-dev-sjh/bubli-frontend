@@ -8,13 +8,14 @@ import { GlassPanel } from "@/components/ui/glass-panel";
 import { siteConfig } from "@/config/site";
 import { AuthConfigurationError, authApi } from "@/features/auth/api/authApi";
 import { useLiveAuthState } from "@/features/auth/hooks/use-live-auth-user";
+import { saveAuthUserLocale } from "@/features/auth/lib/user-locale";
 import { getApiBaseUrl } from "@/lib/api/client";
 import {
   getStoredAuthSession,
   restoreStoredAuthSessionFromTauri,
   setStoredAuthSessionAndWaitForTauriMirror,
 } from "@/lib/auth/auth-session";
-import { useI18n } from "@/lib/i18n";
+import { readExplicitStoredLocale, useI18n } from "@/lib/i18n";
 import { tauriCommands } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 
@@ -206,6 +207,10 @@ export function AuthPanel() {
         await runTauriLoginStep("store-session", () =>
           setStoredAuthSessionAndWaitForTauriMirror({ ...token, clientType: "TAURI" }),
         );
+        const selectedLocale = readExplicitStoredLocale();
+        if (selectedLocale && token.user.locale !== selectedLocale) {
+          await runTauriLoginStep("sync-locale", () => saveAuthUserLocale(token.user, selectedLocale));
+        }
         await tauriCommands.openMainWindowRoute({ route: TAURI_MEMBER_APP_ROUTE }).catch(async () => {
           await tauriCommands.showMainWindow().catch(() => undefined);
         });

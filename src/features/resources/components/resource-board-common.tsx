@@ -1541,24 +1541,28 @@ export function ResourcePreview({
                   {questionState.kind === "running" ? t("resources.common.questionRunning") : t("resources.common.questionCandidate")}
                 </button>
                 <button
-                  aria-label="선택 문서로 WBS 생성"
+                  aria-label={t("resources.common.generateWbsAria")}
                   className={styles.actionButton}
                   disabled={workGenerationState.kind === "running" && workGenerationState.target === "wbs"}
                   onClick={() => void handleGenerateWork("wbs")}
                   type="button"
                 >
                   <GitBranch aria-hidden size={14} strokeWidth={2} />
-                  {workGenerationState.kind === "running" && workGenerationState.target === "wbs" ? "WBS 생성 중" : "WBS 생성"}
+                  {workGenerationState.kind === "running" && workGenerationState.target === "wbs"
+                    ? t("resources.common.generateWbsRunning")
+                    : t("resources.common.generateWbs")}
                 </button>
                 <button
-                  aria-label="선택 문서로 칸반 생성"
+                  aria-label={t("resources.common.generateKanbanAria")}
                   className={styles.actionButton}
                   disabled={workGenerationState.kind === "running" && workGenerationState.target === "kanban"}
                   onClick={() => void handleGenerateWork("kanban")}
                   type="button"
                 >
                   <KanbanSquare aria-hidden size={14} strokeWidth={2} />
-                  {workGenerationState.kind === "running" && workGenerationState.target === "kanban" ? "칸반 생성 중" : "칸반 생성"}
+                  {workGenerationState.kind === "running" && workGenerationState.target === "kanban"
+                    ? t("resources.common.generateKanbanRunning")
+                    : t("resources.common.generateKanban")}
                 </button>
                 <div className={styles.draftActionGroup}>
                   <div className={styles.draftTypeMenu}>

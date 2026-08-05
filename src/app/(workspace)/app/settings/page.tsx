@@ -12,6 +12,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { activityApi } from "@/features/activity/api/activityApi";
 import { ActivityDetectionPanel } from "@/features/activity/components";
 import { authApi } from "@/features/auth/api/authApi";
+import { updateStoredAuthSessionUser } from "@/lib/auth/auth-session";
 import { calendarApi } from "@/features/calendar/api/calendarApi";
 import { startGoogleCalendarConnect } from "@/features/calendar/api/googleCalendarAuth";
 import { OPEN_TUTORIAL_EVENT, OPEN_WIDGET_TUTORIAL_EVENT } from "@/features/onboarding";
@@ -609,6 +610,7 @@ export default function SettingsPage() {
       updateReadyState((current) => ({ ...current, user: nextUser }));
       if (patch.locale) setLocale(patch.locale as Locale);
       // 탑바(AppShell) 사용자 표시도 저장을 기다리지 않고 낙관적으로 즉시 갱신한다.
+      updateStoredAuthSessionUser(nextUser);
       notifyUserUpdated(nextUser);
       setMessage({ text: t("settings.msg.displaySaved"), tone: "approved" });
 
@@ -619,6 +621,7 @@ export default function SettingsPage() {
           timezone: nextUser.timezone ?? "Asia/Seoul",
         });
         updateReadyState((current) => ({ ...current, user: saved }));
+        updateStoredAuthSessionUser(saved);
         notifyUserUpdated(saved);
       } catch {
         if (shouldUseWorkspacePreviewData()) return;
