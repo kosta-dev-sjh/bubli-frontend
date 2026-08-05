@@ -63,11 +63,13 @@ import { setWidgetWindowDragLocked, tauriCommands, waitForPendingWidgetUsageEven
 import {
   emitWidgetDataChanged,
   emitWidgetIncomingCallChanged,
+  emitWidgetVoiceActionCompleted,
   emitWidgetVoiceActionRequested,
   emitWidgetVoiceCallStateChanged,
   listenWidgetBarItemsChanged,
   listenWidgetDataChanged,
   listenWidgetIncomingCallChanged,
+  listenWidgetVoiceActionCompleted,
   listenWidgetVoiceActionRequested,
   listenWidgetRoomContextChanged,
   listenWidgetVoiceCallStateChanged,
@@ -99,6 +101,7 @@ import type { WidgetSummaryResponse } from "@/types/api/widget";
 
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
 type WidgetVoiceActionBubble = Pick<WidgetPreviewBubble, "chatRoomId" | "isDirectChat" | "roomId" | "voiceRoomId">;
+type WidgetVoiceActionHandler = (bubble: WidgetVoiceActionBubble) => Promise<void>;
 
 // 메뉴 오브 창은 ?bubble=menu 경로에서 렌더되어 바 메뉴 분리 동작을 담당한다.
 // 기본 청크에서 제외하기 위해 next/dynamic으로 지연 로드한다(단일 라우트라 유일한 분할 지점).
@@ -140,6 +143,8 @@ const MAX_MESSAGE_TOASTS = 3;
 const TIMER_HEARTBEAT_INTERVAL_MS = 60_000;
 const VOICE_RECOVERY_TIMEOUT_MS = 30_000;
 const VOICE_RECOVERY_RETRY_DELAY_MS = 4_000;
+const WIDGET_VOICE_HANDOFF_RETRY_DELAY_MS = 700;
+const WIDGET_VOICE_HANDOFF_TIMEOUT_MS = 15_000;
 const AGENT_REPLY_BADGE_MESSAGE_LIMIT = 20;
 const PERSONAL_AGENT_MEMORY_LIMIT = 10;
 const WIDGET_NOTIFICATION_DISPLAY_LIMIT = 20;
@@ -1882,7 +1887,9 @@ function DesktopWidgetSurface() {
   >([]);
   const liveKitRoomRef = useRef<Room | null>(null);
   const voiceRecoveryRoomIdRef = useRef<string | null>(null);
-  const handledWidgetVoiceActionRequestIdsRef = useRef(new Set<string>());
+  const completedWidgetVoiceActionRequestIdsRef = useRef(new Set<string>());
+  const inFlightWidgetVoiceActionRequestIdsRef = useRef(new Set<string>());
+  const widgetVoiceActionHandlersRef = useRef<Record<WidgetVoiceAction, WidgetVoiceActionHandler> | null>(null);
   const voiceRecoveryTimerRef = useRef<number | null>(null);
   const surfaceReadySentRef = useRef(false);
   const appReadySentRef = useRef(false);
@@ -4684,14 +4691,12 @@ function DesktopWidgetSurface() {
   const openVoiceOwnerChatWidget = useCallback(
     async (bubble?: Pick<WidgetVoiceActionBubble, "chatRoomId" | "roomId">) => {
       if (isTauri) {
-        await tauriCommands
-          .openWidgetWindow({
-            bubbleType: "chat",
-            mode: "DEFAULT",
-            selectedRoomId: bubble?.roomId ?? bubble?.chatRoomId ?? selectedWidgetRoomId,
-            windowId: "chat",
-          })
-          .catch(() => undefined);
+        await tauriCommands.openWidgetWindow({
+          bubbleType: "chat",
+          mode: "DEFAULT",
+          selectedRoomId: bubble?.roomId ?? bubble?.chatRoomId ?? selectedWidgetRoomId,
+          windowId: "chat",
+        });
         return;
       }
       setActiveBubble("chat");
@@ -4708,12 +4713,46 @@ function DesktopWidgetSurface() {
         voiceRoomId: bubble.voiceRoomId,
       };
       const requestId = `widget-voice-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      const emitRequest = () => void emitWidgetVoiceActionRequested(action, target, requestId).catch(() => undefined);
+      await new Promise<void>((resolve, reject) => {
+        let settled = false;
+        let retryTimer: number | null = null;
+        let timeoutTimer: number | null = null;
+        let unlisten: (() => void) | null = null;
+        const finish = (error?: unknown) => {
+          if (settled) return;
+          settled = true;
+          if (retryTimer !== null) window.clearInterval(retryTimer);
+          if (timeoutTimer !== null) window.clearTimeout(timeoutTimer);
+          unlisten?.();
+          if (error) reject(error);
+          else resolve();
+        };
+        const emitRequest = () => void emitWidgetVoiceActionRequested(action, target, requestId).catch(() => undefined);
+        timeoutTimer = window.setTimeout(
+          () => finish(new Error("Voice widget action handoff timed out")),
+          WIDGET_VOICE_HANDOFF_TIMEOUT_MS,
+        );
 
-      await openVoiceOwnerChatWidget(target);
-      emitRequest();
-      // A newly created chat WebView may not have subscribed when the first event is emitted.
-      window.setTimeout(emitRequest, 700);
+        void listenWidgetVoiceActionCompleted((completion) => {
+          if (completion.requestId !== requestId) return;
+          finish(completion.status === "failed" ? new Error("Voice widget action handoff failed") : undefined);
+        })
+          .then((nextUnlisten) => {
+            if (settled) {
+              nextUnlisten();
+              return;
+            }
+            unlisten = nextUnlisten;
+            void openVoiceOwnerChatWidget(target)
+              .then(() => {
+                if (settled) return;
+                emitRequest();
+                retryTimer = window.setInterval(emitRequest, WIDGET_VOICE_HANDOFF_RETRY_DELAY_MS);
+              })
+              .catch(finish);
+          })
+          .catch(finish);
+      });
     },
     [openVoiceOwnerChatWidget],
   );
@@ -4887,27 +4926,58 @@ function DesktopWidgetSurface() {
   );
 
   useEffect(() => {
-    if (!isWidgetVoiceOwnerWindow) return;
+    if (!isWindowsStartupProfile) return;
+
+    widgetVoiceActionHandlersRef.current = {
+      leave: leaveWidgetVoice,
+      mic: toggleWidgetVoiceMic,
+      start: startWidgetVoice,
+    };
+    return () => {
+      widgetVoiceActionHandlersRef.current = null;
+    };
+  }, [isWindowsStartupProfile, leaveWidgetVoice, startWidgetVoice, toggleWidgetVoiceMic]);
+
+  useEffect(() => {
+    if (!isWindowsStartupProfile || !isWidgetVoiceOwnerWindow || !widgetSessionReady) return;
 
     let cancelled = false;
     let unlisten: (() => void) | null = null;
     void listenWidgetVoiceActionRequested((request) => {
-      if (cancelled || handledWidgetVoiceActionRequestIdsRef.current.has(request.requestId)) return;
-      handledWidgetVoiceActionRequestIdsRef.current.add(request.requestId);
-      if (handledWidgetVoiceActionRequestIdsRef.current.size > 100) {
-        handledWidgetVoiceActionRequestIdsRef.current.clear();
-        handledWidgetVoiceActionRequestIdsRef.current.add(request.requestId);
+      if (cancelled || !widgetSessionReady) return;
+      if (
+        completedWidgetVoiceActionRequestIdsRef.current.has(request.requestId) ||
+        inFlightWidgetVoiceActionRequestIdsRef.current.has(request.requestId)
+      ) {
+        return;
       }
 
+      const handler = widgetVoiceActionHandlersRef.current?.[request.action];
+      if (!handler) return;
       const bubble: WidgetVoiceActionBubble = {
         chatRoomId: request.target.chatRoomId,
         isDirectChat: request.target.isDirectChat,
         roomId: request.target.roomId,
         voiceRoomId: request.target.voiceRoomId,
       };
-      const handler =
-        request.action === "start" ? startWidgetVoice : request.action === "leave" ? leaveWidgetVoice : toggleWidgetVoiceMic;
-      void handler(bubble).catch(() => undefined);
+      inFlightWidgetVoiceActionRequestIdsRef.current.add(request.requestId);
+      void handler(bubble)
+        .then(() => {
+          if (cancelled) return;
+          completedWidgetVoiceActionRequestIdsRef.current.add(request.requestId);
+          if (completedWidgetVoiceActionRequestIdsRef.current.size > 100) {
+            completedWidgetVoiceActionRequestIdsRef.current.clear();
+            completedWidgetVoiceActionRequestIdsRef.current.add(request.requestId);
+          }
+          void emitWidgetVoiceActionCompleted(request.requestId, "completed").catch(() => undefined);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          void emitWidgetVoiceActionCompleted(request.requestId, "failed").catch(() => undefined);
+        })
+        .finally(() => {
+          inFlightWidgetVoiceActionRequestIdsRef.current.delete(request.requestId);
+        });
     }).then((nextUnlisten) => {
       if (cancelled) {
         nextUnlisten();
@@ -4920,7 +4990,7 @@ function DesktopWidgetSurface() {
       cancelled = true;
       unlisten?.();
     };
-  }, [isWidgetVoiceOwnerWindow, leaveWidgetVoice, startWidgetVoice, toggleWidgetVoiceMic]);
+  }, [isWidgetVoiceOwnerWindow, isWindowsStartupProfile, widgetSessionReady]);
 
   // 바/메뉴 화면에서 공통 서버 사용 롤업(usage-summaries/today)을 한 줄 요약으로 보여준다.
   // 한 번만 불러오면 세션 중 사용량이 늘어도 숫자가 고정돼 목업처럼 보인다 — 주기적으로
