@@ -36,6 +36,7 @@ const files = {
   activityClient: "src/lib/local/activity-client.ts",
   authenticatedSurfaces: "src/lib/tauri/authenticated-surfaces.ts",
   startupOptimization: "src/lib/tauri/startup-optimization.ts",
+  tauriEvents: "src/lib/tauri/events.ts",
   windowsRouteCache: "src/lib/tauri/windows-route-cache.ts",
   chatWidgetRouting: "src/lib/tauri/chat-widget-routing.ts",
   chatRealtime: "src/lib/websocket/chat-realtime.ts",
@@ -216,6 +217,7 @@ const localAutoSyncSoak = read(files.localAutoSyncSoak);
 const windowsRuntimeSoak = read(files.windowsRuntimeSoak);
 const surfaces = read(files.authenticatedSurfaces);
 const startupOptimization = read(files.startupOptimization);
+const tauriEvents = read(files.tauriEvents);
 const windowsRouteCache = read(files.windowsRouteCache);
 const chatWidgetRouting = read(files.chatWidgetRouting);
 const chatRealtime = read(files.chatRealtime);
@@ -275,8 +277,8 @@ assertContains(
 );
 assertContains(
   startupOptimization,
-  /windows:\s*\{[\s\S]*bubbleOpenStaggerMs:\s*0,[\s\S]*deferredBarCollectionRefreshDelayMs:\s*1_800,[\s\S]*deferredBarFullDisplayDelayMs:\s*120,[\s\S]*deferBarAgentCollectionsOnInitialDisplay:\s*true,[\s\S]*deferBarFullDisplayUntilAfterFirstPaint:\s*true,[\s\S]*displayRefreshThrottleMs:\s*200,[\s\S]*displayRequestTimeoutMs:\s*650,[\s\S]*initialDisplayPageSize:\s*30,[\s\S]*initialNotificationScanPages:\s*2,[\s\S]*menuOrbBadgeRefreshIntervalMs:\s*20_000,[\s\S]*preloadWidgetSettingsDuringStartup:\s*false,[\s\S]*requireMenuWindowDuringStartupReuse:\s*true,[\s\S]*summaryPrewarmTimeoutMs:\s*1_800,[\s\S]*widgetContextRefreshIntervalMs:\s*30_000/,
-  "Windows startup optimization must use batched widget opening, defer initial bar collection refreshes, defer duplicate bar agent collection loads, bound display refreshes and display request waits, bounded initial display loads, bounded initial notification scans, slower fallback polling, no startup settings prefetch, menu reuse verification, first-paint deferral, and summary prewarm.",
+  /windows:\s*\{[\s\S]*bubbleOpenStaggerMs:\s*90,[\s\S]*deferredBarCollectionRefreshDelayMs:\s*1_800,[\s\S]*deferredBarFullDisplayDelayMs:\s*120,[\s\S]*deferBarAgentCollectionsOnInitialDisplay:\s*true,[\s\S]*deferBarFullDisplayUntilAfterFirstPaint:\s*true,[\s\S]*displayRefreshThrottleMs:\s*200,[\s\S]*displayRequestTimeoutMs:\s*650,[\s\S]*initialDisplayPageSize:\s*30,[\s\S]*initialNotificationScanPages:\s*2,[\s\S]*menuOrbBadgeRefreshIntervalMs:\s*20_000,[\s\S]*preloadWidgetSettingsDuringStartup:\s*false,[\s\S]*requireMenuWindowDuringStartupReuse:\s*true,[\s\S]*summaryPrewarmTimeoutMs:\s*1_800,[\s\S]*widgetContextRefreshIntervalMs:\s*30_000/,
+  "Windows startup optimization must stagger widget opening to avoid WebView2 startup fan-out, defer initial bar collection refreshes, defer duplicate bar agent collection loads, bound display refreshes and display request waits, bounded initial display loads, bounded initial notification scans, slower fallback polling, no startup settings prefetch, menu reuse verification, first-paint deferral, and summary prewarm.",
 );
 assertContains(
   chatRealtime,
@@ -2090,6 +2092,16 @@ assertContains(
   widgetPage,
   /isWidgetRingingBack[\s\S]*widgetDisplayApi[\s\S]*\.listNotifications\(10, 0, "UNREAD"\)[\s\S]*VOICE_CALL_DECLINED/,
   "Desktop widget voice-call decline polling must request unread notifications instead of repeatedly scanning broad notification history.",
+);
+assertContains(
+  widgetPage,
+  /const isWidgetVoiceOwnerWindow = !isWindowsStartupProfile \|\| \(!isWidgetChrome && currentWindowBubble === "chat"\);[\s\S]*const handoffWidgetVoiceAction = useCallback[\s\S]*emitWidgetVoiceActionRequested\(action, target, requestId\)[\s\S]*window\.setTimeout\(emitRequest, 700\)[\s\S]*const startWidgetVoice = useCallback[\s\S]*handoffWidgetVoiceAction\("start", bubble\)[\s\S]*const toggleWidgetVoiceMic = useCallback[\s\S]*handoffWidgetVoiceAction\("mic", bubble\)[\s\S]*const leaveWidgetVoice = useCallback[\s\S]*handoffWidgetVoiceAction\("leave", bubble\)[\s\S]*listenWidgetVoiceActionRequested[\s\S]*handledWidgetVoiceActionRequestIdsRef/,
+  "Windows widgets must hand voice actions to the chat WebView with retry de-duplication while macOS preserves its existing voice ownership.",
+);
+assertContains(
+  tauriEvents,
+  /widgetVoiceActionRequested: "bubli-widget-voice-action-requested"[\s\S]*export type WidgetVoiceActionRequestedPayload[\s\S]*emitWidgetVoiceActionRequested[\s\S]*listenWidgetVoiceActionRequested/,
+  "Tauri widget voice handoff must use a typed cross-window event channel.",
 );
 assertContains(
   widgetPage,

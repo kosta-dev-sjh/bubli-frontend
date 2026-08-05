@@ -33,6 +33,7 @@ export const TAURI_EVENTS = {
   // 통화가 어느 창(chat)에서 시작됐는지와 무관하게 바(bar) 창의 발신 팝업/알림 처리가
   // 그 통화방을 알 수 있도록, 활성 보이스 통화방 id를 창 간에 브로드캐스트한다.
   widgetVoiceCallStateChanged: "bubli-widget-voice-call-state-changed",
+  widgetVoiceActionRequested: "bubli-widget-voice-action-requested",
   widgetIncomingCallChanged: "bubli-widget-incoming-call-changed",
 } as const;
 
@@ -62,6 +63,23 @@ export type WidgetVoiceCallStateChangedPayload = {
   voiceRoomId: string | null;
   emitterId: string;
   occurredAt: number;
+};
+
+export type WidgetVoiceAction = "leave" | "mic" | "start";
+
+export type WidgetVoiceActionTarget = {
+  chatRoomId?: string;
+  isDirectChat?: boolean;
+  roomId?: string | null;
+  voiceRoomId?: string;
+};
+
+export type WidgetVoiceActionRequestedPayload = {
+  action: WidgetVoiceAction;
+  emitterId: string;
+  occurredAt: number;
+  requestId: string;
+  target: WidgetVoiceActionTarget;
 };
 
 export type WidgetIncomingCallChangedPayload = {
@@ -206,6 +224,33 @@ export async function emitWidgetVoiceCallStateChanged(voiceRoomId: string | null
 
 export function listenWidgetVoiceCallStateChanged(handler: (payload: WidgetVoiceCallStateChangedPayload) => void) {
   return listenTauriEvent<WidgetVoiceCallStateChangedPayload>(TAURI_EVENTS.widgetVoiceCallStateChanged, (payload) => {
+    if (payload.emitterId === widgetDataChangedEmitterId) return;
+    handler(payload);
+  });
+}
+
+export async function emitWidgetVoiceActionRequested(
+  action: WidgetVoiceAction,
+  target: WidgetVoiceActionTarget,
+  requestId: string,
+) {
+  if (!isTauriRuntime()) return;
+
+  const { emit } = (await import("@tauri-apps/api/event")) as {
+    emit: (eventName: string, payload?: unknown) => Promise<void>;
+  };
+
+  await emit(TAURI_EVENTS.widgetVoiceActionRequested, {
+    action,
+    emitterId: widgetDataChangedEmitterId,
+    occurredAt: Date.now(),
+    requestId,
+    target,
+  } satisfies WidgetVoiceActionRequestedPayload);
+}
+
+export function listenWidgetVoiceActionRequested(handler: (payload: WidgetVoiceActionRequestedPayload) => void) {
+  return listenTauriEvent<WidgetVoiceActionRequestedPayload>(TAURI_EVENTS.widgetVoiceActionRequested, (payload) => {
     if (payload.emitterId === widgetDataChangedEmitterId) return;
     handler(payload);
   });

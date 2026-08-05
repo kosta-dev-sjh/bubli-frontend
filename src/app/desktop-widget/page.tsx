@@ -63,13 +63,17 @@ import { setWidgetWindowDragLocked, tauriCommands, waitForPendingWidgetUsageEven
 import {
   emitWidgetDataChanged,
   emitWidgetIncomingCallChanged,
+  emitWidgetVoiceActionRequested,
   emitWidgetVoiceCallStateChanged,
   listenWidgetBarItemsChanged,
   listenWidgetDataChanged,
   listenWidgetIncomingCallChanged,
+  listenWidgetVoiceActionRequested,
   listenWidgetRoomContextChanged,
   listenWidgetVoiceCallStateChanged,
   listenWidgetWindowStateChanged,
+  type WidgetVoiceAction,
+  type WidgetVoiceActionTarget,
 } from "@/lib/tauri/events";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { sendTauriNotification } from "@/lib/tauri/notification";
@@ -94,6 +98,7 @@ import type { NotificationResponse } from "@/types/api/notification";
 import type { WidgetSummaryResponse } from "@/types/api/widget";
 
 type TranslateFn = (key: MessageKey, vars?: TranslateVars) => string;
+type WidgetVoiceActionBubble = Pick<WidgetPreviewBubble, "chatRoomId" | "isDirectChat" | "roomId" | "voiceRoomId">;
 
 // 메뉴 오브 창은 ?bubble=menu 경로에서 렌더되어 바 메뉴 분리 동작을 담당한다.
 // 기본 청크에서 제외하기 위해 next/dynamic으로 지연 로드한다(단일 라우트라 유일한 분할 지점).
@@ -1877,6 +1882,7 @@ function DesktopWidgetSurface() {
   >([]);
   const liveKitRoomRef = useRef<Room | null>(null);
   const voiceRecoveryRoomIdRef = useRef<string | null>(null);
+  const handledWidgetVoiceActionRequestIdsRef = useRef(new Set<string>());
   const voiceRecoveryTimerRef = useRef<number | null>(null);
   const surfaceReadySentRef = useRef(false);
   const appReadySentRef = useRef(false);
@@ -1889,6 +1895,7 @@ function DesktopWidgetSurface() {
   const selectedWidgetRoomId = widgetContext ? normalizeWidgetRoomId(widgetContext.selectedRoomId) : normalizeWidgetRoomId(requestedRoomId);
   const widgetSessionReady = !isTauri || (authReady && hasAuthSession);
   const isWindowsStartupProfile = isTauri && startupOptimization.profile === "windows";
+  const isWidgetVoiceOwnerWindow = !isWindowsStartupProfile || (!isWidgetChrome && currentWindowBubble === "chat");
   const requestDisplayRefresh = useCallback(() => {
     const throttleMs =
       isTauri && startupOptimization.profile === "windows" ? startupOptimization.displayRefreshThrottleMs : 0;
@@ -4674,8 +4681,45 @@ function DesktopWidgetSurface() {
     [dismissMessageToast, isTauri, setActiveBubble],
   );
 
+  const openVoiceOwnerChatWidget = useCallback(
+    async (bubble?: Pick<WidgetVoiceActionBubble, "chatRoomId" | "roomId">) => {
+      if (isTauri) {
+        await tauriCommands
+          .openWidgetWindow({
+            bubbleType: "chat",
+            mode: "DEFAULT",
+            selectedRoomId: bubble?.roomId ?? bubble?.chatRoomId ?? selectedWidgetRoomId,
+            windowId: "chat",
+          })
+          .catch(() => undefined);
+        return;
+      }
+      setActiveBubble("chat");
+    },
+    [isTauri, selectedWidgetRoomId, setActiveBubble],
+  );
+
+  const handoffWidgetVoiceAction = useCallback(
+    async (action: WidgetVoiceAction, bubble: WidgetVoiceActionBubble) => {
+      const target: WidgetVoiceActionTarget = {
+        chatRoomId: bubble.chatRoomId,
+        isDirectChat: bubble.isDirectChat,
+        roomId: bubble.roomId,
+        voiceRoomId: bubble.voiceRoomId,
+      };
+      const requestId = `widget-voice-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const emitRequest = () => void emitWidgetVoiceActionRequested(action, target, requestId).catch(() => undefined);
+
+      await openVoiceOwnerChatWidget(target);
+      emitRequest();
+      // A newly created chat WebView may not have subscribed when the first event is emitted.
+      window.setTimeout(emitRequest, 700);
+    },
+    [openVoiceOwnerChatWidget],
+  );
+
   const startWidgetVoice = useCallback(
-    async (bubble: WidgetPreviewBubble) => {
+    async (bubble: WidgetVoiceActionBubble) => {
       // 프로젝트룸이면 roomId로, 1:1/그룹이면 chatRoomId로 통화방을 잡는다(웹 소통창과 동일한 분기).
       if (!bubble.roomId && !bubble.chatRoomId) {
         setVoiceConnectionLabel("Select a room first");
@@ -4687,6 +4731,12 @@ function DesktopWidgetSurface() {
       // 거절/취소해서 방이 이미 ENDED됐는데도 activeVoiceRoomId가 안 지워진 채 남아 있을 때
       // 죽은 방을 계속 GET만 하고 새 방을 절대 안 만들어(=상대에게 알림도 안 감) 벨소리만 울리고
       // 실제로는 전화가 안 가는 버그가 됐다.
+      if (!isWidgetVoiceOwnerWindow) {
+        await handoffWidgetVoiceAction("start", bubble);
+        setVoiceConnectionLabel(t("widget.chat.voiceWaiting"));
+        return;
+      }
+
       let voiceRoom;
       try {
         voiceRoom = await widgetCommunicationApi.createVoiceRoom(
@@ -4747,11 +4797,15 @@ function DesktopWidgetSurface() {
       setCommunicationRevision((current) => current + 1);
       publishWidgetDataChanged("chat");
     },
-    [isTauri, publishWidgetDataChanged, t],
+    [handoffWidgetVoiceAction, isTauri, isWidgetVoiceOwnerWindow, publishWidgetDataChanged, t],
   );
 
   const toggleWidgetVoiceMic = useCallback(
-    async (bubble: WidgetPreviewBubble) => {
+    async (bubble: WidgetVoiceActionBubble) => {
+      if (!isWidgetVoiceOwnerWindow) {
+        await handoffWidgetVoiceAction("mic", bubble);
+        return;
+      }
       const voiceRoomId = bubble.voiceRoomId ?? activeVoiceRoomId;
       if (!voiceRoomId) return;
 
@@ -4776,11 +4830,15 @@ function DesktopWidgetSurface() {
       setCommunicationRevision((current) => current + 1);
       publishWidgetDataChanged("chat");
     },
-    [activeVoiceRoomId, isTauri, publishWidgetDataChanged, voiceMicMuted],
+    [activeVoiceRoomId, handoffWidgetVoiceAction, isTauri, isWidgetVoiceOwnerWindow, publishWidgetDataChanged, voiceMicMuted],
   );
 
   const leaveWidgetVoice = useCallback(
-    async (bubble: WidgetPreviewBubble) => {
+    async (bubble: WidgetVoiceActionBubble) => {
+      if (!isWidgetVoiceOwnerWindow) {
+        await handoffWidgetVoiceAction("leave", bubble);
+        return;
+      }
       const voiceRoomId = bubble.voiceRoomId ?? activeVoiceRoomId;
       if (!voiceRoomId) return;
 
@@ -4825,8 +4883,44 @@ function DesktopWidgetSurface() {
       setCommunicationRevision((current) => current + 1);
       publishWidgetDataChanged("chat");
     },
-    [activeVoiceRoomId, isTauri, publishWidgetDataChanged, t],
+    [activeVoiceRoomId, handoffWidgetVoiceAction, isTauri, isWidgetVoiceOwnerWindow, publishWidgetDataChanged, t],
   );
+
+  useEffect(() => {
+    if (!isWidgetVoiceOwnerWindow) return;
+
+    let cancelled = false;
+    let unlisten: (() => void) | null = null;
+    void listenWidgetVoiceActionRequested((request) => {
+      if (cancelled || handledWidgetVoiceActionRequestIdsRef.current.has(request.requestId)) return;
+      handledWidgetVoiceActionRequestIdsRef.current.add(request.requestId);
+      if (handledWidgetVoiceActionRequestIdsRef.current.size > 100) {
+        handledWidgetVoiceActionRequestIdsRef.current.clear();
+        handledWidgetVoiceActionRequestIdsRef.current.add(request.requestId);
+      }
+
+      const bubble: WidgetVoiceActionBubble = {
+        chatRoomId: request.target.chatRoomId,
+        isDirectChat: request.target.isDirectChat,
+        roomId: request.target.roomId,
+        voiceRoomId: request.target.voiceRoomId,
+      };
+      const handler =
+        request.action === "start" ? startWidgetVoice : request.action === "leave" ? leaveWidgetVoice : toggleWidgetVoiceMic;
+      void handler(bubble).catch(() => undefined);
+    }).then((nextUnlisten) => {
+      if (cancelled) {
+        nextUnlisten();
+        return;
+      }
+      unlisten = nextUnlisten;
+    });
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [isWidgetVoiceOwnerWindow, leaveWidgetVoice, startWidgetVoice, toggleWidgetVoiceMic]);
 
   // 바/메뉴 화면에서 공통 서버 사용 롤업(usage-summaries/today)을 한 줄 요약으로 보여준다.
   // 한 번만 불러오면 세션 중 사용량이 늘어도 숫자가 고정돼 목업처럼 보인다 — 주기적으로

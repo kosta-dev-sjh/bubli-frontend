@@ -95,7 +95,7 @@ const profileConfigs: Record<TauriStartupOptimizationProfile, TauriStartupOptimi
     widgetContextRefreshIntervalMs: 15_000,
   },
   windows: {
-    bubbleOpenStaggerMs: 0,
+    bubbleOpenStaggerMs: 90,
     deferredBarCollectionRefreshDelayMs: 1_800,
     deferredBarFullDisplayDelayMs: 120,
     deferBarAgentCollectionsOnInitialDisplay: true,
