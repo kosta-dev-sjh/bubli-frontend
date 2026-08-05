@@ -5,18 +5,46 @@ on:
     workflows: ["CI"]
     branches: [develop]
     types: [completed]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Commit SHA or branch to build and deploy after infrastructure recovery"
+        required: true
+        default: develop
 
 permissions:
   contents: read
 
+concurrency:
+  group: frontend-production
+  cancel-in-progress: false
+
+env:
+  DEPLOY_REF: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.ref }}
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    timeout-minutes: 30
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' || (vars.DEPLOY_ENABLED == 'true' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'develop') }}
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+      repository: ${{ steps.revision.outputs.repository }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_REF }}
+          fetch-depth: 1
+
+      - name: Resolve deployment commit
+        id: revision
+        shell: bash
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "repository=${{ secrets.DOCKER_USERNAME }}/bubli-frontend" >> "$GITHUB_OUTPUT"
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -28,13 +56,12 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build and push Docker image
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          tags: |
-            ${{ secrets.DOCKER_USERNAME }}/bubli-frontend:latest
-            ${{ secrets.DOCKER_USERNAME }}/bubli-frontend:${{ github.sha }}
+          tags: ${{ steps.revision.outputs.repository }}:${{ steps.revision.outputs.sha }}
           # NEXT_PUBLIC_* 변수는 빌드 타임에 번들에 포함됨
           # GitHub Repository Variables (Settings → Variables → Actions)에 추가 필요
           # (NEXT_PUBLIC_WS_URL은 Secrets에 등록되어 있어 secrets. 컨텍스트로 읽는다)
@@ -49,6 +76,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: build-and-push
+    timeout-minutes: 10
 
     steps:
       - name: Rolling update frontend on EC2
@@ -57,9 +85,20 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          timeout: 30s
+          command_timeout: 5m
+          script_stop: true
           script: |
+            set -eu
+            IMAGE='${{ needs.build-and-push.outputs.repository }}'
+            DIGEST='${{ needs.build-and-push.outputs.digest }}'
+            test -n "$IMAGE"
+            test -n "$DIGEST"
+            docker pull "$IMAGE@$DIGEST"
+            docker tag "$IMAGE@$DIGEST" "$IMAGE:latest"
             cd ~/bubli-backend
-            git pull origin develop
-            docker compose -f docker-compose.prod.yml pull frontend
+            docker compose -f docker-compose.prod.yml config --quiet
             docker compose -f docker-compose.prod.yml up -d --no-deps --no-build frontend
+            test "$(docker inspect --format '{{.State.Running}}' bubli-frontend)" = "true"
+            curl --fail --silent --show-error --retry 6 --retry-connrefused --max-time 10 --resolve bubli.n-e.kr:443:127.0.0.1 https://bubli.n-e.kr/ > /dev/null
             docker image prune -f
