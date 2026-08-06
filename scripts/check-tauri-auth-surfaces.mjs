@@ -1929,6 +1929,11 @@ assertContains(
 );
 assertContains(
   authPanel,
+  /const selectedLocale = readExplicitStoredLocale\(\);[\s\S]*const savedUser = await runTauriLoginStep\(\s*"sync-locale",\s*\(\) => saveAuthUserLocale\(token\.user, selectedLocale\),\s*\);[\s\S]*if \(isWindowsTauriRuntime\(\)\) \{[\s\S]*runTauriLoginStep\("store-locale-session"[\s\S]*setStoredAuthSessionAndWaitForTauriMirror\(\{ \.\.\.token, clientType: "TAURI", user: savedUser \}\)/,
+  "Windows Tauri login must finish mirroring the locale-updated session before it opens the member surface.",
+);
+assertContains(
+  authPanel,
   /const liveAuth = useLiveAuthState\(\);[\s\S]*const hasMounted = useSyncExternalStore\(subscribeClientSnapshot, getClientSnapshot, getServerSnapshot\);[\s\S]*const isCheckingExistingSession = liveAuth\.status === "checking";[\s\S]*const submitLabel =[\s\S]*hasMounted && isTauriRuntime\(\)[\s\S]*t\("auth\.panel\.googleLogin"\)[\s\S]*isCheckingExistingSession[\s\S]*t\("common\.loading"\)[\s\S]*aria-busy=\{isStartingLogin \|\| isCheckingExistingSession\}[\s\S]*disabled=\{isStartingLogin \|\| isCheckingExistingSession\}[\s\S]*\{submitLabel\}/,
   "Tauri login must keep the visible Google login CTA stable while using disabled/aria-busy for session restore and OAuth progress.",
 );
