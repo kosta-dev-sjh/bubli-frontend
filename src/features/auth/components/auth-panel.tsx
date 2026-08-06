@@ -18,6 +18,7 @@ import {
 import { readExplicitStoredLocale, useI18n } from "@/lib/i18n";
 import { tauriCommands } from "@/lib/tauri/commands";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
+import { isWindowsTauriRuntime } from "@/lib/tauri/platform";
 
 function GoogleIcon() {
   return (
@@ -209,7 +210,15 @@ export function AuthPanel() {
         );
         const selectedLocale = readExplicitStoredLocale();
         if (selectedLocale && token.user.locale !== selectedLocale) {
-          await runTauriLoginStep("sync-locale", () => saveAuthUserLocale(token.user, selectedLocale));
+          const savedUser = await runTauriLoginStep(
+            "sync-locale",
+            () => saveAuthUserLocale(token.user, selectedLocale),
+          );
+          if (isWindowsTauriRuntime()) {
+            await runTauriLoginStep("store-locale-session", () =>
+              setStoredAuthSessionAndWaitForTauriMirror({ ...token, clientType: "TAURI", user: savedUser }),
+            );
+          }
         }
         await tauriCommands.openMainWindowRoute({ route: TAURI_MEMBER_APP_ROUTE }).catch(async () => {
           await tauriCommands.showMainWindow().catch(() => undefined);
