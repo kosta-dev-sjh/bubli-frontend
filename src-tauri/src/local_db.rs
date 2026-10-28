@@ -61,7 +61,26 @@ pub fn open_and_migrate(app: &AppHandle) -> Result<Connection, String> {
     configure_connection(&conn);
     conn.execute_batch(SCHEMA_SQL)
         .map_err(|error| error.to_string())?;
+    migrate_file_sync_outbox(&conn)?;
     Ok(conn)
+}
+
+pub(crate) fn migrate_file_sync_outbox(conn: &Connection) -> Result<(), String> {
+    crate::file_sync_control::migrate(conn)?;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    let columns: Vec<String> = tx.prepare("PRAGMA table_info(local_sync_outbox)")
+        .map_err(|e| e.to_string())?.query_map([], |row| row.get(1))
+        .map_err(|e| e.to_string())?.collect::<Result<_, _>>().map_err(|e| e.to_string())?;
+    for (name, definition) in [("payload_sealed", "INTEGER NOT NULL DEFAULT 1"),
+                               ("next_retry_at", "INTEGER")] {
+        if !columns.iter().any(|column| column == name) {
+            tx.execute_batch(&format!("ALTER TABLE local_sync_outbox ADD COLUMN {name} {definition}"))
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    tx.execute_batch("CREATE INDEX IF NOT EXISTS idx_file_events_merge_barriers ON local_file_events(local_file_id, id) WHERE event_type <> 'UPDATED' OR status = 'REJECTED'")
+        .map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())
 }
 
 /// Resolve the canonical on-device SQLite path so background workers can open
@@ -81,6 +100,15 @@ pub fn configure_connection(conn: &Connection) {
     // WAL keeps reads fast while the widget writes usage events frequently.
     let _ = conn.pragma_update(None, "journal_mode", "WAL");
     let _ = conn.pragma_update(None, "foreign_keys", "ON");
+}
+
+#[cfg(test)]
+pub(crate) fn test_database_with_production_schema(path: &Path) -> Connection {
+    let conn = Connection::open(path).expect("open isolated full-schema DB");
+    configure_connection(&conn);
+    conn.execute_batch(SCHEMA_SQL).expect("apply production schema");
+    migrate_file_sync_outbox(&conn).expect("apply production outbox migration");
+    conn
 }
 
 #[derive(Serialize)]
@@ -443,9 +471,20 @@ pub fn check_local_sqlite_integrity(
 fn check_local_sqlite_integrity_for_conn(
     conn: &Connection,
 ) -> Result<SqliteIntegrityResult, String> {
-    let quick_check: String = conn
-        .query_row("PRAGMA quick_check", [], |row| row.get(0))
-        .map_err(|error| error.to_string())?;
+    if !conn.is_autocommit() {
+        return Err("SQLite integrity check requires an idle connection".to_string());
+    }
+    // SQLite's FTS xIntegrity can retain an older structure on a long-lived connection.
+    let path = main_database_path_for_conn(conn)?;
+    let reader = path.as_ref().map(|path| {
+        Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+    }).transpose().map_err(|error| error.to_string())?;
+    let inspection = reader.as_ref().unwrap_or(conn);
+    let transaction = inspection.unchecked_transaction().map_err(|error| error.to_string())?;
+    let conn = &*transaction;
+    let quick_check = conn.prepare("PRAGMA quick_check").map_err(|error| error.to_string())?
+        .query_map([], |row| row.get::<_, String>(0)).map_err(|error| error.to_string())?
+        .collect::<Result<Vec<_>, _>>().map_err(|error| error.to_string())?.join("\n");
     let journal_mode: String = conn
         .query_row("PRAGMA journal_mode", [], |row| row.get(0))
         .map_err(|error| error.to_string())?;
@@ -472,6 +511,7 @@ fn check_local_sqlite_integrity_for_conn(
         .transpose()?
         .unwrap_or(0);
     let ok = quick_check == "ok";
+    transaction.commit().map_err(|error| error.to_string())?;
 
     Ok(SqliteIntegrityResult {
         checked_at: now_iso(),
@@ -485,6 +525,11 @@ fn check_local_sqlite_integrity_for_conn(
         recovery_required: !ok,
         wal_size_bytes,
     })
+}
+
+#[cfg(test)]
+pub(crate) fn check_integrity_for_headless_test(conn: &Connection) -> Result<SqliteIntegrityResult, String> {
+    check_local_sqlite_integrity_for_conn(conn)
 }
 
 fn main_database_path_for_conn(conn: &Connection) -> Result<Option<PathBuf>, String> {
@@ -773,9 +818,11 @@ pub fn read_tauri_auth_session(
 #[tauri::command]
 pub fn clear_tauri_auth_session(state: tauri::State<'_, Db>) -> Result<(), String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
-    conn.execute("DELETE FROM local_auth_session WHERE id = 1", [])
+    let tx = rusqlite::Transaction::new_unchecked(&conn, rusqlite::TransactionBehavior::Immediate).map_err(|e| e.to_string())?;
+    crate::file_sync_control::update_auth_context(&tx, None)?;
+    tx.execute("DELETE FROM local_auth_session WHERE id = 1", [])
         .map_err(|error| error.to_string())?;
-    Ok(())
+    tx.commit().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -1650,17 +1697,20 @@ fn validate_auth_session_json(session_json: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn store_auth_session_json(
+pub(crate) fn store_auth_session_json(
     conn: &Connection,
     session_json: &str,
 ) -> Result<AuthSessionReadResult, String> {
     let saved_at = now_ms();
-    conn.execute(
+    let tx = rusqlite::Transaction::new_unchecked(conn, rusqlite::TransactionBehavior::Immediate).map_err(|e| e.to_string())?;
+    crate::file_sync_control::update_auth_context(&tx, Some(session_json))?;
+    tx.execute(
         "INSERT INTO local_auth_session (id, session_json, saved_at) VALUES (1, ?1, ?2) \
          ON CONFLICT(id) DO UPDATE SET session_json = excluded.session_json, saved_at = excluded.saved_at",
         params![session_json, saved_at],
     )
     .map_err(|error| error.to_string())?;
+    tx.commit().map_err(|e| e.to_string())?;
 
     Ok(AuthSessionReadResult {
         saved_at: ms_to_iso(saved_at),
@@ -1750,6 +1800,13 @@ CREATE TABLE IF NOT EXISTS local_auth_session (
     saved_at     INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS local_file_sync_session (
+    id INTEGER PRIMARY KEY CHECK(id = 1), owner_id TEXT, epoch TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS local_file_sync_leases (
+    owner_id TEXT PRIMARY KEY, token TEXT NOT NULL, expires_at INTEGER NOT NULL
+);
+
 -- Last selected project room for Tauri shell/window startup. Server widget
 -- context remains the cross-device source; this row protects local relaunches.
 CREATE TABLE IF NOT EXISTS local_active_project_room (
@@ -1770,11 +1827,13 @@ CREATE TABLE IF NOT EXISTS local_device_identity (
 CREATE TABLE IF NOT EXISTS managed_folders (
     id            TEXT PRIMARY KEY,
     name          TEXT NOT NULL,
-    path          TEXT NOT NULL UNIQUE,
+    path          TEXT NOT NULL,
     status        TEXT NOT NULL DEFAULT 'ACTIVE',   -- ACTIVE | PAUSED | REMOVED
     sync_enabled  INTEGER NOT NULL DEFAULT 0,       -- 0/1; only synced folders reach the server
     created_at    INTEGER NOT NULL,
-    updated_at    INTEGER NOT NULL
+    updated_at    INTEGER NOT NULL,
+    owner_user_id TEXT,
+    UNIQUE(owner_user_id, path)
 );
 
 -- Local file index for a managed folder.
@@ -1837,6 +1896,23 @@ CREATE TABLE IF NOT EXISTS local_file_events (
     created_at      INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_local_file_events_status ON local_file_events(status);
+CREATE INDEX IF NOT EXISTS idx_local_file_events_file_status ON local_file_events(local_file_id, status);
+CREATE INDEX IF NOT EXISTS idx_file_events_merge_barriers ON local_file_events(local_file_id, id)
+    WHERE event_type <> 'UPDATED' OR status = 'REJECTED';
+
+-- Insertion order survives timestamp ties, retries and event-history cleanup.
+CREATE TABLE IF NOT EXISTS local_file_event_order (
+    sequence       INTEGER PRIMARY KEY AUTOINCREMENT,
+    local_event_id TEXT NOT NULL UNIQUE
+);
+INSERT INTO local_file_event_order(local_event_id)
+SELECT e.id FROM local_file_events e
+LEFT JOIN local_file_event_order o ON o.local_event_id = e.id
+WHERE o.local_event_id IS NULL ORDER BY e.rowid;
+CREATE TRIGGER IF NOT EXISTS local_file_event_order_on_insert
+AFTER INSERT ON local_file_events BEGIN
+    INSERT INTO local_file_event_order(local_event_id) VALUES (NEW.id);
+END;
 
 -- Widget usage detail events (kept local; never sent verbatim to the server).
 CREATE TABLE IF NOT EXISTS local_widget_usage_events (
@@ -1867,7 +1943,7 @@ CREATE TABLE IF NOT EXISTS local_sync_outbox (
     idempotency_key TEXT NOT NULL UNIQUE,
     operation       TEXT NOT NULL,                   -- e.g. widget_usage_summary | local_file_event
     payload_json    TEXT NOT NULL,
-    status          TEXT NOT NULL DEFAULT 'PENDING', -- PENDING|SENDING|SENT|FAILED
+    status          TEXT NOT NULL DEFAULT 'PENDING', -- WAITING|PENDING|SENDING|SENT|FAILED|REJECTED
     retry_count     INTEGER NOT NULL DEFAULT 0,
     created_at      INTEGER NOT NULL,
     updated_at      INTEGER NOT NULL
@@ -2230,6 +2306,8 @@ mod tests {
         drop(conn);
         std::fs::remove_dir_all(&test_dir).expect("remove test dir");
     }
+
+    include!("sqlite_integrity_diagnosis_tests.rs");
 
     #[test]
     fn sqlite_integrity_result_includes_storage_diagnostics() {

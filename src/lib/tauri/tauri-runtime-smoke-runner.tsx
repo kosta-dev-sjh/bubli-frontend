@@ -1,5 +1,7 @@
 "use client";
 
+import { currentFileSyncQaContext, inspectFileSyncQaBatch } from "@/lib/tauri/file-sync-qa";
+
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 
@@ -203,7 +205,7 @@ async function waitForManagedFolderEvents(
   localFolderId: string,
   requiredEventTypes: Array<"CREATED" | "UPDATED" | "DELETED">,
 ) {
-  let latest = await tauriCommands.stageLocalFileEventsForSync({ limit: 20, localFolderId });
+  let latest = await inspectFileSyncQaBatch({ limit: 20, localFolderId });
 
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const stagedTypes = new Set(latest.events.map((event) => event.eventType));
@@ -212,7 +214,7 @@ async function waitForManagedFolderEvents(
     }
 
     await sleep(250);
-    latest = await tauriCommands.stageLocalFileEventsForSync({ limit: 20, localFolderId });
+    latest = await inspectFileSyncQaBatch({ limit: 20, localFolderId });
   }
 
   return latest;
@@ -338,6 +340,16 @@ async function persistWidgetRestartLayoutCheckpoint(assert: SmokeAssert) {
 }
 
 async function syncStagedLocalFileEventsToBackend(staged: LocalFileEventsSyncStageResult) {
+  const context = await currentFileSyncQaContext();
+  const claimed = await tauriCommands.stageLocalFileEventsForSync({ context, limit: 500 });
+  if (!claimed.lease) throw new Error("Runtime smoke could not acquire the file-sync sender lease");
+  const lease = claimed.lease;
+  const expected = new Set(claimed.events.map(event => event.localEventId));
+  if (staged.events.some(event => !expected.has(event.localEventId))) {
+    await tauriCommands.releaseLocalFileSyncLease(lease);
+    throw new Error("Runtime smoke batch changed before sending");
+  }
+  try {
   const response = await managedFolderApi.syncApprovedLocalFileEvents({
     events: staged.events.map((event) => ({
       eventType: event.eventType,
@@ -346,12 +358,15 @@ async function syncStagedLocalFileEventsToBackend(staged: LocalFileEventsSyncSta
       localEventId: event.localEventId,
       mimeType: event.mimeType,
       resourceId: event.resourceId,
+      syncDeviceId: event.syncDeviceId,
+      localSequence: event.localSequence,
     })),
-  });
+  }, { expectedUserId: context.ownerId });
   const markResult = await tauriCommands.markLocalFileEventsSynced({
+    lease,
     results: response.results
-      .map((result, index) => {
-        const localEventId = result.localEventId ?? staged.events[index]?.localEventId;
+      .map((result) => {
+        const localEventId = result.localEventId;
         if (!localEventId) return null;
 
         return {
@@ -364,6 +379,7 @@ async function syncStagedLocalFileEventsToBackend(staged: LocalFileEventsSyncSta
   });
 
   return { markResult, response };
+  } finally { await tauriCommands.releaseLocalFileSyncLease(lease); }
 }
 
 function findSyncedLocalFileAnalysisCandidate(
@@ -937,7 +953,7 @@ async function verifyLocalAutoSyncLoops(assert: SmokeAssert) {
     );
 
     await flushManagedFolderAutoSync();
-    const drainedEvents = await tauriCommands.stageLocalFileEventsForSync({
+    const drainedEvents = await inspectFileSyncQaBatch({
       limit: 20,
       localFolderId: folder.localFolderId,
     });
@@ -1543,7 +1559,7 @@ async function runSmoke() {
         csvPreview,
       );
 
-      const stagedFiles = await tauriCommands.stageLocalFileEventsForSync({
+      const stagedFiles = await inspectFileSyncQaBatch({
         limit: 20,
         localFolderId: folder.localFolderId,
       });
@@ -1602,7 +1618,7 @@ async function runSmoke() {
         "local file reindex refreshed readable preview",
         reindexedPreview,
       );
-      const reindexedEvents = await tauriCommands.stageLocalFileEventsForSync({
+      const reindexedEvents = await inspectFileSyncQaBatch({
         limit: 10,
         localFolderId: folder.localFolderId,
       });
@@ -1698,7 +1714,7 @@ async function runSmoke() {
         "watched file event sync marked SQLite rows as SYNCED",
         watchedSync,
       );
-      const remainingWatchedEvents = await tauriCommands.stageLocalFileEventsForSync({
+      const remainingWatchedEvents = await inspectFileSyncQaBatch({
         limit: 20,
         localFolderId: folder.localFolderId,
       });
@@ -1763,7 +1779,7 @@ async function runSmoke() {
       remainingManualWidgetUsage,
     );
     if (manualOutboxFolderId) {
-      const remainingManualFileEvents = await tauriCommands.stageLocalFileEventsForSync({
+      const remainingManualFileEvents = await inspectFileSyncQaBatch({
         limit: 20,
         localFolderId: manualOutboxFolderId,
       });

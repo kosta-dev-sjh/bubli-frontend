@@ -27,9 +27,9 @@ use tauri_plugin_dialog::DialogExt;
 use uuid::Uuid;
 
 use crate::local_db::{ms_to_iso, now_ms, Db};
+use crate::file_sync_control::{self, FileSyncContext, FileSyncLease};
 
 const MAX_EXTRACT_BYTES: u64 = 1024 * 1024;
-const CHECKSUM_HEAD_BYTES: u64 = 1024 * 1024;
 const KEY_SENTENCE_METHOD: &str = "BM25_MMR_KEY_SENTENCE_V1";
 
 #[derive(Deserialize)]
@@ -302,7 +302,30 @@ pub struct LocalFileEventsSyncStageInput {
     local_folder_id: Option<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScopedFileSyncStageInput {
+    context: FileSyncContext,
+    limit: Option<i64>,
+    local_folder_id: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScopedFileSyncMarkInput {
+    lease: FileSyncLease,
+    results: Vec<LocalFileEventSyncResultInput>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScopedFileReconcileInput {
+    context: FileSyncContext,
+    resource_ids: Vec<String>,
+    complete: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalFileSyncEventCandidate {
     event_type: String,
@@ -312,6 +335,8 @@ pub struct LocalFileSyncEventCandidate {
     local_file_id: Option<String>,
     mime_type: Option<String>,
     resource_id: Option<String>,
+    sync_device_id: String,
+    local_sequence: i64,
 }
 
 #[derive(Serialize)]
@@ -319,6 +344,9 @@ pub struct LocalFileSyncEventCandidate {
 pub struct LocalFileEventsSyncStageResult {
     events: Vec<LocalFileSyncEventCandidate>,
     staged_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    lease: Option<FileSyncLease>,
+    busy: bool,
 }
 
 #[derive(Deserialize)]
@@ -327,6 +355,8 @@ pub struct LocalFileEventSyncResultInput {
     local_event_id: String,
     resource_id: Option<String>,
     status: String,
+    reason: Option<String>,
+    next_retry_at: Option<i64>,
 }
 
 #[derive(Deserialize)]
@@ -348,6 +378,8 @@ pub struct LocalFileEventsMarkSyncedResult {
 pub struct LocalFilesServerReconcileInput {
     /// 서버에 지금 존재하는 개인 자료 id 집합.
     resource_ids: Vec<String>,
+    #[serde(default)]
+    complete: bool,
 }
 
 #[derive(Serialize)]
@@ -444,8 +476,13 @@ pub async fn select_managed_folder(
     state: State<'_, Db>,
     input: Option<SelectManagedFolderInput>,
 ) -> Result<ManagedFolderSelection, String> {
+    let context = {
+        let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+        file_sync_control::current_context(&conn)?
+    };
     let path_buf = resolve_managed_folder_path(&app, input).await?;
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    file_sync_control::validate_context(&conn, &context)?;
     register_managed_folder_for_path(&conn, &path_buf, now_ms())
 }
 
@@ -463,19 +500,24 @@ fn register_managed_folder_for_path(
         .map(|value| value.to_string_lossy().to_string())
         .unwrap_or_else(|| path.clone());
     let id = Uuid::new_v4().to_string();
+    let owner = file_sync_control::current_context(conn).ok().map(|context| context.owner_id);
+    let existing: Option<String> = conn.query_row(
+        "SELECT id FROM managed_folders WHERE path=?1 AND owner_user_id IS ?2", params![path, owner], |row| row.get(0),
+    ).optional().map_err(|e| e.to_string())?;
+    let id = existing.unwrap_or(id);
     conn.execute(
-        "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
-         VALUES (?1, ?2, ?3, 'ACTIVE', 1, ?4, ?4) \
-         ON CONFLICT(path) DO UPDATE SET status = 'ACTIVE', sync_enabled = 1, updated_at = excluded.updated_at",
-        params![id, name, path, now],
+        "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at, owner_user_id) \
+         VALUES (?1, ?2, ?3, 'ACTIVE', 1, ?4, ?4, ?5) \
+         ON CONFLICT(id) DO UPDATE SET status = 'ACTIVE', sync_enabled = 1, updated_at = excluded.updated_at",
+        params![id, name, path, now, owner],
     )
     .map_err(|error| error.to_string())?;
 
     // Resolve the canonical id (existing one wins on conflict).
     let local_folder_id: String = conn
         .query_row(
-            "SELECT id FROM managed_folders WHERE path = ?1",
-            params![path],
+            "SELECT id FROM managed_folders WHERE id = ?1",
+            params![id],
             |row| row.get(0),
         )
         .map_err(|error| error.to_string())?;
@@ -491,23 +533,28 @@ fn register_managed_folder_for_path(
 #[tauri::command]
 pub fn list_managed_folders(state: State<'_, Db>) -> Result<ManagedFolderListResult, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
-    list_managed_folders_for_conn(&conn, now_ms())
+    let context = file_sync_control::current_context(&conn)?;
+    list_managed_folders_scoped(&conn, now_ms(), Some(&context.owner_id))
 }
 
 fn list_managed_folders_for_conn(
     conn: &Connection,
     loaded_at: i64,
 ) -> Result<ManagedFolderListResult, String> {
+    list_managed_folders_scoped(conn, loaded_at, None)
+}
+
+fn list_managed_folders_scoped(conn: &Connection, loaded_at: i64, owner: Option<&str>) -> Result<ManagedFolderListResult, String> {
     let mut statement = conn
         .prepare(
             "SELECT id, name, path, status, sync_enabled, created_at, updated_at \
              FROM managed_folders \
-             WHERE status != 'REMOVED' \
+             WHERE status != 'REMOVED' AND (?1 IS NULL OR owner_user_id=?1) \
              ORDER BY updated_at DESC",
         )
         .map_err(|error| error.to_string())?;
     let folders = statement
-        .query_map([], |row| {
+        .query_map(params![owner], |row| {
             Ok(ManagedFolderListItem {
                 local_folder_id: row.get(0)?,
                 name: row.get(1)?,
@@ -564,6 +611,7 @@ pub fn get_index_progress(
     input: ManagedFolderCommandInput,
 ) -> Result<ManagedFolderIndexProgressResult, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    file_sync_control::require_folder_owner(&conn, &input.local_folder_id, &file_sync_control::current_context(&conn)?)?;
     get_index_progress_for_conn(&conn, &input.local_folder_id)
 }
 
@@ -575,6 +623,7 @@ pub fn set_folder_sync(
     input: ManagedFolderSyncInput,
 ) -> Result<ManagedFolderSyncResult, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    file_sync_control::require_folder_owner(&conn, &input.local_folder_id, &file_sync_control::current_context(&conn)?)?;
     let now = now_ms();
     set_folder_sync_for_conn(&conn, &input.local_folder_id, input.enabled, now)
 }
@@ -617,6 +666,7 @@ pub fn remove_managed_folder(
 ) -> Result<ManagedFolderRemoveResult, String> {
     let now = now_ms();
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    file_sync_control::require_folder_owner(&conn, &input.local_folder_id, &file_sync_control::current_context(&conn)?)?;
     let result = remove_managed_folder_for_conn(&conn, &input.local_folder_id, now)?;
     drop(conn);
 
@@ -661,10 +711,18 @@ pub fn scan_managed_folder(
     input: ManagedFolderCommandInput,
 ) -> Result<ManagedFolderScanResult, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    file_sync_control::require_folder_owner(&conn, &input.local_folder_id, &file_sync_control::current_context(&conn)?)?;
     scan_managed_folder_for_conn(&conn, input)
 }
 
 fn scan_managed_folder_for_conn(
+    conn: &Connection,
+    input: ManagedFolderCommandInput,
+) -> Result<ManagedFolderScanResult, String> {
+    with_file_change_savepoint(conn, |conn| scan_managed_folder_in_savepoint(conn, input))
+}
+
+fn scan_managed_folder_in_savepoint(
     conn: &Connection,
     input: ManagedFolderCommandInput,
 ) -> Result<ManagedFolderScanResult, String> {
@@ -705,11 +763,12 @@ fn scan_managed_folder_for_conn(
             .ok()
             .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
             .map(|d| d.as_millis() as i64);
-        let checksum = match sha256_head(&file) {
+        let checksum = match sha256_file(&file) {
             Ok(value) => value,
             Err(_) => continue,
         };
 
+        retire_deleted_file_at_path(conn, &input.local_folder_id, &local_path)?;
         let existing: Option<(String, Option<i64>, Option<i64>, Option<String>)> = conn
             .query_row(
                 "SELECT id, size_bytes, modified_at, checksum FROM local_files \
@@ -766,7 +825,7 @@ fn scan_managed_folder_for_conn(
                 );
                 if changed {
                     conn.execute(
-                        "UPDATE local_files SET size_bytes = ?2, modified_at = ?3, checksum = ?4, sync_status = 'LOCAL_ONLY', updated_at = ?5 \
+                        "UPDATE local_files SET size_bytes = ?2, modified_at = ?3, checksum = ?4, sync_status = CASE WHEN sync_status = 'CONFLICT' THEN 'CONFLICT' ELSE 'LOCAL_ONLY' END, updated_at = ?5 \
                          WHERE id = ?1",
                         params![file_id, size_bytes, modified_ms, checksum, now],
                     )
@@ -852,7 +911,7 @@ fn scan_managed_folder_for_conn(
         )?;
         delete_file_fts_index(&conn, &file_id)?;
         conn.execute(
-            "UPDATE local_files SET sync_status = 'LOCAL_ONLY', updated_at = ?2 WHERE id = ?1",
+            "UPDATE local_files SET sync_status = CASE WHEN sync_status = 'CONFLICT' THEN 'CONFLICT' ELSE 'LOCAL_ONLY' END, updated_at = ?2 WHERE id = ?1",
             params![file_id, now],
         )
         .map_err(|error| error.to_string())?;
@@ -876,6 +935,7 @@ pub fn watch_managed_folder(
     input: ManagedFolderCommandInput,
 ) -> Result<ManagedFolderWatchResult, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    file_sync_control::require_folder_owner(&conn, &input.local_folder_id, &file_sync_control::current_context(&conn)?)?;
     let folder_path: String = conn
         .query_row(
             "SELECT path FROM managed_folders WHERE id = ?1 AND status = 'ACTIVE'",
@@ -900,7 +960,10 @@ pub fn watch_all_managed_folders(
     watchers: State<'_, ManagedFolderWatchers>,
 ) -> Result<ManagedFolderWatchAllResult, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
-    let folders = active_managed_folders_for_conn(&conn)?;
+    let context = file_sync_control::current_context(&conn)?;
+    let folders = active_managed_folders_for_conn(&conn)?.into_iter().filter(|(id, _)| {
+        file_sync_control::require_folder_owner(&conn, id, &context).is_ok()
+    }).collect::<Vec<_>>();
     drop(conn);
 
     let active_folder_count = folders.len() as i64;
@@ -1010,7 +1073,7 @@ where
     }
 
     let callback_folder_id = local_folder_id.clone();
-    let callback_db_path = db_path.clone();
+    let callback_conn = open_managed_folder_watch_connection(&db_path)?;
     let mut watcher = notify::recommended_watcher(move |result: notify::Result<Event>| {
         let event = match result {
             Ok(value) => value,
@@ -1023,17 +1086,9 @@ where
             return;
         }
 
-        let conn = match Connection::open(&callback_db_path) {
-            Ok(value) => value,
-            Err(error) => {
-                eprintln!("managed folder watch db open failed: {error}");
-                return;
-            }
-        };
-        crate::local_db::configure_connection(&conn);
         let now = now_ms();
         let changed_count =
-            record_watch_event_paths_for_conn(&conn, &callback_folder_id, event.paths, now);
+            record_watch_event_paths_for_conn(&callback_conn, &callback_folder_id, event.paths, now);
 
         if changed_count > 0 {
             let payload = ManagedFolderWatchEvent {
@@ -1056,6 +1111,21 @@ where
         local_folder_id,
         watching: true,
     })
+}
+
+fn open_managed_folder_watch_connection(path: &Path) -> Result<Connection, String> {
+    let conn = Connection::open(path).map_err(|error| format!("folder watch db open failed: {error}"))?;
+    #[cfg(test)] watch_phase_probe::mark("connection_open");
+    crate::local_db::configure_connection(&conn);
+    #[cfg(test)] watch_phase_probe::mark("connection_config");
+    let journal: String = conn.pragma_query_value(None, "journal_mode", |row| row.get(0)).map_err(|error| error.to_string())?;
+    let foreign_keys: bool = conn.pragma_query_value(None, "foreign_keys", |row| row.get(0)).map_err(|error| error.to_string())?;
+    let synchronous: i64 = conn.pragma_query_value(None, "synchronous", |row| row.get(0)).map_err(|error| error.to_string())?;
+    if journal != "wal" || !foreign_keys || synchronous != 2 {
+        return Err("Folder watch requires WAL, foreign keys and FULL synchronous mode".to_string());
+    }
+    #[cfg(test)] watch_phase_probe::mark("connection_validate");
+    Ok(conn)
 }
 
 fn get_index_progress_for_conn(
@@ -1131,6 +1201,16 @@ fn reindex_file_for_conn(
     local_file_id: &str,
     now: i64,
 ) -> Result<LocalFileReindexResult, String> {
+    with_file_change_savepoint(conn, |conn| {
+        reindex_file_in_savepoint(conn, local_file_id, now)
+    })
+}
+
+fn reindex_file_in_savepoint(
+    conn: &Connection,
+    local_file_id: &str,
+    now: i64,
+) -> Result<LocalFileReindexResult, String> {
     let row: Option<(
         String,
         String,
@@ -1197,6 +1277,17 @@ fn reindex_file_for_conn(
         return Err(format!("not a file: {local_path}"));
     }
 
+    if retire_deleted_file_at_path(conn, &local_folder_id, &local_path)? {
+        record_watch_path_change(conn, &local_folder_id, &path, now)?;
+        let replacement: String = conn.query_row(
+            "SELECT id FROM local_files WHERE local_folder_id = ?1 AND local_path = ?2",
+            params![local_folder_id, local_path], |row| row.get(0),
+        ).map_err(|e| e.to_string())?;
+        let mut result = reindex_file_in_savepoint(conn, &replacement, now)?;
+        result.changed = true;
+        return Ok(result);
+    }
+
     let file_name = path
         .file_name()
         .map(|value| value.to_string_lossy().to_string())
@@ -1207,7 +1298,7 @@ fn reindex_file_for_conn(
         .ok()
         .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
         .map(|d| d.as_millis() as i64);
-    let checksum = sha256_head(&path)?;
+    let checksum = sha256_file(&path)?;
     let changed = local_file_changed(
         prev_size,
         prev_modified,
@@ -1219,7 +1310,7 @@ fn reindex_file_for_conn(
 
     conn.execute(
         "UPDATE local_files \
-         SET file_name = ?2, size_bytes = ?3, modified_at = ?4, checksum = ?5, sync_status = ?6, updated_at = ?7 \
+         SET file_name = ?2, size_bytes = ?3, modified_at = ?4, checksum = ?5, sync_status = CASE WHEN sync_status = 'CONFLICT' THEN 'CONFLICT' ELSE ?6 END, updated_at = ?7 \
          WHERE id = ?1",
         params![
             local_file_id,
@@ -1293,11 +1384,59 @@ where
     changed_count
 }
 
+#[cfg(test)]
+include!("watch_phase_probe.rs");
+#[cfg(test)]
+include!("io_cost_probe.rs");
+
 fn record_watch_path_change(
     conn: &Connection,
     local_folder_id: &str,
     path: &Path,
     now: i64,
+) -> Result<i64, String> {
+    let ignored = should_skip_managed_file(path);
+    if ignored && path.exists() { return Ok(0); }
+    let metadata = std::fs::metadata(path);
+    if metadata.as_ref().is_ok_and(|value| !value.is_file()) { return Ok(0); }
+    #[cfg(test)] watch_phase_probe::mark("metadata");
+    let (checksum, text_preview) = if !ignored && metadata.as_ref().is_ok_and(|value| value.is_file()) {
+        let capture = is_supported_plain_text_file(path)
+            && metadata.as_ref().is_ok_and(|value| value.len() <= MAX_EXTRACT_BYTES);
+        #[cfg(test)] let capture = capture && io_cost_probe::preview_enabled();
+        let (checksum, preview) = sha256_file_with_preview(path, capture)?;
+        (Some(checksum), preview)
+    } else {
+        (None, None)
+    };
+    #[cfg(test)] watch_phase_probe::mark("hash");
+    // Reserve the writer after hashing, before reading the DB snapshot.
+    let transaction = if conn.is_autocommit() {
+        Some(rusqlite::Transaction::new_unchecked(conn, rusqlite::TransactionBehavior::Immediate)
+            .map_err(|error| error.to_string())?)
+    } else {
+        None
+    };
+    #[cfg(test)] watch_phase_probe::mark("write_wait");
+    let changed = with_file_change_savepoint(conn, |conn| {
+        record_watch_path_change_in_savepoint(conn, local_folder_id, path, now, metadata, checksum, text_preview)
+    })?;
+    #[cfg(test)] watch_phase_probe::mark("savepoint_release");
+    if let Some(transaction) = transaction {
+        transaction.commit().map_err(|error| error.to_string())?;
+    }
+    #[cfg(test)] watch_phase_probe::mark("commit");
+    Ok(changed)
+}
+
+fn record_watch_path_change_in_savepoint(
+    conn: &Connection,
+    local_folder_id: &str,
+    path: &Path,
+    now: i64,
+    metadata: std::io::Result<std::fs::Metadata>,
+    checksum: Option<String>,
+    text_preview: Option<String>,
 ) -> Result<i64, String> {
     if should_skip_managed_file(path) {
         if !path.exists() {
@@ -1328,7 +1467,7 @@ fn record_watch_path_change(
         return Ok(0);
     }
 
-    match std::fs::metadata(path) {
+    match metadata {
         Ok(metadata) if metadata.is_file() => {
             let size_bytes = metadata.len() as i64;
             let modified_ms = metadata
@@ -1336,8 +1475,9 @@ fn record_watch_path_change(
                 .ok()
                 .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
                 .map(|d| d.as_millis() as i64);
-            let checksum = sha256_head(path)?;
+            let checksum = checksum.ok_or_else(|| "File checksum was not prepared".to_string())?;
 
+            retire_deleted_file_at_path(conn, local_folder_id, &local_path)?;
             let existing: Option<(String, Option<i64>, Option<i64>, Option<String>)> = conn
                 .query_row(
                     "SELECT id, size_bytes, modified_at, checksum FROM local_files \
@@ -1368,12 +1508,13 @@ fn record_watch_path_change(
                     if inserted == 0 {
                         return Ok(0);
                     }
-                    upsert_file_fts_index(
+                    upsert_watched_file_fts_index(
                         conn,
                         &file_id,
                         &file_name,
                         &local_path,
                         Path::new(&local_path),
+                        text_preview.as_deref(),
                     )?;
                     record_event(
                         conn,
@@ -1390,6 +1531,7 @@ fn record_watch_path_change(
                     Ok(1)
                 }
                 Some((file_id, prev_size, prev_modified, prev_checksum)) => {
+                    #[cfg(test)] watch_phase_probe::mark("db_lookup");
                     if !local_file_changed(
                         prev_size,
                         prev_modified,
@@ -1408,17 +1550,19 @@ fn record_watch_path_change(
                         return Ok(0);
                     }
                     conn.execute(
-                        "UPDATE local_files SET size_bytes = ?2, modified_at = ?3, checksum = ?4, sync_status = 'LOCAL_ONLY', updated_at = ?5 \
+                        "UPDATE local_files SET size_bytes = ?2, modified_at = ?3, checksum = ?4, sync_status = CASE WHEN sync_status = 'CONFLICT' THEN 'CONFLICT' ELSE 'LOCAL_ONLY' END, updated_at = ?5 \
                          WHERE id = ?1",
                         params![file_id, size_bytes, modified_ms, checksum, now],
                     )
                     .map_err(|error| error.to_string())?;
-                    upsert_file_fts_index(
+                    #[cfg(test)] watch_phase_probe::mark("file_metadata_write");
+                    upsert_watched_file_fts_index(
                         conn,
                         &file_id,
                         &file_name,
                         &local_path,
                         Path::new(&local_path),
+                        text_preview.as_deref(),
                     )?;
                     record_event(
                         conn,
@@ -1442,6 +1586,18 @@ fn record_watch_path_change(
 }
 
 fn record_watch_path_delete(
+    conn: &Connection,
+    local_folder_id: &str,
+    file_name: &str,
+    local_path: &str,
+    now: i64,
+) -> Result<i64, String> {
+    with_file_change_savepoint(conn, |conn| {
+        record_watch_path_delete_in_savepoint(conn, local_folder_id, file_name, local_path, now)
+    })
+}
+
+fn record_watch_path_delete_in_savepoint(
     conn: &Connection,
     local_folder_id: &str,
     file_name: &str,
@@ -1487,7 +1643,7 @@ fn record_watch_path_delete(
     )?;
     delete_file_fts_index(conn, &file_id)?;
     conn.execute(
-        "UPDATE local_files SET sync_status = 'LOCAL_ONLY', updated_at = ?2 WHERE id = ?1",
+        "UPDATE local_files SET sync_status = CASE WHEN sync_status = 'CONFLICT' THEN 'CONFLICT' ELSE 'LOCAL_ONLY' END, updated_at = ?2 WHERE id = ?1",
         params![file_id, now],
     )
     .map_err(|error| error.to_string())?;
@@ -1521,6 +1677,50 @@ fn upsert_file_fts_index(
     path: &Path,
 ) -> Result<(), String> {
     let content = extract_text_preview(path).unwrap_or_default();
+    #[cfg(test)] watch_phase_probe::mark("search_extract");
+    write_file_fts_content(conn, local_file_id, file_name, local_path, &content)
+}
+
+fn upsert_watched_file_fts_index(
+    conn: &Connection, local_file_id: &str, file_name: &str, local_path: &str,
+    path: &Path, preview: Option<&str>,
+) -> Result<(), String> {
+    match preview {
+        Some(content) => write_file_fts_content(conn, local_file_id, file_name, local_path, content),
+        None => upsert_file_fts_index(conn, local_file_id, file_name, local_path, path),
+    }
+}
+
+fn write_file_fts_content(conn: &Connection, id: &str, name: &str, path: &str, content: &str) -> Result<(), String> {
+    #[cfg(test)]
+    if !io_cost_probe::fts_enabled() {
+        return replace_file_fts_content(conn, id, name, path, content);
+    }
+    let transaction = if conn.is_autocommit() {
+        Some(rusqlite::Transaction::new_unchecked(conn, rusqlite::TransactionBehavior::Immediate).map_err(|e|e.to_string())?)
+    } else { None };
+    with_file_change_savepoint(conn, |conn| {
+        let existing: Vec<(i64, bool)> = conn.prepare_cached(
+            "SELECT rowid, file_name IS ?2 AND content IS ?3 AND local_path IS ?4 \
+             FROM local_file_fts WHERE local_file_id = ?1 LIMIT 2"
+        ).map_err(|e|e.to_string())?.query_map(params![id,name,content,path],|row|Ok((row.get(0)?,row.get(1)?)))
+            .map_err(|e|e.to_string())?.collect::<Result<_,_>>().map_err(|e|e.to_string())?;
+        match existing.as_slice() {
+            [(_,true)] => Ok(()),
+            [(rowid,false)] => {
+                let count=conn.prepare_cached("UPDATE local_file_fts SET file_name=?2, content=?3, local_path=?4 WHERE rowid=?1 AND local_file_id=?5")
+                    .map_err(|e|e.to_string())?.execute(params![rowid,name,content,path,id]).map_err(|e|e.to_string())?;
+                if count==1 {Ok(())} else {replace_file_fts_content(conn,id,name,path,content)}
+            },
+            _ => replace_file_fts_content(conn,id,name,path,content),
+        }
+    })?;
+    if let Some(transaction)=transaction {transaction.commit().map_err(|e|e.to_string())?;}
+    #[cfg(test)] watch_phase_probe::mark("search_write");
+    Ok(())
+}
+
+fn replace_file_fts_content(conn: &Connection, local_file_id: &str, file_name: &str, local_path: &str, content: &str) -> Result<(), String> {
     conn.execute(
         "DELETE FROM local_file_fts WHERE local_file_id = ?1",
         params![local_file_id],
@@ -1532,6 +1732,7 @@ fn upsert_file_fts_index(
         params![local_file_id, file_name, content, local_path],
     )
     .map_err(|error| error.to_string())?;
+    #[cfg(test)] watch_phase_probe::mark("search_write");
     Ok(())
 }
 
@@ -1576,6 +1777,7 @@ fn extract_text_preview(path: &Path) -> Option<String> {
         return None;
     }
 
+    #[cfg(test)] io_cost_probe::content_open();
     let bytes = std::fs::read(path).ok()?;
     let text = decode_text_bytes(&bytes);
     if text.is_empty() {
@@ -2868,25 +3070,41 @@ fn xml_unescape(value: &str) -> String {
         .replace("&amp;", "&")
 }
 
-fn sha256_head(path: &Path) -> Result<String, String> {
-    let mut file = File::open(path).map_err(|error| error.to_string())?;
-    let mut hasher = Sha256::new();
-    let mut remaining = CHECKSUM_HEAD_BYTES;
-    let mut buffer = [0_u8; 8192];
+fn sha256_file(path: &Path) -> Result<String, String> {
+    sha256_file_with_preview(path, false).map(|(checksum,_)|checksum)
+}
 
-    while remaining > 0 {
-        let max_read = buffer.len().min(remaining as usize);
+fn sha256_file_with_preview(path: &Path, capture: bool) -> Result<(String, Option<String>), String> {
+    #[cfg(test)] io_cost_probe::content_open();
+    let mut file = File::open(path).map_err(|error| error.to_string())?;
+    #[cfg(test)] watch_phase_probe::mark("hash_open");
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 65536];
+    let mut preview = capture.then(Vec::new);
+
+    loop {
         let read_len = file
-            .read(&mut buffer[..max_read])
+            .read(&mut buffer)
             .map_err(|error| error.to_string())?;
+        #[cfg(test)] watch_phase_probe::mark("hash_read");
         if read_len == 0 {
             break;
         }
         hasher.update(&buffer[..read_len]);
-        remaining -= read_len as u64;
+        if let Some(bytes)=preview.as_mut() {
+            if bytes.len()+read_len <= MAX_EXTRACT_BYTES as usize {
+                bytes.extend_from_slice(&buffer[..read_len]);
+            } else {
+                preview=None;
+            }
+        }
+        #[cfg(test)] watch_phase_probe::mark("hash_digest");
     }
 
-    Ok(format!("{:x}", hasher.finalize()))
+    let checksum=format!("{:x}", hasher.finalize());
+    let text=if capture {Some(preview.map(|bytes|decode_text_bytes(&bytes)).unwrap_or_default())}else{None};
+    #[cfg(test)] watch_phase_probe::mark("preview_decode");
+    Ok((checksum,text))
 }
 
 fn local_file_changed(
@@ -2897,9 +3115,12 @@ fn local_file_changed(
     modified_ms: Option<i64>,
     checksum: &str,
 ) -> bool {
+    if prev_size != Some(size_bytes) {
+        return true;
+    }
     match prev_checksum {
         Some(value) => value != checksum,
-        None => prev_size != Some(size_bytes) || prev_modified != modified_ms,
+        None => prev_modified != modified_ms,
     }
 }
 
@@ -3611,6 +3832,7 @@ fn search_local_files_fts(
     conn: &Connection,
     query: &str,
     limit: i64,
+    owner_id: Option<&str>,
 ) -> Result<Vec<LocalFileSearchItem>, String> {
     let fts_query = escape_fts_query(query);
     let mut stmt = conn
@@ -3620,13 +3842,15 @@ fn search_local_files_fts(
              FROM local_file_fts \
              JOIN local_files f ON f.id = local_file_fts.local_file_id \
              WHERE local_file_fts MATCH ?1 \
+               AND (?3 IS NULL OR EXISTS (SELECT 1 FROM managed_folders m \
+                    WHERE m.id = f.local_folder_id AND m.owner_user_id = ?3)) \
              ORDER BY rank, f.updated_at DESC \
              LIMIT ?2",
         )
         .map_err(|error| error.to_string())?;
 
     let rows = stmt
-        .query_map(params![fts_query, limit], |row| {
+        .query_map(params![fts_query, limit, owner_id], |row| {
             let matched_text: Option<String> = row.get(4)?;
             Ok(LocalFileSearchItem {
                 local_file_id: row.get(0)?,
@@ -3649,6 +3873,7 @@ fn search_local_files_content_like(
     conn: &Connection,
     query: &str,
     limit: i64,
+    owner_id: Option<&str>,
 ) -> Result<Vec<LocalFileSearchItem>, String> {
     let needle = format!("%{}%", query);
     let mut stmt = conn
@@ -3657,13 +3882,15 @@ fn search_local_files_content_like(
              FROM local_file_fts \
              JOIN local_files f ON f.id = local_file_fts.local_file_id \
              WHERE local_file_fts.content LIKE ?1 \
+               AND (?3 IS NULL OR EXISTS (SELECT 1 FROM managed_folders m \
+                    WHERE m.id = f.local_folder_id AND m.owner_user_id = ?3)) \
              ORDER BY f.updated_at DESC \
              LIMIT ?2",
         )
         .map_err(|error| error.to_string())?;
 
     let rows = stmt
-        .query_map(params![needle, limit], |row| {
+        .query_map(params![needle, limit, owner_id], |row| {
             let content: Option<String> = row.get(4)?;
             Ok(LocalFileSearchItem {
                 local_file_id: row.get(0)?,
@@ -3708,17 +3935,28 @@ pub fn search_local_files(
     input: LocalFileSearchInput,
 ) -> Result<LocalFileSearchResult, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
-    search_local_files_for_conn(&conn, input)
+    let context = file_sync_control::current_context(&conn)?;
+    let result = search_local_files_for_owner(&conn, input, Some(&context.owner_id))?;
+    file_sync_control::validate_context(&conn, &context)?;
+    Ok(result)
 }
 
 fn search_local_files_for_conn(
     conn: &Connection,
     input: LocalFileSearchInput,
 ) -> Result<LocalFileSearchResult, String> {
+    search_local_files_for_owner(conn, input, None)
+}
+
+fn search_local_files_for_owner(
+    conn: &Connection,
+    input: LocalFileSearchInput,
+    owner_id: Option<&str>,
+) -> Result<LocalFileSearchResult, String> {
     let limit = input.limit.unwrap_or(50).clamp(1, 500);
     let query = input.query.trim().to_string();
     if !query.is_empty() {
-        match search_local_files_fts(&conn, &query, limit) {
+        match search_local_files_fts(&conn, &query, limit, owner_id) {
             Ok(items) if !items.is_empty() => return Ok(LocalFileSearchResult { items }),
             Ok(_) => {}
             Err(error) => {
@@ -3726,7 +3964,7 @@ fn search_local_files_for_conn(
             }
         }
 
-        match search_local_files_content_like(&conn, &query, limit) {
+        match search_local_files_content_like(&conn, &query, limit, owner_id) {
             Ok(items) if !items.is_empty() => return Ok(LocalFileSearchResult { items }),
             Ok(_) => {}
             Err(error) => {
@@ -3739,18 +3977,22 @@ fn search_local_files_for_conn(
     let path_like_query = is_path_like_search_query(&query);
     let mut stmt = conn
         .prepare(if path_like_query {
-            "SELECT id, file_name, local_path, updated_at FROM local_files \
-             WHERE file_name LIKE ?1 OR local_path LIKE ?1 \
+            "SELECT id, file_name, local_path, updated_at FROM local_files f \
+             WHERE (file_name LIKE ?1 OR local_path LIKE ?1) \
+               AND (?3 IS NULL OR EXISTS (SELECT 1 FROM managed_folders m \
+                    WHERE m.id = f.local_folder_id AND m.owner_user_id = ?3)) \
              ORDER BY updated_at DESC LIMIT ?2"
         } else {
-            "SELECT id, file_name, local_path, updated_at FROM local_files \
+            "SELECT id, file_name, local_path, updated_at FROM local_files f \
              WHERE file_name LIKE ?1 \
+               AND (?3 IS NULL OR EXISTS (SELECT 1 FROM managed_folders m \
+                    WHERE m.id = f.local_folder_id AND m.owner_user_id = ?3)) \
              ORDER BY updated_at DESC LIMIT ?2"
         })
         .map_err(|error| error.to_string())?;
 
     let rows = stmt
-        .query_map(params![needle, limit], |row| {
+        .query_map(params![needle, limit, owner_id], |row| {
             Ok((
                 row.get::<_, String>(0)?,
                 row.get::<_, String>(1)?,
@@ -3786,6 +4028,7 @@ pub fn find_local_file_by_resource_id(
     input: LocalFileByResourceIdInput,
 ) -> Result<Option<LocalFileByResourceIdResult>, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    let context = file_sync_control::current_context(&conn)?;
     let row: Option<(
         String,
         String,
@@ -3818,10 +4061,10 @@ pub fn find_local_file_by_resource_id(
                         AND e.status = 'SYNCED' \
                       ORDER BY e.created_at DESC LIMIT 1) AS latest_event_at \
              FROM local_files f \
-             WHERE f.resource_id = ?1 \
+             WHERE f.resource_id = ?1 AND EXISTS(SELECT 1 FROM managed_folders m WHERE m.id=f.local_folder_id AND m.owner_user_id=?2) \
              ORDER BY f.updated_at DESC \
              LIMIT 1",
-            params![input.resource_id],
+            params![input.resource_id, context.owner_id],
             |row| {
                 Ok((
                     row.get(0)?,
@@ -3879,6 +4122,8 @@ pub fn read_local_file_preview(
 ) -> Result<LocalFilePreviewResult, String> {
     let max_chars = input.max_chars.unwrap_or(4_000).clamp(200, 12_000);
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    let context = file_sync_control::current_context(&conn)?;
+    file_sync_control::require_file_owner(&conn, &input.local_file_id, &context)?;
     let row: Option<(String, String)> = conn
         .query_row(
             "SELECT file_name, local_path FROM local_files WHERE id = ?1",
@@ -3922,6 +4167,7 @@ pub fn extract_local_file_key_sentences(
     let max_sentence_chars = input.max_sentence_chars.unwrap_or(700).clamp(120, 1_500);
     let max_sentences = input.max_sentences.unwrap_or(18).clamp(3, 40);
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    file_sync_control::require_file_owner(&conn, &input.local_file_id, &file_sync_control::current_context(&conn)?)?;
     let row: Option<(String, String, Option<String>)> = conn
         .query_row(
             "SELECT file_name, local_path, checksum FROM local_files WHERE id = ?1",
@@ -3940,7 +4186,7 @@ pub fn extract_local_file_key_sentences(
 
     let path_buf = PathBuf::from(&path);
     let (text, status) = read_local_text_for_key_sentences(&path_buf)?;
-    let checksum = stored_checksum.or_else(|| sha256_head(&path_buf).ok());
+    let checksum = stored_checksum.or_else(|| sha256_file(&path_buf).ok());
     let Some(source_text) = text else {
         return Ok(LocalFileKeySentenceResult {
             analyzed_char_count: 0,
@@ -4005,6 +4251,7 @@ pub fn open_local_file(
     input: LocalFileOpenInput,
 ) -> Result<LocalFileOpenResult, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    file_sync_control::require_file_owner(&conn, &input.local_file_id, &file_sync_control::current_context(&conn)?)?;
     let (name, path_buf) = resolve_open_local_file_for_conn(&conn, &input.local_file_id)?;
 
     tauri_plugin_opener::open_path(&path_buf, None::<&str>).map_err(|error| error.to_string())?;
@@ -4052,6 +4299,7 @@ pub fn reindex_file(
     input: LocalFileReindexInput,
 ) -> Result<LocalFileReindexResult, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
+    file_sync_control::require_file_owner(&conn, &input.local_file_id, &file_sync_control::current_context(&conn)?)?;
     reindex_file_for_conn(&conn, &input.local_file_id, now_ms())
 }
 
@@ -4151,10 +4399,9 @@ fn stage_local_file_event_outbox(
 
     conn.execute(
         "INSERT INTO local_sync_outbox \
-         (id, idempotency_key, operation, payload_json, status, retry_count, created_at, updated_at) \
-         VALUES (?1, ?2, 'local_file_event', ?3, 'PENDING', 0, ?4, ?4) \
-         ON CONFLICT(idempotency_key) DO UPDATE SET \
-           payload_json = excluded.payload_json, status = 'PENDING', updated_at = excluded.updated_at",
+         (id, idempotency_key, operation, payload_json, status, retry_count, created_at, updated_at, payload_sealed) \
+         VALUES (?1, ?2, 'local_file_event', ?3, 'PENDING', 0, ?4, ?4, 0) \
+         ON CONFLICT(idempotency_key) DO NOTHING",
         params![Uuid::new_v4().to_string(), idempotency_key, payload_json, now],
     )
     .map_err(|error| error.to_string())?;
@@ -4178,11 +4425,16 @@ fn mark_local_file_event_outbox(
         )
         .map_err(|error| error.to_string())?;
     } else {
+        let outbox_status = match status {
+            "SYNCED" => "SENT",
+            "REJECTED" => "REJECTED",
+            _ => return Err(format!("Unknown outbox result status: {status}")),
+        };
         conn.execute(
             "UPDATE local_sync_outbox \
-             SET status = 'SENT', updated_at = ?2 \
+             SET status = ?3, updated_at = ?2 \
              WHERE idempotency_key = ?1 AND operation = 'local_file_event'",
-            params![idempotency_key, now],
+            params![idempotency_key, now, outbox_status],
         )
         .map_err(|error| error.to_string())?;
     }
@@ -4195,10 +4447,26 @@ fn mark_local_file_event_outbox(
 #[tauri::command]
 pub fn stage_local_file_events_for_sync(
     state: State<'_, Db>,
-    input: Option<LocalFileEventsSyncStageInput>,
+    input: ScopedFileSyncStageInput,
 ) -> Result<LocalFileEventsSyncStageResult, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
-    stage_local_file_events_for_sync_for_conn(&conn, input, now_ms())
+    stage_scoped_file_events(&conn, input, now_ms())
+}
+
+fn stage_scoped_file_events(conn: &Connection, input: ScopedFileSyncStageInput, now: i64) -> Result<LocalFileEventsSyncStageResult, String> {
+    if let Some(folder) = &input.local_folder_id {
+        file_sync_control::require_folder_owner(conn, folder, &input.context)?;
+    }
+    let Some(lease) = file_sync_control::claim(conn, input.context, now)? else {
+        return Ok(LocalFileEventsSyncStageResult { events: Vec::new(), staged_at: ms_to_iso(now), lease: None, busy: true });
+    };
+    let result = stage_local_file_events_with_lease(conn, Some(LocalFileEventsSyncStageInput {
+        limit: input.limit, local_folder_id: input.local_folder_id,
+    }), now, Some(&lease));
+    match result {
+        Ok(mut staged) if !staged.events.is_empty() => { staged.lease = Some(lease); Ok(staged) }
+        other => { file_sync_control::release(conn, &lease)?; other }
+    }
 }
 
 fn stage_local_file_events_for_sync_for_conn(
@@ -4206,6 +4474,17 @@ fn stage_local_file_events_for_sync_for_conn(
     input: Option<LocalFileEventsSyncStageInput>,
     now: i64,
 ) -> Result<LocalFileEventsSyncStageResult, String> {
+    stage_local_file_events_with_lease(conn, input, now, None)
+}
+
+fn stage_local_file_events_with_lease(
+    conn: &Connection, input: Option<LocalFileEventsSyncStageInput>, now: i64, lease: Option<&FileSyncLease>,
+) -> Result<LocalFileEventsSyncStageResult, String> {
+    let transaction =
+        rusqlite::Transaction::new_unchecked(conn, rusqlite::TransactionBehavior::Immediate)
+            .map_err(|error| error.to_string())?;
+    let conn = &*transaction;
+    if let Some(lease) = lease { file_sync_control::validate_lease(conn, lease, now)?; }
     let limit = input
         .as_ref()
         .and_then(|value| value.limit)
@@ -4213,46 +4492,94 @@ fn stage_local_file_events_for_sync_for_conn(
         .clamp(1, 500);
     let folder_filter = input.and_then(|value| value.local_folder_id);
 
-    collapse_unsynced_create_delete_pairs(conn, folder_filter.as_deref(), now)?;
+    if let Some(lease) = lease {
+        let folders = conn.prepare("SELECT id FROM managed_folders WHERE owner_user_id=?1 AND (?2 IS NULL OR id=?2)")
+            .map_err(|e| e.to_string())?.query_map(params![lease.context.owner_id, folder_filter], |r| r.get::<_, String>(0))
+            .map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+        for folder in folders { collapse_unsynced_create_delete_pairs(conn, Some(&folder), now)?; }
+    } else {
+        collapse_unsynced_create_delete_pairs(conn, folder_filter.as_deref(), now)?;
+    }
+
+    conn.execute(
+        "INSERT OR IGNORE INTO local_device_identity(id, device_id, created_at) VALUES (1, ?1, ?2)",
+        params![format!("tauri-widget-{}", Uuid::new_v4()), now],
+    )
+    .map_err(|error| error.to_string())?;
+    let device_id: String = conn
+        .query_row(
+            "SELECT device_id FROM local_device_identity WHERE id = 1",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())?;
 
     let mut candidates = Vec::new();
     {
+        let owner_filter = if lease.is_some() {
+            format!(" AND m.owner_user_id = ?{} ", if folder_filter.is_some() { 3 } else { 2 })
+        } else { String::new() };
         let (sql, has_filter) = match &folder_filter {
             Some(_) => (
                 format!(
-                    "SELECT e.id, e.local_file_id, e.event_type, e.file_name, e.size_bytes, f.resource_id \
+                    "SELECT e.id, e.local_file_id, e.event_type, e.file_name, e.size_bytes, f.resource_id, o.sequence, b.payload_json, b.status, e.status \
                  FROM local_file_events e \
+                 INNER JOIN local_file_event_order o ON o.local_event_id = e.id \
                  LEFT JOIN local_files f ON f.id = e.local_file_id \
+                 LEFT JOIN local_sync_outbox b ON b.idempotency_key = 'local-file-event:' || e.id AND b.operation = 'local_file_event' \
                  INNER JOIN managed_folders m ON m.id = e.local_folder_id \
                  WHERE e.status IN ('PENDING', 'APPROVED', 'FAILED') \
                    AND e.event_type IN ({SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL}) \
+                    AND COALESCE(f.sync_status, '') <> 'CONFLICT' \
+                    AND COALESCE(b.next_retry_at, 0) <= {now} \
+                   AND NOT EXISTS (SELECT 1 FROM local_file_events previous \
+                     JOIN local_file_event_order p ON p.local_event_id = previous.id \
+                     WHERE previous.local_file_id = e.local_file_id \
+                       AND previous.status IN ('PENDING', 'APPROVED', 'FAILED', 'REJECTED') \
+                       AND previous.event_type IN ({SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL}) \
+                       AND p.sequence < o.sequence) \
                    AND m.status = 'ACTIVE' \
                    AND m.sync_enabled = 1 \
-                   AND e.local_folder_id = ?1 \
-                 ORDER BY e.created_at ASC LIMIT ?2"
+                   AND e.local_folder_id = ?1 {owner_filter} \
+                 ORDER BY o.sequence ASC LIMIT ?2"
                 ),
                 true,
             ),
             None => (
                 format!(
-                    "SELECT e.id, e.local_file_id, e.event_type, e.file_name, e.size_bytes, f.resource_id \
+                    "SELECT e.id, e.local_file_id, e.event_type, e.file_name, e.size_bytes, f.resource_id, o.sequence, b.payload_json, b.status, e.status \
                  FROM local_file_events e \
+                 INNER JOIN local_file_event_order o ON o.local_event_id = e.id \
                  LEFT JOIN local_files f ON f.id = e.local_file_id \
+                 LEFT JOIN local_sync_outbox b ON b.idempotency_key = 'local-file-event:' || e.id AND b.operation = 'local_file_event' \
                  INNER JOIN managed_folders m ON m.id = e.local_folder_id \
                  WHERE e.status IN ('PENDING', 'APPROVED', 'FAILED') \
                    AND e.event_type IN ({SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL}) \
+                    AND COALESCE(f.sync_status, '') <> 'CONFLICT' \
+                    AND COALESCE(b.next_retry_at, 0) <= {now} \
+                   AND NOT EXISTS (SELECT 1 FROM local_file_events previous \
+                     JOIN local_file_event_order p ON p.local_event_id = previous.id \
+                     WHERE previous.local_file_id = e.local_file_id \
+                       AND previous.status IN ('PENDING', 'APPROVED', 'FAILED', 'REJECTED') \
+                       AND previous.event_type IN ({SYNCABLE_LOCAL_FILE_EVENT_TYPES_SQL}) \
+                       AND p.sequence < o.sequence) \
                    AND m.status = 'ACTIVE' \
-                   AND m.sync_enabled = 1 \
-                 ORDER BY e.created_at ASC LIMIT ?1"
+                   AND m.sync_enabled = 1 {owner_filter} \
+                 ORDER BY o.sequence ASC LIMIT ?1"
                 ),
                 false,
             ),
         };
 
+        #[cfg(not(feature = "query-cache"))]
         let mut stmt = conn.prepare(&sql).map_err(|error| error.to_string())?;
+        #[cfg(feature = "query-cache")]
+        let mut stmt = conn
+            .prepare_cached(&sql)
+            .map_err(|error| error.to_string())?;
         let map_row = |row: &rusqlite::Row<'_>| {
             let file_name = row.get::<_, String>(3)?;
-            Ok(LocalFileSyncEventCandidate {
+            let candidate = LocalFileSyncEventCandidate {
                 local_event_id: row.get(0)?,
                 local_file_id: row.get(1)?,
                 event_type: row.get(2)?,
@@ -4260,13 +4587,21 @@ fn stage_local_file_events_for_sync_for_conn(
                 file_name,
                 file_size_bytes: row.get(4)?,
                 resource_id: row.get(5)?,
-            })
+                sync_device_id: device_id.clone(),
+                local_sequence: row.get(6)?,
+            };
+            Ok((
+                candidate,
+                row.get::<_, Option<String>>(7)?,
+                row.get::<_, Option<String>>(8)?,
+                row.get::<_, String>(9)?,
+            ))
         };
-        let rows = if has_filter {
-            stmt.query_map(params![folder_filter.as_ref().unwrap(), limit], map_row)
-        } else {
-            stmt.query_map(params![limit], map_row)
-        }
+        let mut bindings = Vec::<rusqlite::types::Value>::new();
+        if has_filter { bindings.push(folder_filter.as_ref().unwrap().clone().into()); }
+        bindings.push(limit.into());
+        if let Some(lease) = lease { bindings.push(lease.context.owner_id.clone().into()); }
+        let rows = stmt.query_map(rusqlite::params_from_iter(bindings), map_row)
         .map_err(|error| error.to_string())?;
 
         for row in rows {
@@ -4274,8 +4609,63 @@ fn stage_local_file_events_for_sync_for_conn(
         }
     }
 
-    for event in &candidates {
-        stage_local_file_event_outbox(conn, event, now)?;
+    let mut events = Vec::new();
+    for (candidate, payload, outbox_status, event_status) in candidates {
+        let mut event: LocalFileSyncEventCandidate = match payload {
+            Some(payload) => serde_json::from_str(&payload).map_err(|error| error.to_string())?,
+            None if event_status == "PENDING" => {
+                // Old unsent events can be snapshotted; sent events without a payload need repair.
+                stage_local_file_event_outbox(conn, &candidate, now)?;
+                if candidate.event_type != "CREATED" && candidate.resource_id.is_none() {
+                    conn.execute("UPDATE local_sync_outbox SET status = 'WAITING' WHERE idempotency_key = ?1",
+                        params![local_file_event_outbox_key(&candidate.local_event_id)])
+                        .map_err(|error| error.to_string())?;
+                }
+                candidate.clone()
+            }
+            None => {
+                return Err(
+                    "Previously prepared local event has no durable outgoing snapshot".to_string(),
+                )
+            }
+        };
+        if event.local_event_id != candidate.local_event_id
+            || event.local_file_id != candidate.local_file_id
+            || event.event_type != candidate.event_type
+            || event.local_sequence != candidate.local_sequence
+        {
+            return Err("Outgoing snapshot does not match its local event".to_string());
+        }
+        if !(1..=9_007_199_254_740_991).contains(&event.local_sequence) {
+            return Err("Local event sequence exceeds the supported wire range".to_string());
+        }
+        let waiting = outbox_status.as_deref() == Some("WAITING")
+            || (outbox_status.is_none()
+                && event.event_type != "CREATED"
+                && event.resource_id.is_none());
+        if waiting {
+            let Some(resource_id) = candidate.resource_id.or_else(|| event.resource_id.clone()).filter(|id| !id.trim().is_empty()) else {
+                continue;
+            };
+            event.resource_id = Some(resource_id);
+            conn.execute("UPDATE local_sync_outbox SET payload_json = ?2 WHERE idempotency_key = ?1 AND status = 'WAITING'",
+                params![local_file_event_outbox_key(&event.local_event_id), json!(event).to_string()])
+                .map_err(|error| error.to_string())?;
+        }
+        if event.event_type != "CREATED"
+            && event
+                .resource_id
+                .as_deref()
+                .is_none_or(|id| id.trim().is_empty())
+        {
+            return Err("Prepared local modification requires a resource_id".to_string());
+        }
+        if matches!(outbox_status.as_deref(), Some("SENT" | "REJECTED")) {
+            return Err("Terminal outbox cannot be sent again".to_string());
+        }
+        conn.execute("UPDATE local_sync_outbox SET status = 'SENDING', payload_sealed = 1, next_retry_at = NULL, updated_at = ?2 WHERE idempotency_key = ?1",
+            params![local_file_event_outbox_key(&event.local_event_id), now])
+            .map_err(|error| error.to_string())?;
         conn.execute(
             "UPDATE local_file_events SET status = 'APPROVED' WHERE id = ?1",
             params![event.local_event_id],
@@ -4288,11 +4678,14 @@ fn stage_local_file_events_for_sync_for_conn(
             )
             .map_err(|error| error.to_string())?;
         }
+        events.push(event);
     }
-
+    transaction.commit().map_err(|error| error.to_string())?;
     Ok(LocalFileEventsSyncStageResult {
-        events: candidates,
+        events,
         staged_at: ms_to_iso(now),
+        lease: None,
+        busy: false,
     })
 }
 
@@ -4309,9 +4702,15 @@ fn collapse_unsynced_create_delete_pairs(
          INNER JOIN managed_folders m ON m.id = created.local_folder_id \
          WHERE created.event_type = 'CREATED' \
            AND deleted.event_type = 'DELETED' \
-           AND created.status IN ('PENDING', 'APPROVED', 'FAILED') \
+           AND created.status = 'PENDING' \
            AND deleted.status IN ('PENDING', 'APPROVED', 'FAILED') \
+           AND NOT EXISTS (SELECT 1 FROM local_file_events sent \
+             WHERE sent.local_file_id = created.local_file_id AND sent.status <> 'PENDING') \
+           AND NOT EXISTS (SELECT 1 FROM local_sync_outbox sent \
+             JOIN local_file_events e ON sent.idempotency_key = 'local-file-event:' || e.id \
+             WHERE e.local_file_id = created.local_file_id AND sent.status NOT IN ('PENDING', 'WAITING')) \
            AND f.resource_id IS NULL \
+           AND f.sync_status <> 'CONFLICT' \
            AND m.status = 'ACTIVE' \
            AND m.sync_enabled = 1",
     );
@@ -4341,7 +4740,7 @@ fn collapse_unsynced_create_delete_pairs(
                 .prepare(
                     "SELECT id FROM local_file_events \
                      WHERE local_file_id = ?1 \
-                       AND event_type IN ('CREATED', 'DELETED') \
+                       AND event_type IN ('CREATED', 'UPDATED', 'DELETED') \
                        AND status IN ('PENDING', 'APPROVED', 'FAILED')",
                 )
                 .map_err(|error| error.to_string())?;
@@ -4376,11 +4775,15 @@ fn collapse_unsynced_create_delete_pairs(
 #[tauri::command]
 pub fn mark_local_file_events_synced(
     state: State<'_, Db>,
-    input: LocalFileEventsMarkSyncedInput,
+    input: ScopedFileSyncMarkInput,
 ) -> Result<LocalFileEventsMarkSyncedResult, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
     let now = now_ms();
-    mark_local_file_events_synced_for_conn(&conn, input, now)
+    mark_scoped_file_events(&conn, input, now)
+}
+
+fn mark_scoped_file_events(conn: &Connection, input: ScopedFileSyncMarkInput, now: i64) -> Result<LocalFileEventsMarkSyncedResult, String> {
+    mark_local_file_events_with_lease(conn, LocalFileEventsMarkSyncedInput { results: input.results }, now, Some(&input.lease))
 }
 
 fn mark_local_file_events_synced_for_conn(
@@ -4388,33 +4791,145 @@ fn mark_local_file_events_synced_for_conn(
     input: LocalFileEventsMarkSyncedInput,
     now: i64,
 ) -> Result<LocalFileEventsMarkSyncedResult, String> {
+    mark_local_file_events_with_lease(conn, input, now, None)
+}
+
+fn mark_local_file_events_with_lease(
+    conn: &Connection, input: LocalFileEventsMarkSyncedInput, now: i64, lease: Option<&FileSyncLease>,
+) -> Result<LocalFileEventsMarkSyncedResult, String> {
+    // Keep completion records and the resource mapping in the same commit.
+    let tx = rusqlite::Transaction::new_unchecked(conn, rusqlite::TransactionBehavior::Immediate)
+        .map_err(|error| error.to_string())?;
+    let conn = &tx;
+    if let Some(lease) = lease {
+        file_sync_control::validate_lease(conn, lease, now)?;
+        for result in &input.results {
+            let owned: bool = conn.query_row(
+                "SELECT EXISTS(SELECT 1 FROM local_file_events e JOIN managed_folders m ON m.id=e.local_folder_id WHERE e.id=?1 AND m.owner_user_id=?2)",
+                params![result.local_event_id, lease.context.owner_id], |row| row.get(0),
+            ).map_err(|e| e.to_string())?;
+            if !owned { return Err("Sync response belongs to another account or an unassigned legacy queue".into()); }
+        }
+    }
     let mut synced_count = 0i64;
     let mut failed_count = 0i64;
+    let mut seen = HashSet::new();
+
+    // Validate the entire set, including responses for already terminal events.
+    for result in &input.results {
+        if result.next_retry_at.is_some_and(|at| !(0..=9_007_199_254_740_991).contains(&at)) {
+            return Err("Invalid next retry time".to_string());
+        }
+        if result.local_event_id.trim().is_empty() || !seen.insert(&result.local_event_id) {
+            return Err("Duplicate or empty local event result ID".to_string());
+        }
+        let event_type: String = conn
+            .query_row(
+                "SELECT event_type FROM local_file_events WHERE id = ?1",
+                params![result.local_event_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| format!("Unknown local event result ID: {}", result.local_event_id))?;
+        let status = result.status.to_ascii_uppercase();
+        if !matches!(
+            status.as_str(),
+            "PROCESSING" | "FAILED" | "REJECTED" | "SKIPPED" | "SUPERSEDED" | "SYNCED"
+        ) {
+            return Err(format!("Unknown local file sync status: {}", result.status));
+        }
+        if (status == "SKIPPED" && event_type != "DELETED")
+            || (status == "SUPERSEDED" && event_type != "UPDATED")
+        {
+            return Err("Unsafe completion status for local event type".to_string());
+        }
+        if status == "SUPERSEDED" && result.resource_id.is_none() {
+            return Err("Superseded update requires a resource_id".to_string());
+        }
+        let existing: Option<String> = conn.query_row(
+                "SELECT f.resource_id FROM local_file_events e JOIN local_files f ON f.id = e.local_file_id WHERE e.id = ?1",
+                params![result.local_event_id], |row| row.get(0),
+            ).optional().map_err(|error| error.to_string())?.flatten();
+        let payload: Option<String> = conn.query_row(
+                "SELECT payload_json FROM local_sync_outbox WHERE idempotency_key = ?1 AND operation = 'local_file_event'",
+                params![local_file_event_outbox_key(&result.local_event_id)], |row| row.get(0),
+            ).optional().map_err(|error| error.to_string())?;
+        let frozen = payload
+            .map(|payload| serde_json::from_str::<LocalFileSyncEventCandidate>(&payload))
+            .transpose()
+            .map_err(|error| error.to_string())?
+            .and_then(|event| event.resource_id);
+        if existing
+            .as_ref()
+            .zip(frozen.as_ref())
+            .is_some_and(|(current, frozen)| current != frozen)
+        {
+            return Err("Current resource mapping differs from the outgoing snapshot".to_string());
+        }
+        if let Some(resource_id) = &result.resource_id {
+            if resource_id.trim().is_empty() {
+                return Err("Empty result resource_id".to_string());
+            }
+            if existing.as_ref().is_some_and(|id| id != resource_id)
+                || frozen.as_ref().is_some_and(|id| id != resource_id)
+            {
+                return Err("Sync response would replace a different resource mapping".to_string());
+            }
+        }
+    }
 
     for result in input.results {
-        let row: Option<(Option<String>, String)> = conn
+        let row: Option<(Option<String>, String, String)> = conn
             .query_row(
-                "SELECT local_file_id, event_type FROM local_file_events WHERE id = ?1",
+                "SELECT local_file_id, event_type, status FROM local_file_events WHERE id = ?1",
                 params![result.local_event_id],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .optional()
             .map_err(|error| error.to_string())?;
-        let Some((local_file_id, event_type)) = row else {
+        let (local_file_id, event_type, current_status) =
+            row.ok_or_else(|| "Local event vanished during completion".to_string())?;
+        if current_status == "SYNCED" || current_status == "REJECTED" {
             continue;
-        };
+        }
 
         let normalized_status = result.status.to_ascii_uppercase();
-        let failed = normalized_status == "FAILED";
+        if normalized_status == "PROCESSING" {
+            conn.execute("UPDATE local_sync_outbox SET next_retry_at = ?2 WHERE idempotency_key = ?1 AND operation = 'local_file_event'",
+                params![local_file_event_outbox_key(&result.local_event_id), result.next_retry_at])
+                .map_err(|e| e.to_string())?;
+            continue;
+        }
+        let failed = matches!(normalized_status.as_str(), "FAILED" | "REJECTED");
+        let rejected = normalized_status == "REJECTED";
         let skipped = normalized_status == "SKIPPED";
+        let superseded = normalized_status == "SUPERSEDED";
         // 서버가 삭제 이벤트를 skipped(=skipped_delete)로 돌려주면 "서버에 대응 자료가 없다"는 뜻이다.
         // 지워야 할 것이 이미 없으므로 성공 삭제와 동일하게 최종 완료 처리한다.
         // (예전처럼 FAILED로 강등하면 같은 삭제 이벤트가 무한 재시도됐다.)
-        let event_status = if failed { "FAILED" } else { "SYNCED" };
+        let event_status = if rejected {
+            "REJECTED"
+        } else if failed {
+            "FAILED"
+        } else {
+            "SYNCED"
+        };
         mark_local_file_event_outbox(&conn, &result.local_event_id, event_status, now)?;
+        if failed {
+            if result.next_retry_at.is_some_and(|at| at < 0) {
+                return Err("Invalid next retry time".to_string());
+            }
+            let attempts: u32 = conn.query_row("SELECT retry_count FROM local_sync_outbox WHERE idempotency_key = ?1",
+                params![local_file_event_outbox_key(&result.local_event_id)], |row| row.get(0)).map_err(|e| e.to_string())?;
+            let next_retry_at = result.next_retry_at.map(|at| at.max(now.saturating_add((1000_i64 << attempts.min(6)).min(60_000))));
+            conn.execute("UPDATE local_sync_outbox SET next_retry_at = ?2 WHERE idempotency_key = ?1 AND operation = 'local_file_event'",
+                params![local_file_event_outbox_key(&result.local_event_id), next_retry_at])
+                .map_err(|e| e.to_string())?;
+        }
         conn.execute(
-            "UPDATE local_file_events SET status = ?2 WHERE id = ?1",
-            params![result.local_event_id, event_status],
+            "UPDATE local_file_events SET status = ?2, reason = ?3 WHERE id = ?1",
+            params![result.local_event_id, event_status, result.reason],
         )
         .map_err(|error| error.to_string())?;
 
@@ -4422,8 +4937,8 @@ fn mark_local_file_events_synced_for_conn(
             failed_count += 1;
             if let Some(local_file_id) = local_file_id {
                 conn.execute(
-                    "UPDATE local_files SET sync_status = 'FAILED', updated_at = ?2 WHERE id = ?1",
-                    params![local_file_id, now],
+                    "UPDATE local_files SET sync_status = CASE WHEN sync_status = 'CONFLICT' THEN 'CONFLICT' ELSE ?3 END, updated_at = ?2 WHERE id = ?1",
+                    params![local_file_id, now, if rejected { "CONFLICT" } else { "FAILED" }],
                 )
                 .map_err(|error| error.to_string())?;
             }
@@ -4431,6 +4946,22 @@ fn mark_local_file_events_synced_for_conn(
         }
 
         if let Some(local_file_id) = local_file_id {
+            if !failed && event_type == "CREATED" {
+                if let Some(resource_id) = &result.resource_id {
+                    bind_waiting_file_events(conn, &local_file_id, resource_id)?;
+                }
+            }
+            if superseded {
+                conn.execute(
+                    "UPDATE local_files SET sync_status = CASE WHEN sync_status = 'CONFLICT' THEN 'CONFLICT' WHEN EXISTS \
+                     (SELECT 1 FROM local_file_events WHERE local_file_id = ?1 \
+                       AND status IN ('PENDING', 'APPROVED', 'FAILED')) \
+                     THEN 'SYNC_PENDING' ELSE 'SYNCED' END, updated_at = ?2 WHERE id = ?1",
+                    params![local_file_id, now],
+                )
+                .map_err(|error| error.to_string())?;
+                continue;
+            }
             if event_type == "DELETED" {
                 // 성공 삭제와 skipped_delete 모두 로컬 인덱스 행을 정리해 삭제를 마무리한다.
                 delete_file_fts_index(&conn, &local_file_id)?;
@@ -4443,43 +4974,39 @@ fn mark_local_file_events_synced_for_conn(
                 continue;
             }
 
-            if skipped {
-                let existing_resource_id: Option<String> = conn
-                    .query_row(
-                        "SELECT resource_id FROM local_files WHERE id = ?1",
-                        params![local_file_id],
-                        |row| row.get::<_, Option<String>>(0),
-                    )
-                    .optional()
-                    .map_err(|error| error.to_string())?
-                    .flatten();
-                let next_status = if existing_resource_id
-                    .as_deref()
-                    .is_some_and(|value| !value.trim().is_empty())
-                {
-                    "SYNCED"
-                } else {
-                    "LOCAL_ONLY"
-                };
-                conn.execute(
-                    "UPDATE local_files SET sync_status = ?2, updated_at = ?3 WHERE id = ?1",
-                    params![local_file_id, next_status, now],
-                )
-                .map_err(|error| error.to_string())?;
-            } else {
+            {
                 synced_count += 1;
-                conn.execute(
-                    "UPDATE local_files SET resource_id = COALESCE(?2, resource_id), sync_status = 'SYNCED', updated_at = ?3 \
-                     WHERE id = ?1",
-                    params![local_file_id, result.resource_id, now],
-                )
-                .map_err(|error| error.to_string())?;
+                let changed = conn
+                    .execute(
+                        "UPDATE local_files SET resource_id = COALESCE(?2, resource_id), \
+                     sync_status = CASE WHEN sync_status = 'CONFLICT' THEN 'CONFLICT' WHEN EXISTS (SELECT 1 FROM local_file_events \
+                       WHERE local_file_id = ?1 AND status IN ('PENDING', 'APPROVED', 'FAILED')) \
+                       THEN 'SYNC_PENDING' ELSE 'SYNCED' END, updated_at = ?3 WHERE id = ?1 \
+                       AND length(trim(COALESCE(?2, resource_id))) > 0",
+                        params![local_file_id, result.resource_id, now],
+                    )
+                    .map_err(|error| error.to_string())?;
+                if changed == 0
+                    && conn
+                        .query_row(
+                            "SELECT EXISTS(SELECT 1 FROM local_files WHERE id = ?1)",
+                            params![local_file_id],
+                            |row| row.get::<_, bool>(0),
+                        )
+                        .map_err(|error| error.to_string())?
+                {
+                    return Err(
+                        "Completed local file sync requires a resource_id for an existing file"
+                            .to_string(),
+                    );
+                }
             }
-        } else if !skipped {
+        } else if !skipped && !superseded {
             synced_count += 1;
         }
     }
 
+    tx.commit().map_err(|error| error.to_string())?;
     Ok(LocalFileEventsMarkSyncedResult {
         completed_at: ms_to_iso(now),
         failed_count,
@@ -4493,11 +5020,17 @@ fn mark_local_file_events_synced_for_conn(
 #[tauri::command]
 pub fn reconcile_local_files_with_server(
     state: State<'_, Db>,
-    input: LocalFilesServerReconcileInput,
+    input: ScopedFileReconcileInput,
 ) -> Result<LocalFilesServerReconcileResult, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
     let now = now_ms();
-    reconcile_local_files_with_server_for_conn(&conn, input, now)
+    let tx = rusqlite::Transaction::new_unchecked(&conn, rusqlite::TransactionBehavior::Immediate).map_err(|e| e.to_string())?;
+    file_sync_control::validate_context(&tx, &input.context)?;
+    let result = reconcile_local_files_for_owner(&tx, LocalFilesServerReconcileInput {
+        resource_ids: input.resource_ids, complete: input.complete,
+    }, now, Some(&input.context.owner_id))?;
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(result)
 }
 
 fn reconcile_local_files_with_server_for_conn(
@@ -4505,16 +5038,21 @@ fn reconcile_local_files_with_server_for_conn(
     input: LocalFilesServerReconcileInput,
     now: i64,
 ) -> Result<LocalFilesServerReconcileResult, String> {
+    reconcile_local_files_for_owner(conn, input, now, None)
+}
+
+fn reconcile_local_files_for_owner(conn: &Connection, input: LocalFilesServerReconcileInput, now: i64, owner: Option<&str>) -> Result<LocalFilesServerReconcileResult, String> {
+    if !input.complete { return Err("A complete server resource list is required".to_string()); }
     // SQL IN 절의 변수 개수 제한을 피하려고 서버 id 집합을 메모리에서 비교한다.
     let server_ids: HashSet<String> = input.resource_ids.into_iter().collect();
 
     let mut stale_local_file_ids: Vec<String> = Vec::new();
     {
         let mut stmt = conn
-            .prepare("SELECT id, resource_id FROM local_files WHERE resource_id IS NOT NULL")
+            .prepare("SELECT f.id, f.resource_id FROM local_files f JOIN managed_folders m ON m.id=f.local_folder_id WHERE f.resource_id IS NOT NULL AND (?1 IS NULL OR m.owner_user_id=?1)")
             .map_err(|error| error.to_string())?;
         let rows = stmt
-            .query_map([], |row| {
+            .query_map(params![owner], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
             })
             .map_err(|error| error.to_string())?;
@@ -4560,7 +5098,11 @@ pub fn stage_local_file_analysis_backfill(
         .unwrap_or(DEFAULT_ANALYSIS_BACKFILL_MAX_ATTEMPTS)
         .clamp(1, 10);
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
-    stage_local_file_analysis_backfill_for_conn(&conn, limit, max_attempts)
+    let tx = rusqlite::Transaction::new_unchecked(&conn, rusqlite::TransactionBehavior::Immediate).map_err(|e| e.to_string())?;
+    let context = file_sync_control::current_context(&tx)?;
+    let result = stage_local_file_analysis_for_owner(&tx, limit, max_attempts, Some(&context.owner_id))?;
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(result)
 }
 
 fn stage_local_file_analysis_backfill_for_conn(
@@ -4568,6 +5110,10 @@ fn stage_local_file_analysis_backfill_for_conn(
     limit: i64,
     max_attempts: i64,
 ) -> Result<LocalFileAnalysisBackfillStageResult, String> {
+    stage_local_file_analysis_for_owner(conn, limit, max_attempts, None)
+}
+
+fn stage_local_file_analysis_for_owner(conn: &Connection, limit: i64, max_attempts: i64, owner: Option<&str>) -> Result<LocalFileAnalysisBackfillStageResult, String> {
     let now = now_ms();
     let mut candidates = Vec::new();
     let mut stmt = conn
@@ -4585,12 +5131,13 @@ fn stage_local_file_analysis_backfill_for_conn(
                AND m.status = 'ACTIVE' \
                AND m.sync_enabled = 1 \
                AND (a.id IS NULL OR (a.status = 'FAILED' AND a.attempt_count < ?1)) \
+               AND (?3 IS NULL OR m.owner_user_id=?3) \
              ORDER BY COALESCE(a.updated_at, 0) ASC, f.updated_at DESC \
              LIMIT ?2",
         )
         .map_err(|error| error.to_string())?;
     let rows = stmt
-        .query_map(params![max_attempts, limit * 4], |row| {
+        .query_map(params![max_attempts, limit * 4, owner], |row| {
             Ok((
                 row.get::<_, String>(0)?,
                 row.get::<_, String>(1)?,
@@ -4667,7 +5214,12 @@ pub fn mark_local_file_analyses_sent(
     input: LocalFileAnalysesMarkInput,
 ) -> Result<LocalFileAnalysesMarkResult, String> {
     let conn = state.0.lock().map_err(|_| "db lock failed".to_string())?;
-    mark_local_file_analyses_sent_for_conn(&conn, input)
+    let tx = rusqlite::Transaction::new_unchecked(&conn, rusqlite::TransactionBehavior::Immediate).map_err(|e| e.to_string())?;
+    let context = file_sync_control::current_context(&tx)?;
+    for result in &input.results { file_sync_control::require_file_owner(&tx, &result.local_file_id, &context)?; }
+    let result = mark_local_file_analyses_sent_for_conn(&tx, input)?;
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(result)
 }
 
 #[tauri::command]
@@ -4793,6 +5345,30 @@ fn local_file_analysis_request_id(
     format!("{:x}", hasher.finalize())
 }
 
+fn with_file_change_savepoint<T>(
+    conn: &Connection,
+    operation: impl FnOnce(&Connection) -> Result<T, String>,
+) -> Result<T, String> {
+    // A watcher may run inside a scan/reindex transaction; nested savepoints retain that boundary.
+    conn.execute_batch("SAVEPOINT local_file_change")
+        .map_err(|error| error.to_string())?;
+    let result = operation(conn).and_then(|value| {
+        conn.execute_batch("RELEASE local_file_change")
+            .map_err(|error| error.to_string())?;
+        Ok(value)
+    });
+    if result.is_err() {
+        conn.execute_batch("ROLLBACK TO local_file_change; RELEASE local_file_change")
+            .map_err(|error| {
+                format!(
+                    "File change rollback failed: {error}; original: {}",
+                    result.as_ref().err().unwrap()
+                )
+            })?;
+    }
+    result
+}
+
 #[allow(clippy::too_many_arguments)]
 fn record_event(
     conn: &rusqlite::Connection,
@@ -4806,12 +5382,14 @@ fn record_event(
     modified_ms: Option<i64>,
     now: i64,
 ) -> Result<(), String> {
-    conn.execute(
+    with_file_change_savepoint(conn, |conn| {
+        let event_id = Uuid::new_v4().to_string();
+        conn.execute(
         "INSERT INTO local_file_events \
          (id, local_file_id, local_folder_id, event_type, file_name, local_path, hash, size_bytes, status, reason, modified_at, created_at) \
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'PENDING', NULL, ?9, ?10)",
         params![
-            Uuid::new_v4().to_string(),
+            event_id,
             local_file_id,
             local_folder_id,
             event_type,
@@ -4824,6 +5402,131 @@ fn record_event(
         ],
     )
     .map_err(|error| error.to_string())?;
+        conn.execute(
+        "INSERT OR IGNORE INTO local_device_identity(id, device_id, created_at) VALUES (1, ?1, ?2)",
+        params![format!("tauri-widget-{}", Uuid::new_v4()), now],
+    ).map_err(|error| error.to_string())?;
+        let device_id: String = conn
+            .query_row(
+                "SELECT device_id FROM local_device_identity WHERE id = 1",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        let local_sequence: i64 = conn
+            .query_row(
+                "SELECT sequence FROM local_file_event_order WHERE local_event_id = ?1",
+                params![event_id],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        let resource_id = if event_type == "CREATED" {
+            None
+        } else {
+            conn.query_row(
+                "SELECT resource_id FROM local_files WHERE id = ?1",
+                params![local_file_id],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?
+            .flatten()
+        };
+        let event = LocalFileSyncEventCandidate {
+            event_type: event_type.to_string(),
+            file_name: file_name.to_string(),
+            file_size_bytes: Some(size_bytes),
+            local_event_id: event_id,
+            local_file_id: local_file_id.map(str::to_string),
+            mime_type: guess_mime_type(file_name),
+            resource_id,
+            sync_device_id: device_id,
+            local_sequence,
+        };
+        stage_local_file_event_outbox(conn, &event, now)?;
+        if event_type != "CREATED" && event.resource_id.is_none() {
+            conn.execute(
+                "UPDATE local_sync_outbox SET status = 'WAITING' WHERE idempotency_key = ?1",
+                params![local_file_event_outbox_key(&event.local_event_id)],
+            )
+            .map_err(|error| error.to_string())?;
+        }
+        if event_type == "UPDATED" {
+            #[cfg(test)] watch_phase_probe::mark("event_write");
+            coalesce_unprepared_updates(conn, &event)?;
+            #[cfg(test)] watch_phase_probe::mark("merge");
+        }
+        Ok(())
+    })
+}
+
+fn coalesce_unprepared_updates(conn: &Connection, newest: &LocalFileSyncEventCandidate) -> Result<(), String> {
+    let has_older_update: bool = conn.prepare_cached(
+        "SELECT EXISTS (SELECT 1 FROM local_file_events WHERE local_file_id = ?1 AND id <> ?2 AND event_type = 'UPDATED' AND status = 'PENDING')"
+    ).map_err(|e| e.to_string())?.query_row(params![newest.local_file_id, newest.local_event_id], |row| row.get(0))
+        .map_err(|e| e.to_string())?;
+    if !has_older_update { return Ok(()); }
+    let mut stmt = conn.prepare_cached(
+        "SELECT e.id FROM local_file_events e JOIN local_sync_outbox b \
+         ON b.idempotency_key = 'local-file-event:' || e.id AND b.operation = 'local_file_event' \
+         JOIN local_file_event_order o ON o.local_event_id = e.id \
+         WHERE e.local_file_id = ?1 AND e.id <> ?2 AND e.event_type = 'UPDATED' \
+           AND e.status = 'PENDING' AND b.status IN ('PENDING','WAITING') \
+           AND b.payload_sealed = 0 AND b.retry_count = 0 AND o.sequence < ?3 \
+           AND json_extract(b.payload_json, '$.localEventId') = e.id \
+           AND json_extract(b.payload_json, '$.localFileId') = e.local_file_id \
+           AND json_extract(b.payload_json, '$.localSequence') = o.sequence \
+           AND json_extract(b.payload_json, '$.syncDeviceId') = ?5 \
+           AND json_extract(b.payload_json, '$.resourceId') IS ?4 \
+           AND NOT EXISTS (SELECT 1 FROM local_file_events barrier \
+             JOIN local_file_event_order bo ON bo.local_event_id = barrier.id \
+             WHERE barrier.local_file_id = e.local_file_id AND bo.sequence > o.sequence AND bo.sequence < ?3 \
+               AND (barrier.event_type <> 'UPDATED' OR barrier.status = 'REJECTED'))"
+    ).map_err(|e| e.to_string())?;
+    let ids: Vec<String> = stmt.query_map(params![newest.local_file_id, newest.local_event_id, newest.local_sequence, newest.resource_id, newest.sync_device_id], |row| row.get(0))
+        .map_err(|e| e.to_string())?.collect::<Result<_, _>>().map_err(|e| e.to_string())?;
+    if ids.is_empty() { return Ok(()); }
+    let mut delete_outbox = conn.prepare_cached("DELETE FROM local_sync_outbox WHERE idempotency_key = ?1 AND operation = 'local_file_event'").map_err(|e| e.to_string())?;
+    let mut delete_order = conn.prepare_cached("DELETE FROM local_file_event_order WHERE local_event_id = ?1").map_err(|e| e.to_string())?;
+    let mut delete_event = conn.prepare_cached("DELETE FROM local_file_events WHERE id = ?1").map_err(|e| e.to_string())?;
+    for id in ids {
+        delete_outbox.execute(params![local_file_event_outbox_key(&id)]).map_err(|e| e.to_string())?;
+        delete_order.execute(params![id]).map_err(|e| e.to_string())?;
+        delete_event.execute(params![id]).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+fn retire_deleted_file_at_path(conn: &Connection, folder_id: &str, path: &str) -> Result<bool, String> {
+    let id: Option<String> = conn.query_row(
+        "SELECT f.id FROM local_files f WHERE f.local_folder_id = ?1 AND f.local_path = ?2 \
+         AND EXISTS (SELECT 1 FROM local_file_events e WHERE e.local_file_id = f.id \
+           AND e.event_type = 'DELETED' AND e.status IN ('PENDING','APPROVED','FAILED'))",
+        params![folder_id, path], |row| row.get(0),
+    ).optional().map_err(|e| e.to_string())?;
+    let Some(id) = id else { return Ok(false); };
+    // Retain outgoing events; only the live path index belongs to the replacement file.
+    delete_file_fts_index(conn, &id)?;
+    conn.execute("DELETE FROM local_files WHERE id = ?1", params![id]).map_err(|e| e.to_string())?;
+    Ok(true)
+}
+
+fn bind_waiting_file_events(conn: &Connection, file_id: &str, resource_id: &str) -> Result<(), String> {
+    let mut stmt = conn.prepare(
+        "SELECT b.id, b.payload_json FROM local_sync_outbox b JOIN local_file_events e \
+         ON b.idempotency_key = 'local-file-event:' || e.id \
+         WHERE b.operation = 'local_file_event' AND b.status = 'WAITING' AND e.local_file_id = ?1",
+    ).map_err(|e| e.to_string())?;
+    let rows: Vec<(String, String)> = stmt.query_map(params![file_id], |row| Ok((row.get(0)?, row.get(1)?)))
+        .map_err(|e| e.to_string())?.collect::<Result<_, _>>().map_err(|e| e.to_string())?;
+    for (id, payload) in rows {
+        let mut event: LocalFileSyncEventCandidate = serde_json::from_str(&payload).map_err(|e| e.to_string())?;
+        if event.resource_id.as_ref().is_some_and(|current| current != resource_id) {
+            return Err("Waiting change has another resource ID".to_string());
+        }
+        event.resource_id = Some(resource_id.to_string());
+        conn.execute("UPDATE local_sync_outbox SET payload_json = ?2 WHERE id = ?1", params![id, json!(event).to_string()]).map_err(|e| e.to_string())?;
+    }
     Ok(())
 }
 
@@ -4880,8 +5583,27 @@ fn guess_mime_type(file_name: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    include!("local_file_contract_tests.rs");
+    include!("queue_security_tests.rs");
+    include!("queue_security_after_tests.rs");
+    include!("queue_merge_cost_tests.rs");
+    include!("sqlite_upgrade_tests.rs");
+    include!("watch_runner_tests.rs");
+    include!("watch_connection_contract_tests.rs");
+    include!("watch_native_benchmark_tests.rs");
+    include!("watch_connection_lifecycle_tests.rs");
+    include!("watch_process_exit_tests.rs");
+    include!("watch_stage_profile_tests.rs");
+    include!("io_cost_tests.rs");
+    include!("io_cost_after_tests.rs");
+
 
     const TEST_SCHEMA_SQL: &str = r#"
+            CREATE TABLE local_device_identity (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                device_id TEXT NOT NULL UNIQUE,
+                created_at INTEGER NOT NULL
+            );
             CREATE TABLE local_files (
                 id TEXT PRIMARY KEY,
                 local_folder_id TEXT NOT NULL,
@@ -4917,6 +5639,14 @@ mod tests {
                 modified_at INTEGER,
                 created_at INTEGER NOT NULL
             );
+            CREATE TABLE local_file_event_order (
+                sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+                local_event_id TEXT NOT NULL UNIQUE
+            );
+            CREATE TRIGGER local_file_event_order_on_insert
+            AFTER INSERT ON local_file_events BEGIN
+                INSERT INTO local_file_event_order(local_event_id) VALUES (NEW.id);
+            END;
             CREATE TABLE local_file_analysis_requests (
                 id TEXT PRIMARY KEY,
                 local_file_id TEXT NOT NULL,
@@ -4952,6 +5682,7 @@ mod tests {
         let conn = Connection::open_in_memory().expect("open in-memory sqlite");
         conn.execute_batch(TEST_SCHEMA_SQL)
             .expect("create local file schema");
+        crate::local_db::migrate_file_sync_outbox(&conn).unwrap();
         conn
     }
 
@@ -4960,6 +5691,7 @@ mod tests {
         crate::local_db::configure_connection(&conn);
         conn.execute_batch(TEST_SCHEMA_SQL)
             .expect("create local file schema");
+        crate::local_db::migrate_file_sync_outbox(&conn).unwrap();
         conn
     }
 
@@ -5284,7 +6016,7 @@ mod tests {
         )
         .expect("index local file text");
 
-        let items = search_local_files_fts(&conn, "renewal", 10).expect("search fts");
+        let items = search_local_files_fts(&conn, "renewal", 10, None).expect("search fts");
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].local_file_id, local_file_id);
         assert!(items[0]
@@ -5294,6 +6026,22 @@ mod tests {
             .contains("[renewal]"));
 
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn owned_search_filters_before_limit_in_all_search_paths() {
+        let conn = test_connection();
+        conn.execute("UPDATE managed_folders SET owner_user_id = 'owner-b'", []).unwrap();
+        conn.execute("INSERT INTO managed_folders (id, name, path, sync_enabled, status, created_at, updated_at, owner_user_id) VALUES ('folder-a', 'a', '/a', 1, 'ACTIVE', 1, 1, 'owner-a')", []).unwrap();
+        for (id, folder, time) in [("a", "folder-a", 1), ("b", "folder-1", 2)] {
+            conn.execute("INSERT INTO local_files (id, local_folder_id, file_name, local_path, updated_at) VALUES (?1, ?2, 'match.bin', ?3, ?4)", params![id, folder, format!("/{id}/match.bin"), time]).unwrap();
+            conn.execute("INSERT INTO local_file_fts (local_file_id, file_name, content, local_path) VALUES (?1, 'match.bin', 'match', ?2)", params![id, format!("/{id}/match.bin")]).unwrap();
+        }
+        assert_eq!(search_local_files_fts(&conn, "match", 1, Some("owner-a")).unwrap()[0].local_file_id, "a");
+        assert_eq!(search_local_files_content_like(&conn, "match", 1, Some("owner-a")).unwrap()[0].local_file_id, "a");
+        let result = search_local_files_for_owner(&conn, LocalFileSearchInput { query: String::new(), limit: Some(1) }, Some("owner-a")).unwrap();
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].local_file_id, "a");
     }
 
     #[test]
@@ -5452,6 +6200,8 @@ mod tests {
                     local_event_id: staged_created.events[0].local_event_id.clone(),
                     resource_id: Some("resource-smoke".to_string()),
                     status: "SYNCED".to_string(),
+                    reason: None,
+                    next_retry_at: None,
                 }],
             },
             20,
@@ -5616,13 +6366,13 @@ mod tests {
         let updated =
             record_watch_path_change(&conn, "folder-1", &file_path, 20).expect("record update");
         let search_after_update =
-            search_local_files_fts(&conn, "searchable", 10).expect("search updated watch content");
+            search_local_files_fts(&conn, "searchable", 10, None).expect("search updated watch content");
 
         std::fs::remove_file(&file_path).expect("delete file");
         let deleted =
             record_watch_path_change(&conn, "folder-1", &file_path, 30).expect("record delete");
         let search_after_delete =
-            search_local_files_fts(&conn, "searchable", 10).expect("search deleted watch content");
+            search_local_files_fts(&conn, "searchable", 10, None).expect("search deleted watch content");
 
         let events: Vec<String> = {
             let mut stmt = conn
@@ -5765,7 +6515,7 @@ mod tests {
         );
 
         let search_after_delete =
-            search_local_files_fts(&conn, "searchable", 10).expect("search deleted watch content");
+            search_local_files_fts(&conn, "searchable", 10, None).expect("search deleted watch content");
         let emitted_count = receiver.try_iter().count();
 
         assert_eq!(search_after_delete.len(), 0);
@@ -6012,11 +6762,14 @@ mod tests {
                     local_event_id: "event-1".to_string(),
                     resource_id: None,
                     status: "SKIPPED".to_string(),
+                    reason: None,
+                    next_retry_at: None,
                 }],
             },
             20,
         )
-        .expect("mark skipped update");
+        .err()
+        .expect("unsafe skipped update must remain incomplete");
         let stored: (String, String) = conn
             .query_row(
                 "SELECT f.sync_status, e.status \
@@ -6028,9 +6781,8 @@ mod tests {
             )
             .expect("read stored statuses");
 
-        assert_eq!(result.synced_count, 0);
-        assert_eq!(result.failed_count, 0);
-        assert_eq!(stored, ("LOCAL_ONLY".to_string(), "SYNCED".to_string()));
+        assert!(result.contains("Unsafe completion status"));
+        assert_eq!(stored, ("SYNC_PENDING".to_string(), "APPROVED".to_string()));
     }
 
     #[test]
@@ -6110,6 +6862,8 @@ mod tests {
                     local_event_id: "event-1".to_string(),
                     resource_id: None,
                     status: "SKIPPED".to_string(),
+                    reason: None,
+                    next_retry_at: None,
                 }],
             },
             20,
@@ -6177,6 +6931,7 @@ mod tests {
             &conn,
             LocalFilesServerReconcileInput {
                 resource_ids: vec!["res-keep".to_string()],
+                complete: true,
             },
             30,
         )
@@ -6479,7 +7234,7 @@ mod tests {
         let path =
             std::env::temp_dir().join(format!("bubli-local-reindex-test-{}.txt", Uuid::new_v4()));
         std::fs::write(&path, "before text").expect("write first content");
-        let first_checksum = sha256_head(&path).expect("first checksum");
+        let first_checksum = sha256_file(&path).expect("first checksum");
         conn.execute(
             "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
              VALUES ('folder-1', 'Docs', ?1, 'ACTIVE', 1, 1, 1)",
@@ -6498,7 +7253,7 @@ mod tests {
 
         std::fs::write(&path, "after searchable text").expect("write changed content");
         let result = reindex_file_for_conn(&conn, "file-1", 20).expect("reindex file");
-        let items = search_local_files_fts(&conn, "searchable", 10).expect("search changed text");
+        let items = search_local_files_fts(&conn, "searchable", 10, None).expect("search changed text");
         let event_count: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM local_file_events WHERE local_file_id = 'file-1' AND event_type = 'UPDATED'",
@@ -6523,7 +7278,7 @@ mod tests {
             Uuid::new_v4()
         ));
         std::fs::write(&path, "synced text").expect("write content");
-        let checksum = sha256_head(&path).expect("checksum");
+        let checksum = sha256_file(&path).expect("checksum");
         let modified_ms = std::fs::metadata(&path)
             .expect("metadata")
             .modified()
@@ -6576,6 +7331,8 @@ mod tests {
             local_file_id: Some("file-1".to_string()),
             mime_type: Some("text/markdown".to_string()),
             resource_id: Some("resource-1".to_string()),
+            sync_device_id: "test-device".to_string(),
+            local_sequence: 1,
         };
 
         stage_local_file_event_outbox(&conn, &event, 10).expect("stage local file event");
@@ -6599,6 +7356,8 @@ mod tests {
         assert_eq!(retry_count, 1);
         assert!(payload.contains("\"eventType\":\"UPDATED\""));
         assert!(payload.contains("\"resourceId\":\"resource-1\""));
+        assert!(payload.contains("\"syncDeviceId\":\"test-device\""));
+        assert!(payload.contains("\"localSequence\":1"));
     }
 
     #[test]
@@ -6631,17 +7390,22 @@ mod tests {
                         local_event_id: "event-local-only".to_string(),
                         resource_id: None,
                         status: "SKIPPED".to_string(),
+                        reason: None,
+                        next_retry_at: None,
                     },
                     LocalFileEventSyncResultInput {
                         local_event_id: "event-with-resource".to_string(),
                         resource_id: Some("resource-1".to_string()),
                         status: "SKIPPED".to_string(),
+                        reason: None,
+                        next_retry_at: None,
                     },
                 ],
             },
             20,
         )
-        .expect("mark skipped sync results");
+        .err()
+        .expect("unsafe skipped update must not complete either event");
 
         let local_only_status: String = conn
             .query_row(
@@ -6665,11 +7429,10 @@ mod tests {
             )
             .expect("read synced event count");
 
-        assert_eq!(result.synced_count, 0);
-        assert_eq!(result.failed_count, 0);
-        assert_eq!(local_only_status, "LOCAL_ONLY");
-        assert_eq!(resource_status, "SYNCED");
-        assert_eq!(synced_event_count, 2);
+        assert!(result.contains("Unsafe completion status"));
+        assert_eq!(local_only_status, "SYNC_PENDING");
+        assert_eq!(resource_status, "SYNC_PENDING");
+        assert_eq!(synced_event_count, 0);
     }
 
     #[test]
@@ -7924,9 +8687,9 @@ mod tests {
         let path =
             std::env::temp_dir().join(format!("bubli-local-checksum-test-{}.txt", Uuid::new_v4()));
         std::fs::write(&path, "alpha").expect("write first temp text file");
-        let first_checksum = sha256_head(&path).expect("checksum first content");
+        let first_checksum = sha256_file(&path).expect("checksum first content");
         std::fs::write(&path, "bravo").expect("write second temp text file");
-        let second_checksum = sha256_head(&path).expect("checksum second content");
+        let second_checksum = sha256_file(&path).expect("checksum second content");
 
         assert_ne!(first_checksum, second_checksum);
         assert!(local_file_changed(
@@ -7947,5 +8710,128 @@ mod tests {
         ));
 
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn checksum_covers_edits_beyond_first_mebibyte() {
+        let path = std::env::temp_dir().join(format!(
+            "bubli-checksum-tail-edit-{}.txt",
+            Uuid::new_v4()
+        ));
+        let mut content = vec![b'a'; 1024 * 1024 + 16];
+        std::fs::write(&path, &content).expect("write original content");
+        let previous = sha256_file(&path).expect("hash original content");
+        let last = content.len() - 1;
+        content[last] = b'b';
+        std::fs::write(&path, &content).expect("write tail edit");
+        let current = sha256_file(&path).expect("hash tail edit");
+
+        assert_ne!(previous, current);
+        assert!(local_file_changed(
+            Some(content.len() as i64),
+            Some(100),
+            Some(&previous),
+            content.len() as i64,
+            Some(100),
+            &current,
+        ));
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn checksum_covers_appends_beyond_first_mebibyte() {
+        let path = std::env::temp_dir().join(format!(
+            "bubli-checksum-tail-append-{}.txt",
+            Uuid::new_v4()
+        ));
+        let mut content = vec![b'a'; 1024 * 1024 + 16];
+        std::fs::write(&path, &content).expect("write original content");
+        let previous = sha256_file(&path).expect("hash original content");
+        content.push(b'b');
+        std::fs::write(&path, &content).expect("append content");
+        let current = sha256_file(&path).expect("hash appended content");
+
+        assert_ne!(previous, current);
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn known_checksum_does_not_hide_size_changes_or_resend_timestamp_only_changes() {
+        assert!(local_file_changed(
+            Some(10),
+            Some(100),
+            Some("same-checksum"),
+            20,
+            Some(100),
+            "same-checksum",
+        ));
+        assert!(!local_file_changed(
+            Some(10),
+            Some(100),
+            Some("same-checksum"),
+            10,
+            Some(200),
+            "same-checksum",
+        ));
+        assert!(local_file_changed(
+            Some(10),
+            Some(100),
+            None,
+            10,
+            Some(200),
+            "new-checksum",
+        ));
+    }
+
+    #[test]
+    fn watcher_and_reindex_record_tail_only_updates() {
+        for use_watcher in [true, false] {
+            let conn = test_connection();
+            let path = std::env::temp_dir().join(format!(
+                "bubli-tail-update-{}.txt",
+                Uuid::new_v4()
+            ));
+            let mut content = vec![b'a'; 1024 * 1024 + 16];
+            std::fs::write(&path, &content).expect("write original content");
+            conn.execute(
+                "INSERT INTO managed_folders (id, name, path, status, sync_enabled, created_at, updated_at) \
+                 VALUES ('folder-1', 'Docs', ?1, 'ACTIVE', 1, 1, 1)",
+                params![path.parent().unwrap().to_string_lossy().to_string()],
+            )
+            .expect("insert managed folder");
+            assert_eq!(
+                record_watch_path_change(&conn, "folder-1", &path, 10)
+                    .expect("record original file"),
+                1
+            );
+            let file_id: String = conn
+                .query_row("SELECT id FROM local_files", [], |row| row.get(0))
+                .expect("read local file id");
+            let last = content.len() - 1;
+            content[last] = b'b';
+            std::fs::write(&path, &content).expect("write tail edit");
+
+            if use_watcher {
+                assert_eq!(
+                    record_watch_path_change(&conn, "folder-1", &path, 20)
+                        .expect("record watched tail edit"),
+                    1
+                );
+            } else {
+                assert!(reindex_file_for_conn(&conn, &file_id, 20)
+                    .expect("reindex tail edit")
+                    .changed);
+            }
+            let update_count: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM local_file_events \
+                     WHERE local_file_id = ?1 AND event_type = 'UPDATED'",
+                    params![file_id],
+                    |row| row.get(0),
+                )
+                .expect("count tail update events");
+            assert_eq!(update_count, 1);
+            let _ = std::fs::remove_file(path);
+        }
     }
 }

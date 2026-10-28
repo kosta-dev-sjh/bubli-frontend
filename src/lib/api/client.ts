@@ -1,9 +1,10 @@
-import { ApiClientError } from "@/lib/api/errors";
+import { ApiClientError, parseRetryAfter } from "@/lib/api/errors";
 import {
   clearStoredAuthSession,
   getAuthAccessToken,
   getAuthClientType,
   getAuthRefreshToken,
+  getStoredAuthSession,
   setStoredAuthSession,
   setStoredAuthSessionAndWaitForTauriMirror,
 } from "@/lib/auth/auth-session";
@@ -23,6 +24,7 @@ export type ApiRequestOptions = Omit<RequestInit, "body"> & {
   body?: unknown;
   skipAuth?: boolean;
   skipAuthRefresh?: boolean;
+  expectedUserId?: string;
 };
 
 export function getApiBaseUrl() {
@@ -36,7 +38,7 @@ function stripTrailingSlash(value: string) {
   return value.replace(/\/+$/, "");
 }
 
-function getApiTimeoutMs() {
+export function getApiTimeoutMs() {
   const configured = Number(process.env.NEXT_PUBLIC_API_TIMEOUT_MS);
   if (Number.isFinite(configured) && configured > 0) {
     return configured;
@@ -57,8 +59,8 @@ export async function apiRequest<T>(
   path: string,
   options: ApiRequestOptions = {},
 ): Promise<T> {
-  const { body, headers, skipAuth = false, skipAuthRefresh = false, ...init } = options;
-  const request = () => performApiRequest<T>(path, { body, headers, init, skipAuth, skipAuthRefresh });
+  const { body, headers, skipAuth = false, skipAuthRefresh = false, expectedUserId, ...init } = options;
+  const request = () => performApiRequest<T>(path, { body, headers, init, skipAuth, skipAuthRefresh, expectedUserId });
   const dedupeKey = getInFlightGetRequestKey(path, { body, headers, init, skipAuth });
   if (!dedupeKey) {
     return request();
@@ -84,11 +86,12 @@ type PerformApiRequestInput = {
   init: Omit<RequestInit, "body" | "headers">;
   skipAuth: boolean;
   skipAuthRefresh: boolean;
+  expectedUserId?: string;
 };
 
 async function performApiRequest<T>(
   path: string,
-  { body, headers, init, skipAuth, skipAuthRefresh }: PerformApiRequestInput,
+  { body, headers, init, skipAuth, skipAuthRefresh, expectedUserId }: PerformApiRequestInput,
 ): Promise<T> {
   const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
   const timeoutController = init.signal ? null : new AbortController();
@@ -102,6 +105,7 @@ async function performApiRequest<T>(
       isFormData,
       signal: init.signal ?? timeoutController?.signal,
       skipAuth,
+      expectedUserId,
     });
 
     if (first.ok) {
@@ -118,13 +122,14 @@ async function performApiRequest<T>(
           isFormData,
           signal: init.signal ?? timeoutController?.signal,
           skipAuth,
+          expectedUserId,
         });
 
         if (retry.ok) {
           return retry.payload.data;
         }
 
-        throw new ApiClientError(retry.response.status, retry.payload as ApiFailure);
+        throw new ApiClientError(retry.response.status, retry.payload as ApiFailure, parseRetryAfter(retry.response.headers.get("Retry-After")));
       }
 
       if (refreshed === "unavailable") {
@@ -132,7 +137,7 @@ async function performApiRequest<T>(
       }
     }
 
-    throw new ApiClientError(first.response.status, first.payload as ApiFailure);
+    throw new ApiClientError(first.response.status, first.payload as ApiFailure, parseRetryAfter(first.response.headers.get("Retry-After")));
   } finally {
     if (timeoutId) {
       clearTimeout(timeoutId);
@@ -168,6 +173,7 @@ type SendApiRequestInput = {
   isFormData: boolean;
   signal?: AbortSignal | null;
   skipAuth: boolean;
+  expectedUserId?: string;
 };
 
 type SendApiRequestResult<T> =
@@ -178,6 +184,9 @@ async function sendApiRequest<T>(
   path: string,
   input: SendApiRequestInput,
 ): Promise<SendApiRequestResult<T>> {
+  if (input.expectedUserId && getStoredAuthSession()?.user?.id !== input.expectedUserId) {
+    throw new Error("Request cancelled because the signed-in account changed");
+  }
   const response = await fetch(`${getApiBaseUrl()}${path}`, {
     ...input.init,
     credentials: input.init.credentials ?? "include",
@@ -186,7 +195,10 @@ async function sendApiRequest<T>(
     signal: input.signal ?? undefined,
   });
 
-  const payload = (await response.json()) as ApiResponse<T>;
+  const payload = (await response.json().catch(() => {
+    if (response.ok) throw new Error("Invalid JSON success response");
+    return { success: false, error: { code: `HTTP_${response.status}`, message: `HTTP ${response.status}`, traceId: "" } };
+  })) as ApiResponse<T>;
 
   if (!response.ok || !payload.success) {
     return {

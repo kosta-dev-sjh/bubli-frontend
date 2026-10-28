@@ -6,6 +6,7 @@ const COMMANDS_TS = join(ROOT, "src/lib/tauri/commands.ts");
 const RUST_HANDLER_FILE = join(ROOT, "src-tauri/src/lib.rs");
 const RUST_COMMAND_FILES = [
   "src-tauri/src/activity.rs",
+  "src-tauri/src/file_sync_control.rs",
   "src-tauri/src/lib.rs",
   "src-tauri/src/local_db.rs",
   "src-tauri/src/local_files.rs",

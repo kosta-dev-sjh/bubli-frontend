@@ -17,6 +17,10 @@ const eslintConfig = [
   ...nextVitals,
   ...nextTs,
   {
+    files: ["scripts/sync-tests/**/*.cjs", "scripts/test-file-sync.cjs"],
+    rules: { "@typescript-eslint/no-require-imports": "off" },
+  },
+  {
     // 분리 호스팅 경계: 공개(비회원)/로그인 영역은 회원(workspace) 전용 코드를 import할 수 없다.
     // 공유 가능한 것은 components/ui, bubbles, theme, layout/public-header 같은 디자인 시스템뿐이다.
     files: ["src/app/(public)/**", "src/app/(auth)/**", "src/features/public-site/**"],

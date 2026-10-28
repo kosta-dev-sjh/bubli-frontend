@@ -23,6 +23,7 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use objc2_app_kit::{NSPopUpMenuWindowLevel, NSWindow, NSWindowCollectionBehavior};
 
 mod activity;
+mod file_sync_control;
 mod local_db;
 mod local_files;
 mod widget_usage;
@@ -5695,6 +5696,9 @@ pub fn run() {
             local_files::flush_sync_outbox,
             local_files::get_local_file_analysis_status,
             local_files::stage_local_file_events_for_sync,
+            file_sync_control::get_local_file_sync_context,
+            file_sync_control::renew_local_file_sync_lease,
+            file_sync_control::release_local_file_sync_lease,
             local_files::mark_local_file_events_synced,
             local_files::reconcile_local_files_with_server,
             local_files::stage_local_file_analysis_backfill,
