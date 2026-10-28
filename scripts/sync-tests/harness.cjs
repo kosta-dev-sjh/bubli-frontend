@@ -129,9 +129,9 @@ function harness(options={}) {
       compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS},reportDiagnostics:true,fileName:file,
     });
     assert.equal((code.diagnostics??[]).filter(d=>d.category===ts.DiagnosticCategory.Error).length,0);
-    const module={exports:{}};cache.set(name,module);
-    vm.runInContext(`(function(require,module,exports){${code.outputText}\n})`,context,{filename:file})(load,module,module.exports);
-    return module.exports;
+    const loadedModule={exports:{}};cache.set(name,loadedModule);
+    vm.runInContext(`(function(require,module,exports){${code.outputText}\n})`,context,{filename:file})(load,loadedModule,loadedModule.exports);
+    return loadedModule.exports;
   }
   h.client=load('@/lib/local/managed-folder-client');
   h.ApiClientError=load('@/lib/api/errors').ApiClientError;

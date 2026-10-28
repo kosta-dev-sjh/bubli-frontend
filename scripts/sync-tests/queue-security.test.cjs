@@ -1,6 +1,6 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {harness,event,plain}=require('./harness.cjs');
+const {harness,event}=require('./harness.cjs');
 
 test('413 splits the same IDs and isolates the single permanently oversized item',async()=>{
   const h=harness({rows:[event('good'),event('large')]});
