@@ -55,6 +55,7 @@ const files = {
   firstRunController: "src/features/onboarding/components/first-run-controller.tsx",
   friendApi: "src/features/communication/api/friendApi.ts",
   runtimeSmokeRunner: "src/lib/tauri/tauri-runtime-smoke-runner.tsx",
+  fileSyncQa: "src/lib/tauri/file-sync-qa.ts",
   tauriCapability: "src-tauri/capabilities/default.json",
   tauriConf: "src-tauri/tauri.conf.json",
   tauriMacosConf: "src-tauri/tauri.macos.conf.json",
@@ -195,6 +196,7 @@ const widgetUsageAutoSync = read(files.widgetUsageAutoSync);
 const firstRunController = read(files.firstRunController);
 const friendApi = read(files.friendApi);
 const runtimeSmokeRunner = read(files.runtimeSmokeRunner);
+const fileSyncQa = read(files.fileSyncQa);
 const tauriCapability = read(files.tauriCapability);
 const tauriConf = read(files.tauriConf);
 const tauriMacosConf = read(files.tauriMacosConf);
@@ -1204,8 +1206,13 @@ assertContains(
 );
 assertContains(
   runtimeSmokeRunner,
-  /selectManagedFolder\(\{ path: smokeFolderPath \}\)[\s\S]*scanManagedFolder[\s\S]*searchLocalFiles[\s\S]*readLocalFilePreview[\s\S]*stageLocalFileEventsForSync[\s\S]*local file event sync marked SQLite rows as SYNCED[\s\S]*triggerIndexedFileMutation\(\)[\s\S]*reindexFile\(\{ localFileId: noteFile\.localFileId \}\)[\s\S]*local file reindex refreshed SQLite FTS search[\s\S]*local file reindex refreshed readable preview[\s\S]*local file reindex staged update event with backend resource[\s\S]*local file reindex update event synced to backend[\s\S]*watchManagedFolder[\s\S]*triggerManagedFolderMutation[\s\S]*managed folder watcher staged update and delete events/,
+  /selectManagedFolder\(\{ path: smokeFolderPath \}\)[\s\S]*scanManagedFolder[\s\S]*searchLocalFiles[\s\S]*readLocalFilePreview[\s\S]*inspectFileSyncQaBatch[\s\S]*local file event sync marked SQLite rows as SYNCED[\s\S]*triggerIndexedFileMutation\(\)[\s\S]*reindexFile\(\{ localFileId: noteFile\.localFileId \}\)[\s\S]*local file reindex refreshed SQLite FTS search[\s\S]*local file reindex refreshed readable preview[\s\S]*local file reindex staged update event with backend resource[\s\S]*local file reindex update event synced to backend[\s\S]*watchManagedFolder[\s\S]*triggerManagedFolderMutation[\s\S]*managed folder watcher staged update and delete events/,
   "TauriRuntimeSmokeRunner must verify managed-folder scan/search/preview, manual reindex refresh, event staging, and live watcher update/delete events against a temp folder.",
+);
+assertContains(
+  fileSyncQa,
+  /getLocalFileSyncContext\(\{ ownerId \}\)[\s\S]*inspectFileSyncQaBatch[\s\S]*stageLocalFileEventsForSync\(\{[\s\S]*context: await currentFileSyncQaContext\(\)[\s\S]*staged\.lease[\s\S]*releaseLocalFileSyncLease\(staged\.lease\)/,
+  "File-sync QA inspection must stage with the signed-in context and release its sender lease.",
 );
 assertContains(
   runtimeSmokeRunner,
@@ -1274,8 +1281,8 @@ assertContains(
 );
 assertContains(
   managedFolderAutoSync,
-  /type ManagedFolderDrainSummary = \{[\s\S]*errorMessage\?: string;[\s\S]*failedCount: number;[\s\S]*function managedFolderDrainStatus\(drained: ManagedFolderDrainSummary\)[\s\S]*drained\.failedCount > 0 \? "failed" : "synced"[\s\S]*lastFileEventFailedCount: drained\.failedCount[\s\S]*lastErrorMessage: drained\.errorMessage[\s\S]*lastStatus: managedFolderDrainStatus\(drained\)[\s\S]*lastSuccessAt: drained\.failedCount > 0 \? undefined : new Date\(\)\.toISOString\(\)/,
-  "Managed folder auto-sync must surface backend/auth local-file sync failures as failed instead of synced.",
+  /type ManagedFolderDrainSummary = \{[\s\S]*waiting: boolean;[\s\S]*errorMessage\?: string;[\s\S]*failedCount: number;[\s\S]*function managedFolderDrainStatus\(drained: ManagedFolderDrainSummary\)[\s\S]*drained\.failedCount > 0 \? "failed" : drained\.waiting \? "waiting" : "synced"[\s\S]*lastFileEventFailedCount: drained\.failedCount[\s\S]*lastErrorMessage: drained\.errorMessage[\s\S]*lastStatus: managedFolderDrainStatus\(drained\)[\s\S]*lastSuccessAt: drained\.failedCount > 0 \|\| drained\.waiting \? undefined : new Date\(\)\.toISOString\(\)/,
+  "Managed folder auto-sync must surface failures as failed and another sender's lease as waiting, without marking success.",
 );
 assertContains(
   managedFolderAutoSync,
