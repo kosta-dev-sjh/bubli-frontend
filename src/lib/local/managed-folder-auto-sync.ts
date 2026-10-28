@@ -4,6 +4,7 @@ import {
   backfillPersonalLocalFileAnalyses,
   listPersonalManagedFolders,
   scanPersonalManagedFolder,
+  setPersonalLocalFileSyncEnabled,
   syncPersonalLocalFileEventsToServer,
 } from "@/lib/local/managed-folder-client";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
@@ -11,6 +12,7 @@ import { settingsApi } from "@/features/settings/api/settingsApi";
 import { notifyDataChanged } from "@/lib/data-changed";
 import { isTauriRuntime } from "@/lib/tauri/is-tauri";
 import { tauriCommands } from "@/lib/tauri/commands";
+import { getStoredAuthSession } from "@/lib/auth/auth-session";
 import { listenManagedFolderWatchEvents } from "@/lib/tauri/events";
 
 const LOCAL_FILE_EVENT_SYNC_INTERVAL_MS = 60_000;
@@ -74,6 +76,7 @@ let autoSyncStatus: ManagedFolderAutoSyncStatus = {
 };
 
 type ManagedFolderDrainSummary = {
+  waiting: boolean;
   analysisFailedCount: number;
   analysisRequestedCount: number;
   errorMessage?: string;
@@ -84,6 +87,7 @@ type ManagedFolderDrainSummary = {
 };
 
 const emptyManagedFolderDrainSummary = (): ManagedFolderDrainSummary => ({
+  waiting: false,
   analysisFailedCount: 0,
   analysisRequestedCount: 0,
   failedCount: 0,
@@ -93,13 +97,14 @@ const emptyManagedFolderDrainSummary = (): ManagedFolderDrainSummary => ({
 });
 
 function managedFolderDrainStatus(drained: ManagedFolderDrainSummary) {
-  return drained.failedCount > 0 ? "failed" : "synced";
+  return drained.failedCount > 0 ? "failed" : drained.waiting ? "waiting" : "synced";
 }
 
 export function startManagedFolderAutoSync() {
   if (!isTauriRuntime()) return;
   if (syncIntervalId !== null) return;
 
+  setPersonalLocalFileSyncEnabled(true);
   stopRequested = false;
   updateManagedFolderAutoSyncStatus({ lastErrorMessage: undefined, lastStatus: "syncing", running: true });
   void syncManagedFolderEventsOnce();
@@ -137,6 +142,7 @@ export async function stopManagedFolderAutoSync(input?: ManagedFolderAutoSyncSto
     await flushManagedFolderAutoSync();
   }
 
+  setPersonalLocalFileSyncEnabled(false);
   syncInFlight = false;
   syncInFlightPromise = null;
   analysisBackfillHasRun = false;
@@ -163,6 +169,7 @@ export function getManagedFolderAutoSyncStatus(): ManagedFolderAutoSyncStatus {
 }
 
 export function notifyManagedFolderConsentChanged(enabled: boolean) {
+  setPersonalLocalFileSyncEnabled(enabled);
   cachedConsent = enabled;
   cachedConsentCheckedAt = Date.now();
   managedFolderConsentRevision += 1;
@@ -308,7 +315,7 @@ async function syncManagedFolderEventsOnce(localFolderId?: string) {
             lastFileEventSyncedCount: drained.syncedCount,
             lastErrorMessage: drained.errorMessage,
             lastStatus: managedFolderDrainStatus(drained),
-            lastSuccessAt: drained.failedCount > 0 ? undefined : new Date().toISOString(),
+            lastSuccessAt: drained.failedCount > 0 || drained.waiting ? undefined : new Date().toISOString(),
             lastSyncedFolderId: null,
           });
           continue;
@@ -328,7 +335,7 @@ async function syncManagedFolderEventsOnce(localFolderId?: string) {
           lastFileEventSyncedCount: drained.syncedCount,
           lastErrorMessage: drained.errorMessage,
           lastStatus: managedFolderDrainStatus(drained),
-          lastSuccessAt: drained.failedCount > 0 ? undefined : new Date().toISOString(),
+          lastSuccessAt: drained.failedCount > 0 || drained.waiting ? undefined : new Date().toISOString(),
           lastSyncedFolderId: folderId,
         });
       }
@@ -373,20 +380,26 @@ async function syncManagedFolderEventsOnce(localFolderId?: string) {
 // 실패는 조용히 넘어간다 — 다음 60초 틱에서 자연히 재시도되고, 조정이 늦어도 데이터가 깨지지는 않는다.
 async function reconcileLocalIndexWithServerResources() {
   try {
+    const ownerId = getStoredAuthSession()?.user?.id;
+    if (!ownerId) return;
+    const context = await tauriCommands.getLocalFileSyncContext({ ownerId });
     // 1) 서버 개인 자료 id 집합을 페이지 단위로 모은다(상한 50페이지).
     const resourceIds: string[] = [];
+    let complete = false;
     for (let page = 0; page < SERVER_RESOURCE_RECONCILE_MAX_PAGES; page += 1) {
       const response = await resourcesApi.listPersonalPage(page, SERVER_RESOURCE_RECONCILE_PAGE_SIZE);
       for (const resource of response.items) {
         resourceIds.push(resource.id);
       }
       if (!response.hasNext) {
+        complete = true;
         break;
       }
     }
 
     // 2) 이 집합에 없는 resource_id를 가진 로컬 인덱스 행을 LOCAL_ONLY로 되돌린다.
-    const result = await tauriCommands.reconcileLocalFilesWithServer({ resourceIds });
+    if (!complete) return;
+    const result = await tauriCommands.reconcileLocalFilesWithServer({ resourceIds, complete: true, context });
     if (result.resetCount > 0) {
       // 서버에서 지워진 자료의 연결이 풀렸으니 자료 화면(웹/메인 창)이 재조회하도록 알린다.
       notifyDataChanged("resource");
@@ -433,6 +446,7 @@ async function drainPersonalLocalFileEvents(input: {
       return summary;
     }
 
+    summary.waiting ||= Boolean(result.data.deferred);
     summary.analysisFailedCount += result.data.analysisFailedCount;
     summary.analysisRequestedCount += result.data.analysisRequestedCount;
     summary.failedCount += result.data.failedCount;
@@ -440,7 +454,11 @@ async function drainPersonalLocalFileEvents(input: {
     summary.skippedCount += result.data.skippedCount;
     summary.syncedCount += result.data.syncedCount;
 
-    if (result.data.sentCount < LOCAL_FILE_EVENT_SYNC_BATCH_LIMIT) {
+    if (
+      result.data.sentCount === 0 ||
+      result.data.failedCount > 0 ||
+      result.data.syncedCount + result.data.skippedCount === 0
+    ) {
       return summary;
     }
   }
@@ -451,6 +469,7 @@ async function drainPersonalLocalFileEvents(input: {
 async function ensureManagedFolderRuntimeConsent() {
   const consentGranted = await readManagedFolderConsent();
   if (!consentGranted) {
+    setPersonalLocalFileSyncEnabled(false);
     detachManagedFolderWatchListener();
     await tauriCommands.unwatchAllManagedFolders().catch(() => undefined);
     return false;

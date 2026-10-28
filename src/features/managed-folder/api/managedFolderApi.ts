@@ -1,4 +1,4 @@
-import { apiRequest } from "@/lib/api/client";
+import { apiRequest, type ApiRequestOptions } from "@/lib/api/client";
 import type {
   LocalFileEventSyncRequest,
   LocalFileSyncResponse,
@@ -9,10 +9,11 @@ import type {
 // personal library. Personal files are never auto-shared into a project room,
 // and there is no resource restore endpoint (delete is permanent).
 export const managedFolderApi = {
-  syncApprovedLocalFileEvents(body: LocalFileEventSyncRequest) {
+  syncApprovedLocalFileEvents(body: LocalFileEventSyncRequest, options?: Pick<ApiRequestOptions, "expectedUserId" | "signal">) {
     return apiRequest<LocalFileSyncResponse>("/api/local-file-events/sync", {
       body,
       method: "POST",
+      ...options,
     });
   },
 } as const;

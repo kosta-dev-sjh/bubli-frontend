@@ -32,6 +32,9 @@ export const TAURI_COMMANDS = {
   flushSyncOutbox: "flush_sync_outbox",
   getAuthenticatedSurfacesEnabled: "get_authenticated_surfaces_enabled",
   getIndexProgress: "get_index_progress",
+  getLocalFileSyncContext: "get_local_file_sync_context",
+  renewLocalFileSyncLease: "renew_local_file_sync_lease",
+  releaseLocalFileSyncLease: "release_local_file_sync_lease",
   getLocalFileAnalysisStatus: "get_local_file_analysis_status",
   getOrCreateWidgetUsageDeviceId: "get_or_create_widget_usage_device_id",
   getPreferredAppMonitor: "get_preferred_app_monitor",
@@ -322,9 +325,13 @@ export type LocalFileReindexResult = {
 };
 
 export type LocalFileEventsSyncStageInput = {
+  context: LocalFileSyncContext;
   limit?: number;
   localFolderId?: string;
 };
+
+export type LocalFileSyncContext = { ownerId: string; epoch: string };
+export type LocalFileSyncLease = { context: LocalFileSyncContext; token: string; expiresAt: number };
 
 export type LocalFileSyncEventCandidate = {
   eventType: "CREATED" | "UPDATED" | "DELETED";
@@ -334,20 +341,27 @@ export type LocalFileSyncEventCandidate = {
   localFileId?: string | null;
   mimeType?: string | null;
   resourceId?: string | null;
+  syncDeviceId: string;
+  localSequence: number;
 };
 
 export type LocalFileEventsSyncStageResult = {
   events: LocalFileSyncEventCandidate[];
   stagedAt: string;
+  lease?: LocalFileSyncLease;
+  busy: boolean;
 };
 
 export type LocalFileEventSyncResultInput = {
   localEventId: string;
   resourceId?: string | null;
   status: string;
+  reason?: string | null;
+  nextRetryAt?: number | null;
 };
 
 export type LocalFileEventsMarkSyncedInput = {
+  lease: LocalFileSyncLease;
   results: LocalFileEventSyncResultInput[];
 };
 
@@ -359,7 +373,9 @@ export type LocalFileEventsMarkSyncedResult = {
 
 // 서버→앱 방향 조정 입력: 서버에 지금 존재하는 개인 자료 id 집합.
 export type LocalFilesServerReconcileInput = {
+  context: LocalFileSyncContext;
   resourceIds: string[];
+  complete: boolean;
 };
 
 export type LocalFilesServerReconcileResult = {
@@ -955,6 +971,18 @@ export type TimerStateRecordResult = {
 };
 
 export type TauriCommandContract = {
+  get_local_file_sync_context: {
+    args: { ownerId: string };
+    result: LocalFileSyncContext;
+  };
+  renew_local_file_sync_lease: {
+    args: LocalFileSyncLease;
+    result: LocalFileSyncLease;
+  };
+  release_local_file_sync_lease: {
+    args: LocalFileSyncLease;
+    result: void;
+  };
   app_ready: {
     args: AppReadyInput | undefined;
     result: string;
@@ -1357,6 +1385,15 @@ export async function waitForPendingWidgetUsageEventRecords() {
 }
 
 export const tauriCommands = {
+  getLocalFileSyncContext(input: { ownerId: string }) {
+    return invokeTauri<LocalFileSyncContext>(TAURI_COMMANDS.getLocalFileSyncContext, { input });
+  },
+  renewLocalFileSyncLease(input: LocalFileSyncLease) {
+    return invokeTauri<LocalFileSyncLease>(TAURI_COMMANDS.renewLocalFileSyncLease, { input });
+  },
+  releaseLocalFileSyncLease(input: LocalFileSyncLease) {
+    return invokeTauri<void>(TAURI_COMMANDS.releaseLocalFileSyncLease, { input });
+  },
   appReady(input?: AppReadyInput) {
     return invokeTauri<string>(TAURI_COMMANDS.appReady, input ? { input } : undefined);
   },

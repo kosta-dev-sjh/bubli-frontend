@@ -1,5 +1,7 @@
 "use client";
 
+import { inspectFileSyncQaBatch } from "@/lib/tauri/file-sync-qa";
+
 import { authApi } from "@/features/auth/api/authApi";
 import { resourcesApi } from "@/features/resources/api/resourcesApi";
 import { settingsApi } from "@/features/settings/api/settingsApi";
@@ -502,7 +504,7 @@ async function stageQaLocalFileEventsUntil(
   localFolderId: string,
   isReady: (stage: LocalFileEventsSyncStageResult) => boolean,
 ) {
-  let latestStage = await tauriCommands.stageLocalFileEventsForSync({
+  let latestStage = await inspectFileSyncQaBatch({
     limit: 20,
     localFolderId,
   });
@@ -512,7 +514,7 @@ async function stageQaLocalFileEventsUntil(
 
   for (let attempt = 0; attempt < 20; attempt += 1) {
     await waitForMs(250);
-    latestStage = await tauriCommands.stageLocalFileEventsForSync({
+    latestStage = await inspectFileSyncQaBatch({
       limit: 20,
       localFolderId,
     });
@@ -802,7 +804,7 @@ async function runRealOAuthLocalFileProbe(
       });
     }
 
-    const remainingEvents = await tauriCommands.stageLocalFileEventsForSync({
+    const remainingEvents = await inspectFileSyncQaBatch({
       limit: 20,
       localFolderId: folder.localFolderId,
     });

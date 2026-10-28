@@ -19,6 +19,9 @@ import {
   unavailable,
 } from "@/lib/local/adapter-result";
 import { translate } from "@/lib/i18n/translate";
+import { ApiClientError } from "@/lib/api/errors";
+import { getApiTimeoutMs } from "@/lib/api/client";
+import { getStoredAuthSession } from "@/lib/auth/auth-session";
 import type {
   LocalAdapterResult,
   LocalFileKeySentenceAdapterInput,
@@ -44,6 +47,7 @@ import type {
 import type { LocalFileAnalysisResponse } from "@/types/api/localFileAnalysis";
 
 export type PersonalLocalFileEventsSyncResult = {
+  deferred?: boolean;
   analysisFailedCount: number;
   analysisRequestedCount: number;
   analysisSkippedCount: number;
@@ -54,6 +58,29 @@ export type PersonalLocalFileEventsSyncResult = {
   syncedCount: number;
   syncedResourceIds: string[];
 };
+
+type PersonalLocalFileSyncInput = {
+  consentGranted?: boolean;
+  limit?: number;
+  localFolderId?: string;
+  roomId?: string | null;
+};
+
+// SQLite owns the cross-window lease; this tail only coalesces this context's calls.
+let personalFileSyncTail: Promise<void> = Promise.resolve();
+let personalFileSyncEnabled = true;
+let personalFileSyncGeneration = 0;
+const pendingPersonalFileSyncs = new Map<
+  string,
+  Promise<LocalAdapterResult<PersonalLocalFileEventsSyncResult>>
+>();
+
+export function setPersonalLocalFileSyncEnabled(enabled: boolean) {
+  if (personalFileSyncEnabled === enabled) return;
+  personalFileSyncEnabled = enabled;
+  personalFileSyncGeneration += 1;
+  pendingPersonalFileSyncs.clear();
+}
 
 export type PersonalLocalFileAnalysisBackfillResult = {
   attemptedCount: number;
@@ -74,6 +101,7 @@ export type PersonalLocalFileAnalysisResult = {
 
 type PersonalLocalFileAnalysisInput = LocalFileKeySentenceAdapterInput & {
   resourceId: string;
+  expectedOwnerId?: string;
 };
 
 type PersonalLocalFileByResourceInput = {
@@ -468,6 +496,11 @@ export async function analyzePersonalLocalFileWithKeySentences(
     return localFolderConsentBlocked(commandName);
   }
 
+  const expectedOwnerId = input.expectedOwnerId ?? getStoredAuthSession()?.user?.id;
+  if (!expectedOwnerId || getStoredAuthSession()?.user?.id !== expectedOwnerId) {
+    return failed("File analysis account changed", commandName);
+  }
+
   const extractionResult = await runTauriAdapter(commandName, () =>
     tauriCommands.extractLocalFileKeySentences({
       localFileId: input.localFileId,
@@ -506,7 +539,7 @@ export async function analyzePersonalLocalFileWithKeySentences(
       resourceId: input.resourceId,
       sourceCharCount: extraction.sourceCharCount,
       textTruncated: extraction.truncated,
-    });
+    }, { expectedUserId: expectedOwnerId });
     const markResult = await markPersonalLocalFileAnalysis({
       checksum: extraction.checksum,
       errorMessage: null,
@@ -584,12 +617,9 @@ export async function reindexPersonalLocalFile(
   );
 }
 
-export async function syncPersonalLocalFileEventsToServer(input?: {
-  consentGranted?: boolean;
-  limit?: number;
-  localFolderId?: string;
-  roomId?: string | null;
-}): Promise<LocalAdapterResult<PersonalLocalFileEventsSyncResult>> {
+export async function syncPersonalLocalFileEventsToServer(
+  input?: PersonalLocalFileSyncInput,
+): Promise<LocalAdapterResult<PersonalLocalFileEventsSyncResult>> {
   const commandName = TAURI_COMMANDS.stageLocalFileEventsForSync;
 
   if (!isTauriRuntime()) {
@@ -600,22 +630,52 @@ export async function syncPersonalLocalFileEventsToServer(input?: {
     return blocked("personal_scope_only", personalScopeMessage(), commandName);
   }
 
-  if (!input?.consentGranted) {
+  if (!input?.consentGranted || !personalFileSyncEnabled) {
     return localFolderConsentBlocked(commandName);
   }
 
-  const tauriInput = input
-    ? {
+  const ownerId = getStoredAuthSession()?.user?.id;
+  if (!ownerId) return failed("File sync requires an authenticated account", commandName);
+  const key = JSON.stringify([ownerId, input.localFolderId ?? null, input.limit ?? null]);
+  const pending = pendingPersonalFileSyncs.get(key);
+  if (pending) return pending;
+
+  const snapshot = { ...input };
+  const generation = personalFileSyncGeneration;
+  const request: Promise<LocalAdapterResult<PersonalLocalFileEventsSyncResult>> = personalFileSyncTail.then(() => {
+    if (pendingPersonalFileSyncs.get(key) === request) pendingPersonalFileSyncs.delete(key);
+    if (generation !== personalFileSyncGeneration) {
+      return failed(translate("local.folder.syncCancelled"), commandName);
+    }
+    return syncPersonalLocalFileEventsOnce(snapshot, generation, ownerId);
+  });
+  pendingPersonalFileSyncs.set(key, request);
+  personalFileSyncTail = request.then(() => undefined, () => undefined);
+  return request;
+}
+
+async function syncPersonalLocalFileEventsOnce(
+  input: PersonalLocalFileSyncInput,
+  generation: number,
+  ownerId: string,
+): Promise<LocalAdapterResult<PersonalLocalFileEventsSyncResult>> {
+  const commandName = TAURI_COMMANDS.stageLocalFileEventsForSync;
+  const staged = await runTauriAdapter(commandName, async () => {
+    const context = await tauriCommands.getLocalFileSyncContext({ ownerId });
+    return tauriCommands.stageLocalFileEventsForSync({
+        context,
         limit: input.limit,
         localFolderId: input.localFolderId,
-      }
-    : undefined;
-  const staged = await runTauriAdapter(commandName, () =>
-    tauriCommands.stageLocalFileEventsForSync(tauriInput),
-  );
+    });
+  });
 
   if (staged.status !== "ready") {
     return staged;
+  }
+
+  if (generation !== personalFileSyncGeneration) {
+    if (staged.data.lease) await tauriCommands.releaseLocalFileSyncLease(staged.data.lease).catch(() => undefined);
+    return failed(translate("local.folder.syncCancelled"), commandName);
   }
 
   if (staged.data.events.length === 0) {
@@ -630,14 +690,31 @@ export async function syncPersonalLocalFileEventsToServer(input?: {
         syncedAt: staged.data.stagedAt,
         syncedCount: 0,
         syncedResourceIds: [],
+        deferred: staged.data.busy,
       },
       commandName,
       translate("local.folder.noChanges"),
     );
   }
 
+  let lease = staged.data.lease;
+  if (!lease || lease.context.ownerId !== ownerId) return failed("Missing file sync sender lease", commandName);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), getApiTimeoutMs());
+  let renewing = false;
+  const renewal = window.setInterval(async () => {
+    if (renewing) return;
+    renewing = true;
+    try { lease = await tauriCommands.renewLocalFileSyncLease(lease!); }
+    catch { controller.abort(); }
+    finally { renewing = false; }
+  }, 20_000);
   try {
-    const response = await managedFolderApi.syncApprovedLocalFileEvents({
+    const eventsById = new Map(staged.data.events.map(event => [event.localEventId, event]));
+    if (eventsById.size !== staged.data.events.length || staged.data.events.some(event => !event.localEventId?.trim())) {
+      throw new Error("Invalid staged change IDs");
+    }
+    const response = await sendLocalFileEventBatch({
       events: staged.data.events.map((event) => ({
         eventType: event.eventType,
         fileName: event.fileName,
@@ -645,24 +722,50 @@ export async function syncPersonalLocalFileEventsToServer(input?: {
         localEventId: event.localEventId,
         mimeType: event.mimeType,
         resourceId: event.resourceId,
+        syncDeviceId: event.syncDeviceId,
+        localSequence: event.localSequence,
       })),
+    }, { expectedUserId: ownerId, signal: controller.signal });
+    if (!Array.isArray(response?.results) || response.results.length !== staged.data.events.length) {
+      throw new Error("Incomplete sync response");
+    }
+    const seen = new Set<string>();
+    const pairedResults = response.results.map(result => {
+      const id = result?.localEventId;
+      const localEvent = typeof id === "string" ? eventsById.get(id) : undefined;
+      if (!id || !localEvent || seen.has(id) || result.eventType !== localEvent.eventType) {
+        throw new Error("Sync response change ID or event type does not match the request");
+      }
+      seen.add(id);
+      if (!["PROCESSING", "SYNCED", "SUPERSEDED", "SKIPPED", "FAILED"].includes(result.status)
+        || (result.status === "SKIPPED" && localEvent.eventType !== "DELETED")
+        || (result.status === "SUPERSEDED" && localEvent.eventType !== "UPDATED")
+        || (result.retryable != null && typeof result.retryable !== "boolean")
+        || (result.errorCode != null && typeof result.errorCode !== "string")
+        || (result.resourceId != null && (typeof result.resourceId !== "string" || !result.resourceId.trim()))
+        || (["SYNCED", "SUPERSEDED"].includes(result.status) && localEvent.eventType !== "DELETED" && !result.resourceId)) {
+        throw new Error("Invalid sync response status or resource ID");
+      }
+      return { localEvent, syncResult: result, localEventId: id };
     });
-    const markResults = response.results
-      .map((result, index) => {
-        const localEventId = result.localEventId ?? staged.data.events[index]?.localEventId;
-        if (!localEventId) return null;
-
-        return {
-          localEventId,
-          resourceId: result.resourceId,
-          status: result.status,
-        };
-      })
-      .filter((result): result is NonNullable<typeof result> => result !== null);
+    const markResults = pairedResults.map(({syncResult, localEventId}) => ({
+      localEventId,
+      resourceId: syncResult.resourceId,
+      status: syncResult.status === "FAILED" && syncResult.retryable === false ? "REJECTED" : syncResult.status,
+      reason: syncResult.errorCode ?? null,
+      nextRetryAt: syncResult.status === "PROCESSING" || (syncResult.status === "FAILED" && syncResult.retryable !== false)
+        ? Date.now() + 1000 + Math.floor(Math.random() * 1000) : null,
+    }));
     const markResult = await tauriCommands.markLocalFileEventsSynced({
+      lease,
       results: markResults,
     });
-    const skippedCount = response.results.filter((result) => result.status === "SKIPPED").length;
+    window.clearInterval(renewal);
+    clearTimeout(timeout);
+    await tauriCommands.releaseLocalFileSyncLease(lease);
+    const skippedCount = response.results.filter(
+      (result) => result.status === "SKIPPED" || result.status === "SUPERSEDED",
+    ).length;
     const syncedResourceIds = [
       ...new Set(
         response.results
@@ -670,11 +773,7 @@ export async function syncPersonalLocalFileEventsToServer(input?: {
           .map((result) => result.resourceId as string),
       ),
     ];
-    const syncedAnalysisEvents = response.results
-      .map((result, index) => ({
-        localEvent: staged.data.events[index],
-        syncResult: result,
-      }))
+    const syncedAnalysisEvents = pairedResults
       .filter(({ localEvent, syncResult }) => {
         return (
           localEvent !== undefined &&
@@ -693,6 +792,7 @@ export async function syncPersonalLocalFileEventsToServer(input?: {
     const analysisResults = await Promise.allSettled(
       analysisCandidates.map(({ localEvent, syncResult }) =>
         analyzePersonalLocalFileWithKeySentences({
+          expectedOwnerId: ownerId,
           consentGranted: input.consentGranted,
           localFileId: localEvent.localFileId ?? "",
           resourceId: syncResult.resourceId ?? "",
@@ -720,18 +820,23 @@ export async function syncPersonalLocalFileEventsToServer(input?: {
     return ready(
       syncResult,
       commandName,
-      analysisFailedCount > 0
-        ? `로컬 파일 변경 ${response.results.length}건을 서버에 반영했고, 중요 문장 분석 요청 ${analysisRequestedCount}건을 전달했습니다. ${analysisSkippedCount}건은 지원하지 않는 파일이라 건너뛰었고, ${analysisFailedCount}건은 실패했습니다.`
-        : `로컬 파일 변경 ${response.results.length}건을 서버에 반영했고, 중요 문장 분석 요청 ${analysisRequestedCount}건을 전달했습니다. ${analysisSkippedCount}건은 지원하지 않는 파일이라 건너뛰었습니다.`,
+      `동기화 응답 ${response.results.length}건: 완료 ${markResult.syncedCount}건, 실패 ${markResult.failedCount}건, 처리 중 ${response.results.filter(result => result.status === "PROCESSING").length}건.`,
     );
   } catch (error) {
     const syncErrorMessage = getErrorMessage(error);
+    const permanent = error instanceof ApiClientError && [400, 404, 409, 413, 415, 422].includes(error.status);
+    const delay = error instanceof ApiClientError && [401, 403].includes(error.status) ? 60_000
+      : error instanceof ApiClientError ? Math.min(error.retryAfterMs ?? 1000, Number.MAX_SAFE_INTEGER - Date.now() - 1000) : 1000;
+    const nextRetryAt = permanent ? null : Date.now() + delay + Math.floor(Math.random() * 1000);
     try {
       await tauriCommands.markLocalFileEventsSynced({
+        lease,
         results: staged.data.events.map((event) => ({
           localEventId: event.localEventId,
           resourceId: event.resourceId,
-          status: "FAILED",
+          status: permanent ? "REJECTED" : "FAILED",
+          reason: syncErrorMessage,
+          nextRetryAt,
         })),
       });
     } catch (markError) {
@@ -739,6 +844,33 @@ export async function syncPersonalLocalFileEventsToServer(input?: {
     }
 
     return failed(syncErrorMessage, commandName);
+  } finally {
+    window.clearInterval(renewal);
+    clearTimeout(timeout);
+    await tauriCommands.releaseLocalFileSyncLease(lease).catch(() => undefined);
+  }
+}
+
+async function sendLocalFileEventBatch(input: Parameters<typeof managedFolderApi.syncApprovedLocalFileEvents>[0], options: Parameters<typeof managedFolderApi.syncApprovedLocalFileEvents>[1]): ReturnType<typeof managedFolderApi.syncApprovedLocalFileEvents> {
+  if (input.events.length > 100) {
+    const first = await sendLocalFileEventBatch({ events: input.events.slice(0, 100) }, options);
+    const second = await sendLocalFileEventBatch({ events: input.events.slice(100) }, options);
+    return { results: [...first.results, ...second.results] };
+  }
+  try {
+    return await managedFolderApi.syncApprovedLocalFileEvents(input, options);
+  } catch (error) {
+    if (error instanceof ApiClientError && error.status === 413 && input.events.length > 1) {
+      const middle = Math.ceil(input.events.length / 2);
+      const first = await sendLocalFileEventBatch({ events: input.events.slice(0, middle) }, options);
+      const second = await sendLocalFileEventBatch({ events: input.events.slice(middle) }, options);
+      return { results: [...first.results, ...second.results] };
+    }
+    if (error instanceof ApiClientError && [400, 404, 409, 413, 415, 422].includes(error.status)) {
+      return { results: input.events.map(event => ({ eventType: event.eventType, localEventId: event.localEventId,
+        resourceId: event.resourceId ?? null, status: "FAILED", errorCode: `HTTP_${error.status}`, retryable: false })) };
+    }
+    throw error;
   }
 }
 

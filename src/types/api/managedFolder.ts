@@ -37,6 +37,8 @@ export type LocalFileEventSyncRequest = {
     localEventId: string;
     mimeType?: string | null;
     resourceId?: string | null;
+    syncDeviceId: string;
+    localSequence: number;
   }>;
 };
 
@@ -50,6 +52,8 @@ export type LocalFileSyncResponse = {
     localEventId?: string | null;
     resourceId?: string | null;
     status: "SYNCED" | "SKIPPED" | "FAILED" | string;
+    errorCode?: string | null;
+    retryable?: boolean | null;
   }>;
 };
 
